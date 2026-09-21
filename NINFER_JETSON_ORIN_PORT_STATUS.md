@@ -15,7 +15,7 @@ and detailed inventory remain in [the port plan](NINFER_JETSON_ORIN_PORT_PLAN.md
 | 1 — CUDA 12.6 compatibility | E2M1 decode backported and exactly qualified; complete CUDA 12.6/SM86 build passed. | Commit/document the floor change, preserve newer-toolkit support, and run the focused SM87-native checks. |
 | 2 — Native aarch64 build | Native dependency setup, full aarch64 compilation, application help checks and focused runtime tests passed. | Keep the local dependency runtime path documented; no CPU portability fix has been needed. |
 | 3 — SM87 correctness | Explicit architecture 87 configuration is enabled. The full native SM87 build passed 480/480 compile/link steps; device, CUDA Graph, E2M1 codec, GDN projection, real Qwen3.8-27B prefix integration and short CLI/MTP generation tests pass on Orin. | Broader operator coverage, repeated decode stability and performance baseline. |
-| 4 — Orin performance baseline | Initial controlled C1 text sample recorded with BF16 KV: MTP off 7.71 decode tok/s; MTP draft-2 12.86 decode tok/s. | Repeat across draft depths 3/4 and controlled power/clock settings before publishing a baseline. |
+| 4 — Orin performance baseline | Initial controlled C1 text sample recorded with BF16 KV: MTP off 7.71, draft-2 12.86, draft-3 16.06 and draft-4 13.67 decode tok/s. Draft-3 is the current candidate. | Repeat with controlled power/clock settings and a larger workload before publishing a baseline. |
 | 5 — SM87 schedule tuning | Not started. | Profile and tune only after correctness and baseline measurements. |
 | 6 — Memory experiments | Not started. | Compare selected allocation classes against the existing device-allocation control. |
 | 7 — Capacity/context tuning | Not started. | Establish system-memory headroom and qualified BF16/INT8 KV context limits. |
@@ -126,6 +126,12 @@ experiments and schedule optimization remain later, separately verified phases.
   (2.58 accepted tokens/round). Weight materialization was 8.9–9.1 seconds and
   used 15.92–16.67 GiB. These are one-device smoke measurements, not a published
   performance claim; power mode and clocks were not fixed.
+- The same sample at draft-3 measured 36.01 prefill tok/s, 16.06 decode tok/s,
+  12.46 overall tok/s and 88.00% acceptance (3.44 accepted tokens/round), with
+  no fallback steps. Draft-4 measured 35.62 prefill tok/s, 13.67 decode tok/s,
+  10.98 overall tok/s and 68.75% acceptance, with one fallback step. The
+  observed draft-3 advantage is a workload sample, not enough evidence to change
+  a product default.
 
 ## Artifact acquisition milestone
 
