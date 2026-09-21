@@ -14,7 +14,7 @@ and detailed inventory remain in [the port plan](NINFER_JETSON_ORIN_PORT_PLAN.md
 | 0 — Baseline and inventory | Source inventory complete; inherited SM86 behavior documented. | No fresh SM86 runtime baseline was established. Published validation is the baseline evidence currently available. |
 | 1 — CUDA 12.6 compatibility | E2M1 decode backported and exactly qualified; complete CUDA 12.6/SM86 build passed. | Commit/document the floor change, preserve newer-toolkit support, and run the focused SM87-native checks. |
 | 2 — Native aarch64 build | Native dependency setup, full aarch64 compilation, application help checks and focused runtime tests passed. | Keep the local dependency runtime path documented; no CPU portability fix has been needed. |
-| 3 — SM87 correctness | Explicit architecture 87 configuration is enabled. Native SM87 device, CUDA Graph and exhaustive E2M1 decoder tests pass on Orin. Orin reports 16 SMs, 167,936 bytes shared memory/SM and 65,536 registers/SM. | Full SM87 build, operator qualification, GDN residency adaptation and compatible `.ninfer` model gates. |
+| 3 — SM87 correctness | Explicit architecture 87 configuration is enabled. The full native SM87 build passed 480/480 compile/link steps; device, CUDA Graph, E2M1 codec and GDN projection correctness tests pass on Orin. | Broader operator/model qualification and compatible `.ninfer` model execution. |
 | 4 — Orin performance baseline | Not started. | Measure the qualified explicit-device-memory implementation, including MTP off/2/3/4 and power/clock context. |
 | 5 — SM87 schedule tuning | Not started. | Profile and tune only after correctness and baseline measurements. |
 | 6 — Memory experiments | Not started. | Compare selected allocation classes against the existing device-allocation control. |
@@ -97,8 +97,13 @@ experiments and schedule optimization remain later, separately verified phases.
   including signed zero. This is native SM87 evidence; it does not qualify the
   complete model schedule.
 - The full SM87 project build and GDN cooperative-residency qualification remain
-  open. Existing planner catalogs were measured for 82–84-SM desktop GPUs;
-  Orin's 16-SM resource budget must be qualified before those schedules launch.
+  open. Existing planner catalogs were measured for 82–84-SM desktop GPUs. The
+  planner now treats those boundaries as candidates and falls back to unsplit
+  MMA when Orin's 16-SM resource budget cannot hold a cooperative grid.
+- After that change, `ninfer_gdn_gating_proj_test` passed on native SM87,
+  covering 27B/35B route boundaries, norm/control paths, independent numerical
+  oracles and workspace contracts. This qualifies the planner fallback and
+  operator behavior for its tested shapes; it is not yet model execution.
 
 ## Artifact acquisition milestone
 
@@ -109,8 +114,16 @@ experiments and schedule optimization remain later, separately verified phases.
   before model loading.
 - The source was selected by the exact documented model identity,
   `neroued/Qwen3.8-27B-NInfer/qwen3_8_27b.ninfer`, rather than by filename or
-  modification time. The GGUF files under `~/models` remain reference material
-  for llama.cpp only and are not passed to NInfer.
+  modification time. The current `main` artifact is 20,437,521,664 bytes with
+  SHA-256 `81f924d440c27261d820c19a9f8d45794c5aee410f8a68bd358133fa8c0375da`,
+  while this checkout's pinned v1 manifest expects 18,210,531,328 bytes and
+  SHA-256 `eec39564993d6e9c7d5e383382a760f093465c9d163ec9a1bd6b80199514bf3e`.
+  The current main artifact is container v3 and is not accepted as the pinned
+  runtime artifact. The matching historical revision
+  `3526913004b1cf552cb57b88d6a5c6f5e4a89a70` is now downloading into
+  `/home/calvin/models/qwen3_8_27b_v1`; it will be checksum-verified before use.
+  The GGUF files under `~/models` remain reference material for llama.cpp only
+  and are not passed to NInfer.
 
 ## Resumed Phase 1 milestone — exact E2M1 decode
 
@@ -166,4 +179,4 @@ experiments and schedule optimization remain later, separately verified phases.
   artifacts. A compatible Qwen3.8-27B groupwise artifact is now being downloaded
   to `/home/calvin/models/qwen3_8_27b.ninfer` from the documented
   `neroued/Qwen3.8-27B-NInfer` repository. Real-model gates remain pending the
-  completed download, checksum and native SM87 build.
+  completed checksum and native SM87 build.
