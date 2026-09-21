@@ -14,7 +14,7 @@ and detailed inventory remain in [the port plan](NINFER_JETSON_ORIN_PORT_PLAN.md
 | 0 — Baseline and inventory | Source inventory complete; inherited SM86 behavior documented. | No fresh SM86 runtime baseline was established. Published validation is the baseline evidence currently available. |
 | 1 — CUDA 12.6 compatibility | E2M1 decode backported and exactly qualified; complete CUDA 12.6/SM86 build passed. | Commit/document the floor change, preserve newer-toolkit support, and run the focused SM87-native checks. |
 | 2 — Native aarch64 build | Native dependency setup, full aarch64 compilation, application help checks and focused runtime tests passed. | Keep the local dependency runtime path documented; no CPU portability fix has been needed. |
-| 3 — SM87 correctness | Not started. Architecture 87 is still rejected. Orin reports SM87, 16 SMs, 167,936 bytes shared memory/SM and 65,536 registers/SM. | Explicit architecture support, capability/residency review, operator qualification and compatible `.ninfer` model gates. |
+| 3 — SM87 correctness | Explicit architecture 87 configuration is enabled. Native SM87 device, CUDA Graph and exhaustive E2M1 decoder tests pass on Orin. Orin reports 16 SMs, 167,936 bytes shared memory/SM and 65,536 registers/SM. | Full SM87 build, operator qualification, GDN residency adaptation and compatible `.ninfer` model gates. |
 | 4 — Orin performance baseline | Not started. | Measure the qualified explicit-device-memory implementation, including MTP off/2/3/4 and power/clock context. |
 | 5 — SM87 schedule tuning | Not started. | Profile and tune only after correctness and baseline measurements. |
 | 6 — Memory experiments | Not started. | Compare selected allocation classes against the existing device-allocation control. |
@@ -84,6 +84,22 @@ These checks corroborated the saved stopping point. Subsequent work is recorded 
 Keep explicit device allocation as the initial execution model. Memory-policy
 experiments and schedule optimization remain later, separately verified phases.
 
+## Resumed Phase 3 milestone — native SM87 compilation path
+
+- CMake now accepts `CMAKE_CUDA_ARCHITECTURES=87` alongside the existing 86 and
+  89 targets. The existing `NINFER_SM8X_COMPAT` capability path is enabled for
+  SM87 as well, preserving the explicit rejection of Blackwell-only FP8/FP4
+  tensor-core routes while retaining A16 decode and supported Ampere kernels.
+- CUDA 12.6 native SM87 configuration completed on Orin's aarch64 environment.
+  The focused native build produced device, CUDA Graph and NVFP4 codec tests.
+- `ctest -R '^ninfer_(nvfp4_codec|device|decode_graph)_test$'` passed 3/3 on
+  Orin. The codec comparison covers all 256 packed E2M1 bytes bit-for-bit,
+  including signed zero. This is native SM87 evidence; it does not qualify the
+  complete model schedule.
+- The full SM87 project build and GDN cooperative-residency qualification remain
+  open. Existing planner catalogs were measured for 82–84-SM desktop GPUs;
+  Orin's 16-SM resource budget must be qualified before those schedules launch.
+
 ## Resumed Phase 1 milestone — exact E2M1 decode
 
 - Replaced the CUDA FP4 type conversion with direct exact FP32 bit construction.
@@ -135,6 +151,7 @@ experiments and schedule optimization remain later, separately verified phases.
   `Qwen3.6-35B-A3B-MTP-GGUF/Qwen3.6-35B-A3B-UD-IQ4_NL.gguf`
   (18,536,192,288 bytes). No `.ninfer` artifact is present under `~/models`.
   These GGUF files are not interchangeable with NInfer's registered `.ninfer`
-  artifacts, so real NInfer model loading, generation, MTP and performance gates
-  remain pending a compatible `.ninfer` file. No model download or conversion was
-  initiated.
+  artifacts. A compatible Qwen3.8-27B groupwise artifact is now being downloaded
+  to `/home/calvin/models/qwen3_8_27b.ninfer` from the documented
+  `neroued/Qwen3.8-27B-NInfer` repository. Real-model gates remain pending the
+  completed download, checksum and native SM87 build.

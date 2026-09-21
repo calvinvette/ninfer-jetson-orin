@@ -1,14 +1,14 @@
 cmake_minimum_required(VERSION 3.28)
 
-# The current implementation supports Ampere sm_86 and early Ada sm_89. Set and validate the
+# The current implementation supports Ampere sm_86/sm_87 and early Ada sm_89. Set and validate the
 # architecture before CUDA compiler detection so CMake never injects a generic
 # host-toolchain default or accepts an unsupported target.
 if(NOT DEFINED CMAKE_CUDA_ARCHITECTURES)
   set(CMAKE_CUDA_ARCHITECTURES 86 CACHE STRING "CUDA architectures to build")
 endif()
-if(NOT CMAKE_CUDA_ARCHITECTURES MATCHES "^(86|89)$")
+if(NOT CMAKE_CUDA_ARCHITECTURES MATCHES "^(86|87|89)$")
   message(FATAL_ERROR
-    "NInfer supports CMAKE_CUDA_ARCHITECTURES=86 or 89; got "
+    "NInfer supports CMAKE_CUDA_ARCHITECTURES=86, 87 or 89; got "
     "'${CMAKE_CUDA_ARCHITECTURES}'")
 endif()
 
@@ -18,7 +18,7 @@ project(ninfer LANGUAGES C CXX CUDA)
 # PUBLIC for its own consumers, but that link is PRIVATE through ninfer_engine, so apps and tests
 # would not otherwise see it. Defining it globally keeps a single consistent answer for every
 # target, including apps/ninfer-perplexity, whose upstream default KV profile is FP8.
-if(CMAKE_CUDA_ARCHITECTURES MATCHES "^(86|89)$")
+if(CMAKE_CUDA_ARCHITECTURES MATCHES "^(86|87|89)$")
   add_compile_definitions(NINFER_SM8X_COMPAT=1)
 endif()
 
