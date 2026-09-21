@@ -15,7 +15,7 @@ and detailed inventory remain in [the port plan](NINFER_JETSON_ORIN_PORT_PLAN.md
 | 1 — CUDA 12.6 compatibility | E2M1 decode backported and exactly qualified; complete CUDA 12.6/SM86 build passed. | Commit/document the floor change, preserve newer-toolkit support, and run the focused SM87-native checks. |
 | 2 — Native aarch64 build | Native dependency setup, full aarch64 compilation, application help checks and focused runtime tests passed. | Keep the local dependency runtime path documented; no CPU portability fix has been needed. |
 | 3 — SM87 correctness | Explicit architecture 87 configuration is enabled. The full native SM87 build passed 480/480 compile/link steps; device, CUDA Graph, E2M1 codec, GDN projection, real Qwen3.8-27B prefix integration and short CLI/MTP generation tests pass on Orin. | Broader operator coverage, repeated decode stability and performance baseline. |
-| 4 — Orin performance baseline | Not started. | Measure the qualified explicit-device-memory implementation, including MTP off/2/3/4 and power/clock context. |
+| 4 — Orin performance baseline | Initial controlled C1 text sample recorded with BF16 KV: MTP off 7.71 decode tok/s; MTP draft-2 12.86 decode tok/s. | Repeat across draft depths 3/4 and controlled power/clock settings before publishing a baseline. |
 | 5 — SM87 schedule tuning | Not started. | Profile and tune only after correctness and baseline measurements. |
 | 6 — Memory experiments | Not started. | Compare selected allocation classes against the existing device-allocation control. |
 | 7 — Capacity/context tuning | Not started. | Establish system-memory headroom and qualified BF16/INT8 KV context limits. |
@@ -119,6 +119,13 @@ experiments and schedule optimization remain later, separately verified phases.
   MTP draft window 2 generated `2 + 2 = **4**`. It completed 3 MTP rounds,
   drafted 5 tokens, accepted 4, and reported 80% acceptance (2.33 accepted
   tokens/round). This is a functional smoke result, not a performance baseline.
+- Initial phase-4 sample used the same 23-token prompt, 32 generated tokens,
+  greedy/no-thinking sampling, BF16 KV, explicit 2048-token capacity and native
+  SM87. MTP off measured 37.34 prefill tok/s and 7.71 decode tok/s; MTP draft-2
+  measured 36.24 prefill tok/s and 12.86 decode tok/s with 82.61% acceptance
+  (2.58 accepted tokens/round). Weight materialization was 8.9–9.1 seconds and
+  used 15.92–16.67 GiB. These are one-device smoke measurements, not a published
+  performance claim; power mode and clocks were not fixed.
 
 ## Artifact acquisition milestone
 
