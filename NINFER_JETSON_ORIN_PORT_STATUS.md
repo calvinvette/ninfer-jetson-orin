@@ -13,7 +13,7 @@ and detailed inventory remain in [the port plan](NINFER_JETSON_ORIN_PORT_PLAN.md
 | --- | --- | --- |
 | 0 — Baseline and inventory | Source inventory complete; inherited SM86 behavior documented. | No fresh SM86 runtime baseline was established. Published validation is the baseline evidence currently available. |
 | 1 — CUDA 12.6 compatibility | E2M1 decode backported and exactly qualified; complete-build work in progress. | Complete the relevant CUDA 12.6/SM86 build, preserve newer-toolkit support and existing SM86 semantics. Runtime validation remains pending. |
-| 2 — Native aarch64 build | Environment and dependency blockers inventoried; acceptance gate unmet. | Resolve native dependencies and qualify the complete native build. |
+| 2 — Native aarch64 build | Local native dependencies built; full aarch64 compilation in progress. | Qualify the complete native build; no CPU portability fix has been needed so far. |
 | 3 — SM87 correctness | Not started. Architecture 87 is still rejected. | Explicit architecture support, capability/residency review, operator qualification and real-model correctness gates. |
 | 4 — Orin performance baseline | Not started. | Measure the qualified explicit-device-memory implementation, including MTP off/2/3/4 and power/clock context. |
 | 5 — SM87 schedule tuning | Not started. | Profile and tune only after correctness and baseline measurements. |
@@ -98,8 +98,23 @@ experiments and schedule optimization remain later, separately verified phases.
   12.6. Earlier GPU-access errors were caused by sandbox device isolation. GPU
   tests require execution outside that sandbox. Running SM86 code on Orin is
   evidence for this codec only, not SM86 hardware regression or SM87 qualification.
-- Local FFmpeg 6.1.2 and curl 8.10.1 dependency builds are in progress under
+- Local FFmpeg 6.1.2 and curl 8.10.1 dependency builds completed under
   `build/jetson-deps`; system packages remain unchanged. The available Ubuntu
   packages (FFmpeg 4.4 and curl 7.81) do not meet the current project minimums.
-- The CUDA toolkit floor remains 12.8 until the complete compatibility build
-  provides sufficient evidence.
+- The committed toolkit floor remains 12.8. A candidate reduction to 12.6 is
+  being exercised in the working tree and will be committed only with successful
+  complete-build evidence.
+
+## Native build prerequisites milestone
+
+- Added [native Jetson development instructions](docs/jetson-orin.md), including
+  explicit CUDA selection and an isolated dependency prefix. The desktop Docker
+  image and system JetPack libraries are unchanged.
+- CMake successfully configured the complete project with apps, tests and
+  benchmarks enabled: Linux aarch64, GCC 11.4, CUDA 12.6.77, architecture 86,
+  Python 3.11.12, FFmpeg 6.1.2 and curl 8.10.1.
+- `cmake --build build/port-cuda126-sm86 -j` is running. Build completion and
+  runtime checks are still required before closing the compatibility/native gates.
+- The user supplied `~/.ninfer` for model validation. At inspection, the host path
+  `/home/calvin/.ninfer` was a zero-byte regular file, not a model directory or
+  usable artifact. Clarification is pending; no model download was initiated.
