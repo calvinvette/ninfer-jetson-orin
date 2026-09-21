@@ -200,9 +200,9 @@ experiments and schedule optimization remain later, separately verified phases.
 
 - Downloaded the documented Qwen3.8-27B groupwise NInfer artifact to
   `/home/calvin/models/qwen3_8_27b.ninfer`. The completed file is
-  20,437,521,664 bytes. Its expected SHA-256 is recorded in
-  `model-cards/Qwen3.8-27B-NInfer/SHA256SUMS`; checksum verification is running
-  before model loading.
+  20,437,521,664 bytes. The pinned v1 artifact used for native qualification is
+  `/home/calvin/models/qwen3_8_27b_v1/qwen3_8_27b.ninfer`; its SHA-256 matches
+  `model-cards/Qwen3.8-27B-NInfer/SHA256SUMS` exactly.
 - The source was selected by the exact documented model identity,
   `neroued/Qwen3.8-27B-NInfer/qwen3_8_27b.ninfer`, rather than by filename or
   modification time. The current `main` artifact is 20,437,521,664 bytes with
