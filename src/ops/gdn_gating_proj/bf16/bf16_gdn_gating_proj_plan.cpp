@@ -463,13 +463,24 @@ Bf16GdnGatingPlan bf16_gdn_gating_resolve_plan(const Bf16GdnGatingProblem& probl
     if (is_27(problem)) {
         for (const RouteSpec& route : k27Routes) {
             if (route.cols.contains(problem.cols)) {
-                return bf16_gdn_gating_resolve_candidate(route.schedule, problem);
+                // Desktop route boundaries are only candidates. On smaller devices such as
+                // Orin, a cooperative split may exceed the device-wide residency budget; use
+                // the unsplit MMA kernel instead of issuing a launch the driver must reject.
+                if (candidate_is_legal(route.schedule, problem)) {
+                    return bf16_gdn_gating_resolve_candidate(route.schedule, problem);
+                }
+                return bf16_gdn_gating_resolve_candidate(Bf16GdnGatingScheduleId::MmaUnsplit,
+                                                         problem);
             }
         }
     } else {
         for (const RouteSpec& route : k35Routes) {
             if (route.cols.contains(problem.cols)) {
-                return bf16_gdn_gating_resolve_candidate(route.schedule, problem);
+                if (candidate_is_legal(route.schedule, problem)) {
+                    return bf16_gdn_gating_resolve_candidate(route.schedule, problem);
+                }
+                return bf16_gdn_gating_resolve_candidate(Bf16GdnGatingScheduleId::MmaUnsplit,
+                                                         problem);
             }
         }
     }
@@ -492,7 +503,8 @@ Bf16GdnNormGatingPlan bf16_gdn_norm_gating_resolve_plan(const Bf16GdnGatingProbl
     Bf16GdnGatingPlan control            = bf16_gdn_gating_resolve_plan(problem);
     Bf16GdnNormGatingScheduleId schedule = Bf16GdnNormGatingScheduleId::Composed;
     std::int32_t norm_splits             = 0;
-    if (is_35(problem) && problem.cols <= 16) {
+    if (is_35(problem) && problem.cols <= 16 &&
+        candidate_is_legal(Bf16GdnGatingScheduleId::MmaCooperativeSplit32, problem)) {
         control  = bf16_gdn_gating_resolve_candidate(Bf16GdnGatingScheduleId::MmaCooperativeSplit32,
                                                      problem);
         schedule = Bf16GdnNormGatingScheduleId::MmaCooperativeSplit32;
