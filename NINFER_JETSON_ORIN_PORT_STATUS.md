@@ -14,7 +14,7 @@ and detailed inventory remain in [the port plan](NINFER_JETSON_ORIN_PORT_PLAN.md
 | 0 — Baseline and inventory | Source inventory complete; inherited SM86 behavior documented. | No fresh SM86 runtime baseline was established. Published validation is the baseline evidence currently available. |
 | 1 — CUDA 12.6 compatibility | E2M1 decode backported and exactly qualified; complete CUDA 12.6/SM86 build passed. | Commit/document the floor change, preserve newer-toolkit support, and run the focused SM87-native checks. |
 | 2 — Native aarch64 build | Native dependency setup, full aarch64 compilation, application help checks and focused runtime tests passed. | Keep the local dependency runtime path documented; no CPU portability fix has been needed. |
-| 3 — SM87 correctness | Explicit architecture 87 configuration is enabled. The full native SM87 build passed 480/480 compile/link steps; device, CUDA Graph, E2M1 codec and GDN projection correctness tests pass on Orin. | Broader operator/model qualification and compatible `.ninfer` model execution. |
+| 3 — SM87 correctness | Explicit architecture 87 configuration is enabled. The full native SM87 build passed 480/480 compile/link steps; device, CUDA Graph, E2M1 codec, GDN projection, real Qwen3.8-27B prefix integration and short CLI/MTP generation tests pass on Orin. | Broader operator coverage, repeated decode stability and performance baseline. |
 | 4 — Orin performance baseline | Not started. | Measure the qualified explicit-device-memory implementation, including MTP off/2/3/4 and power/clock context. |
 | 5 — SM87 schedule tuning | Not started. | Profile and tune only after correctness and baseline measurements. |
 | 6 — Memory experiments | Not started. | Compare selected allocation classes against the existing device-allocation control. |
@@ -96,22 +96,29 @@ experiments and schedule optimization remain later, separately verified phases.
   Orin. The codec comparison covers all 256 packed E2M1 bytes bit-for-bit,
   including signed zero. This is native SM87 evidence; it does not qualify the
   complete model schedule.
-- The full SM87 project build and GDN cooperative-residency qualification remain
-  open. Existing planner catalogs were measured for 82–84-SM desktop GPUs. The
+- The full SM87 project build passed. GDN cooperative-residency qualification is
+  currently limited to the tested operator shapes. Existing planner catalogs
+  were measured for 82–84-SM desktop GPUs. The
   planner now treats those boundaries as candidates and falls back to unsplit
   MMA when Orin's 16-SM resource budget cannot hold a cooperative grid.
 - After that change, `ninfer_gdn_gating_proj_test` passed on native SM87,
   covering 27B/35B route boundaries, norm/control paths, independent numerical
   oracles and workspace contracts. This qualifies the planner fallback and
   operator behavior for its tested shapes; it is not yet model execution.
-- The pinned Qwen3.8-27B groupwise artifact checksum passed exactly. A real
-  Engine prefix test reaches model admission but rejects before materialization:
-  the artifact requires 17,901,798,400 bytes of device memory while only
-  6,837,530,624 bytes are free on this Orin at startup. This is a capacity
-  blocker for the downloaded 27B artifact, not an artifact-format failure.
-- The runtime capability gate now accepts SM87. The downloaded artifact's memory
-  requirement still exceeds the current free device budget, so no real-model
-  generation, MTP, CUDA-Graph model capture or throughput result is claimed.
+- The pinned Qwen3.8-27B groupwise artifact checksum passed exactly. The first
+  model attempt happened during build/download pressure and saw only
+  6,837,530,624 free bytes; after pressure cleared, the same artifact loaded and
+  `ninfer_qwen3_6_27b_prefix_real_test` passed in 31.79 seconds with native SM87.
+  That test exercises model admission/materialization, frontend, full prefill,
+  state/checkpoint/prefix behavior and the configured MTP startup features. It
+  is not a throughput measurement.
+- The runtime capability gate now accepts SM87. The artifact's required weight
+  allocation is approximately 17.9 GB; the Orin reported 26.25 GB free after
+  the test and returned to that level after teardown.
+- A short CLI smoke test with the pinned artifact, BF16 KV, greedy sampling and
+  MTP draft window 2 generated `2 + 2 = **4**`. It completed 3 MTP rounds,
+  drafted 5 tokens, accepted 4, and reported 80% acceptance (2.33 accepted
+  tokens/round). This is a functional smoke result, not a performance baseline.
 
 ## Artifact acquisition milestone
 
