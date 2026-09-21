@@ -100,6 +100,18 @@ experiments and schedule optimization remain later, separately verified phases.
   open. Existing planner catalogs were measured for 82–84-SM desktop GPUs;
   Orin's 16-SM resource budget must be qualified before those schedules launch.
 
+## Artifact acquisition milestone
+
+- Downloaded the documented Qwen3.8-27B groupwise NInfer artifact to
+  `/home/calvin/models/qwen3_8_27b.ninfer`. The completed file is
+  20,437,521,664 bytes. Its expected SHA-256 is recorded in
+  `model-cards/Qwen3.8-27B-NInfer/SHA256SUMS`; checksum verification is running
+  before model loading.
+- The source was selected by the exact documented model identity,
+  `neroued/Qwen3.8-27B-NInfer/qwen3_8_27b.ninfer`, rather than by filename or
+  modification time. The GGUF files under `~/models` remain reference material
+  for llama.cpp only and are not passed to NInfer.
+
 ## Resumed Phase 1 milestone — exact E2M1 decode
 
 - Replaced the CUDA FP4 type conversion with direct exact FP32 bit construction.
