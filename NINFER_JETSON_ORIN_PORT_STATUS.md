@@ -17,7 +17,7 @@ governing sequence and detailed inventory remain in
 | 2 — Native aarch64 build | Native dependency setup, full aarch64 compilation, application help checks and focused runtime tests passed. | No CPU portability fix has been needed. |
 | 3 — SM87 correctness | Explicit architecture 87 configuration is enabled. The full native SM87 build passed 480/480 compile/link steps; the native device/runtime, CUDA Graph, E2M1 codec, 30 core scheduling/state tests, 21 supported operator/projection tests, real Qwen3.8-27B prefix integration, BF16 causal scoring, INT8-KV MTP generation and short CLI/MTP generation tests pass on Orin. A repeated 64-token CLI decode also reproduced identical output and MTP counters across two fresh processes. | The original FP8 causal-score fixture now skips cleanly on SM87 because that route has no supported implementation; BF16 scoring is the qualified Orin path. |
 | 4 — Orin performance baseline | The repeated product benchmark held `pp512+tg64`, BF16 KV, MAXN, three measured repetitions and one warmup constant: MTP off 7.67 decode tok/s, draft-2 10.57 at 58.62% acceptance, draft-3 10.98 at 47.44% acceptance and draft-4 9.37 at 35.92% acceptance. Prefill was 234.96–238.09 tok/s; no fallback steps occurred. The independent CLI sample remains 12.75 decode tok/s for its shorter prompt. Draft-3 remains the best product-benchmark candidate. | GPU clocks were not lockable from the unprivileged session; repeat with fixed clocks and a larger workload before publishing a final baseline. |
-| 5 — SM87 schedule tuning | Not started. | Profile and tune only after correctness and baseline measurements. |
+| 5 — SM87 schedule tuning | Profiling and repeatable operator benchmark sweep started; no schedule divergence has been introduced. | Use the measured Q4/Q5 candidates to test an explicit SM87 schedule only if an end-to-end gain is demonstrated. |
 | 6 — Memory experiments | Not started. | Compare selected allocation classes against the existing device-allocation control. |
 | 7 — Capacity/context tuning | Initial 8,192/16,384/32,768-token explicit-capacity startup samples pass for both BF16 and INT8 KV on the pinned artifact. At 32,768 tokens the engine reports 9.47 GiB free after BF16 startup and 10.39 GiB after INT8 startup. | Establish the practical upper limit with system headroom and longer real prompts; these startup probes do not qualify maximum usable context. |
 | 8 — Final qualification | Not started. | Compare llama.cpp, initial SM87 and tuned SM87 with controlled workloads and energy measurements. |
@@ -167,6 +167,11 @@ experiments and schedule optimization remain later, separately verified phases.
   9.37 tok/s at 35.92% acceptance. The benchmark's CUDA-Graph MTP paths had no
   fallback steps. This is the first repeat-based product benchmark evidence;
   clock locking remains the outstanding control for final publication.
+- The native Qwen3.6-27B operator suite was also measured with five samples per
+  point after two warmups on SM87. Representative cold-cache points were the
+  Q4 draft head (N=131072,K=5120,T=1) at 2.58 ms and the Q5 GDN output gate
+  (N=6144,K=5120,T=1) at 198 us. These measurements identify candidate routes
+  for schedule work; they do not justify a kernel change by themselves.
 - An Nsight Systems CUDA trace of the short BF16/MTP route identified the
   quantized Q4/Q5 GEMM families as the dominant GPU kernel-time contributors,
   with GDN recurrent kernels and attention below them. This is Phase 5 triage
