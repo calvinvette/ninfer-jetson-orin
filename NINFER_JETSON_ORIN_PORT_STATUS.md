@@ -19,7 +19,7 @@ coverage remain open. The governing sequence and detailed inventory remain in
 | 4 — Orin performance baseline | Initial text samples recorded with BF16 KV: MTP off 7.71, draft-2 12.86, draft-3 16.06 and draft-4 13.67 decode tok/s. A repeated 64-token draft-3 sample measured 12.75 tok/s on both runs with 59.70% acceptance and no fallbacks. Under MAXN, a synchronized 64-token draft-3 sample measured 12.71 decode tok/s, 36.82 prefill tok/s and 11.41 overall tok/s; tegrastats observed up to 99% GR3D utilization and 39.8 W VDD_GPU_SOC instantaneous power. Draft-3 remains the current candidate. | GPU clocks were not lockable from the unprivileged session; repeat with fixed clocks and a larger workload before publishing a final baseline. |
 | 5 — SM87 schedule tuning | Not started. | Profile and tune only after correctness and baseline measurements. |
 | 6 — Memory experiments | Not started. | Compare selected allocation classes against the existing device-allocation control. |
-| 7 — Capacity/context tuning | Not started. | Establish system-memory headroom and qualified BF16/INT8 KV context limits. |
+| 7 — Capacity/context tuning | Initial 8,192/16,384/32,768-token explicit-capacity startup samples pass for both BF16 and INT8 KV on the pinned artifact. At 32,768 tokens the engine reports 9.47 GiB free after BF16 startup and 10.39 GiB after INT8 startup. | Establish the practical upper limit with system headroom and longer real prompts; these startup probes do not qualify maximum usable context. |
 | 8 — Final qualification | Not started. | Compare llama.cpp, initial SM87 and tuned SM87 with controlled workloads and energy measurements. |
 
 ## Evidence retained from the interrupted work
@@ -159,6 +159,11 @@ experiments and schedule optimization remain later, separately verified phases.
   with GDN recurrent kernels and attention below them. This is Phase 5 triage
   evidence only; no SM87 schedule has been changed from the qualified
   implementation yet.
+- Explicit-capacity startup probes at 8,192, 16,384 and 32,768 tokens passed for
+  both BF16 and INT8 KV with the pinned artifact. At 32,768 tokens, BF16 used a
+  2.00 GiB KV payload and reported 9.47 GiB free after startup; INT8 used a
+  1.03 GiB payload and reported 10.39 GiB free. These are capacity-headroom
+  probes with a short prompt, not maximum-context or long-prefill claims.
 - The causal-score real test was attempted with the pinned artifact and reached
   the runtime correctly, but its fixture requests FP8 E4M3 KV. The runtime
   rejects that storage on SM87 because the FP8 causal-attention implementation
