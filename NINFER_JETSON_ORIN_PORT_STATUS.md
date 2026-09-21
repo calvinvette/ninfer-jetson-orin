@@ -2,10 +2,10 @@
 
 Status assessed: 2026-09-21.
 
-Phases 0 through 2 are complete, and Phase 3 has been completed to the currently
-qualified operator and real-model test scope. Phase 4 has started with initial
-Orin performance samples; controlled baseline measurement and broader Phase 3
-coverage remain open. The governing sequence and detailed inventory remain in
+Phases 0 through 2 are complete, and Phase 3 is qualified for the tested SM87
+operator and real-model scope. Phase 4 has a consistent MAXN comparison and
+telemetry sample; clock-normalized final baseline work remains open. The
+governing sequence and detailed inventory remain in
 [the port plan](NINFER_JETSON_ORIN_PORT_PLAN.md).
 
 ## Phase status
@@ -13,8 +13,8 @@ coverage remain open. The governing sequence and detailed inventory remain in
 | Phase | Current state | Remaining acceptance work |
 | --- | --- | --- |
 | 0 — Baseline and inventory | Source inventory complete; inherited SM86 behavior documented. | No fresh SM86 runtime baseline was established. Published validation is the baseline evidence currently available. |
-| 1 — CUDA 12.6 compatibility | E2M1 decode backported and exactly qualified; complete CUDA 12.6/SM86 build passed. | Commit/document the floor change, preserve newer-toolkit support, and run the focused SM87-native checks. |
-| 2 — Native aarch64 build | Native dependency setup, full aarch64 compilation, application help checks and focused runtime tests passed. | Keep the local dependency runtime path documented; no CPU portability fix has been needed. |
+| 1 — CUDA 12.6 compatibility | E2M1 decode backported and exactly qualified; complete CUDA 12.6/SM86 build passed; the floor change and newer-toolkit compatibility are documented. | No remaining Phase 1 acceptance work. |
+| 2 — Native aarch64 build | Native dependency setup, full aarch64 compilation, application help checks and focused runtime tests passed. | No CPU portability fix has been needed. |
 | 3 — SM87 correctness | Explicit architecture 87 configuration is enabled. The full native SM87 build passed 480/480 compile/link steps; the native device/runtime, CUDA Graph, E2M1 codec, 30 core scheduling/state tests, 21 supported operator/projection tests, real Qwen3.8-27B prefix integration, BF16 causal scoring, INT8-KV MTP generation and short CLI/MTP generation tests pass on Orin. A repeated 64-token CLI decode also reproduced identical output and MTP counters across two fresh processes. | The original FP8 causal-score fixture now skips cleanly on SM87 because that route has no supported implementation; BF16 scoring is the qualified Orin path. |
 | 4 — Orin performance baseline | A consistent 64-token BF16-KV workload under MAXN measured MTP off 7.69 decode / 7.25 overall tok/s, draft-2 11.57 / 10.47 tok/s at 66.67% acceptance, draft-3 12.75 / 11.42 tok/s at 59.70% acceptance and draft-4 10.86 / 9.89 tok/s at 44.94% acceptance. Prefill was 35.92–38.07 tok/s; no fallback steps occurred. A synchronized tegrastats sample observed up to 99% GR3D utilization and 39.8 W VDD_GPU_SOC instantaneous power. Draft-3 remains the current candidate. | GPU clocks were not lockable from the unprivileged session; repeat with fixed clocks and a larger workload before publishing a final baseline. |
 | 5 — SM87 schedule tuning | Not started. | Profile and tune only after correctness and baseline measurements. |
