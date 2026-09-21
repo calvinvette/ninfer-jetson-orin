@@ -104,6 +104,14 @@ experiments and schedule optimization remain later, separately verified phases.
   covering 27B/35B route boundaries, norm/control paths, independent numerical
   oracles and workspace contracts. This qualifies the planner fallback and
   operator behavior for its tested shapes; it is not yet model execution.
+- The pinned Qwen3.8-27B groupwise artifact checksum passed exactly. A real
+  Engine prefix test reaches model admission but rejects before materialization:
+  the artifact requires 17,901,798,400 bytes of device memory while only
+  6,837,530,624 bytes are free on this Orin at startup. This is a capacity
+  blocker for the downloaded 27B artifact, not an artifact-format failure.
+- The runtime capability gate now accepts SM87. The downloaded artifact's memory
+  requirement still exceeds the current free device budget, so no real-model
+  generation, MTP, CUDA-Graph model capture or throughput result is claimed.
 
 ## Artifact acquisition milestone
 
