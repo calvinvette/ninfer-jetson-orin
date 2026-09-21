@@ -4,17 +4,25 @@
 #include "ops/common/memory.cuh"
 
 #include <cuda_bf16.h>
-#include <cuda_fp4.h>
 #include <cuda_fp8.h>
 
 #include <cstdint>
 
 namespace ninfer::ops::detail {
 
+__device__ __forceinline__ float decode_nvfp4_e2m1(std::uint32_t code) {
+    // E2M1 has finite magnitudes 0, .5, 1, 1.5, 2, 3, 4, 6. Construct
+    // the exact FP32 representation, retaining the sign of zero. This decode
+    // also serves A16 execution on toolkits predating cuda_fp4.h.
+    const std::uint32_t magnitude = code & 7U;
+    const std::uint32_t bits = magnitude < 2U
+        ? magnitude * 0x3f000000U
+        : ((126U + (magnitude >> 1)) << 23) | ((magnitude & 1U) << 22);
+    return __uint_as_float(bits | ((code & 8U) << 28));
+}
+
 __device__ __forceinline__ float2 decode_nvfp4_e2m1x2(std::uint8_t storage) {
-    __nv_fp4x2_e2m1 value;
-    value.__x = storage;
-    return static_cast<float2>(value);
+    return make_float2(decode_nvfp4_e2m1(storage), decode_nvfp4_e2m1(storage >> 4));
 }
 
 __device__ __forceinline__ float decode_nvfp4_e4m3(std::uint8_t storage) {
@@ -23,6 +31,8 @@ __device__ __forceinline__ float decode_nvfp4_e4m3(std::uint8_t storage) {
     return static_cast<float2>(value).x;
 }
 
+#if !defined(NINFER_SM8X_COMPAT)
+// A4 quantization uses FP4 conversion instructions unavailable on SM8x.
 struct alignas(8) Nvfp4QuantizedK16 {
     std::uint32_t codes_lo;
     std::uint32_t codes_hi;
@@ -91,5 +101,6 @@ __device__ __forceinline__ Nvfp4QuantizedK16 quantize_nvfp4_k16(const __nv_bfloa
     pack_nvfp4_e2m1x16(values, result.codes_lo, result.codes_hi);
     return result;
 }
+#endif
 
 } // namespace ninfer::ops::detail

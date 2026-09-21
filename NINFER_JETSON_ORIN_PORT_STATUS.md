@@ -2,9 +2,9 @@
 
 Status assessed: 2026-09-21.
 
-The work stopped after the Phase 0 source inventory and initial Phase 1
-compatibility investigation. **No port implementation is present, and no CUDA
-12.6 full build or SM87 execution has been qualified.** The governing sequence
+Work has resumed in Phase 1. The CUDA 12.6 E2M1 decoder backport is implemented
+and exhaustively checked on the Orin GPU using SM86 code. **The complete CUDA
+12.6 build and explicit SM87 execution target remain unqualified.** The governing sequence
 and detailed inventory remain in [the port plan](NINFER_JETSON_ORIN_PORT_PLAN.md).
 
 ## Phase status
@@ -12,7 +12,7 @@ and detailed inventory remain in [the port plan](NINFER_JETSON_ORIN_PORT_PLAN.md
 | Phase | Current state | Remaining acceptance work |
 | --- | --- | --- |
 | 0 — Baseline and inventory | Source inventory complete; inherited SM86 behavior documented. | No fresh SM86 runtime baseline was established. Published validation is the baseline evidence currently available. |
-| 1 — CUDA 12.6 compatibility | Investigation started; concrete incompatibility identified. No implementation changes. | Backport and exactly qualify E2M1 decode, complete the relevant CUDA 12.6/SM86 build, preserve newer-toolkit support and existing SM86 semantics. Runtime validation remains pending. |
+| 1 — CUDA 12.6 compatibility | E2M1 decode backported and exactly qualified; complete-build work in progress. | Complete the relevant CUDA 12.6/SM86 build, preserve newer-toolkit support and existing SM86 semantics. Runtime validation remains pending. |
 | 2 — Native aarch64 build | Environment and dependency blockers inventoried; acceptance gate unmet. | Resolve native dependencies and qualify the complete native build. |
 | 3 — SM87 correctness | Not started. Architecture 87 is still rejected. | Explicit architecture support, capability/residency review, operator qualification and real-model correctness gates. |
 | 4 — Orin performance baseline | Not started. | Measure the qualified explicit-device-memory implementation, including MTP off/2/3/4 and power/clock context. |
@@ -44,7 +44,7 @@ for this status update:
   v0.6.1 CUDA 13.1 compile/link gate (245 steps and application help).
   Linux real-artifact generation and performance remain unqualified there.
 
-## Checkout verification during this status update
+## Checkout verification at resumption (before implementation)
 
 - Before this update, tracked files had no local changes; the port plan was
   untracked. HEAD was `75d94eab` (upstream-catchup merge), with no subsequent
@@ -58,15 +58,12 @@ for this status update:
   The directory contains the cache and CMake metadata, but no generated
   Ninja build file.
 
-These checks corroborate the saved stopping point. This update records status
-only; it does not claim new compilation, numerical validation or performance
-results.
+These checks corroborated the saved stopping point. Subsequent work is recorded below.
 
 ## Resume point
 
-1. Implement the CUDA 12.6-compatible E2M1 decoder and check all 256 packed
-   bytes, including signed zero, against an independent exact oracle. Keep
-   unsupported A4 quantization separate from supported A16 decoding.
+1. Completed: replace the CUDA FP4-header dependency with exact E2M1 decoding,
+   check all 256 packed bytes and isolate unsupported A4 quantization from SM8x.
 2. Resolve the native FFmpeg/libcurl build prerequisites without silently
    reducing the dependency contract. Establish the complete CUDA 12.6/SM86
    build using the configuration recorded in the plan and
@@ -82,3 +79,27 @@ results.
 
 Keep explicit device allocation as the initial execution model. Memory-policy
 experiments and schedule optimization remain later, separately verified phases.
+
+## Resumed Phase 1 milestone — exact E2M1 decode
+
+- Replaced the CUDA FP4 type conversion with direct exact FP32 bit construction.
+  A16 NVFP4 weight support is preserved; A4-only quantization helpers are excluded
+  under the existing SM8x capability definition. No architecture or schedule changed.
+- Added `ninfer_nvfp4_codec_test`, which executes the production device decoder
+  for every packed byte and compares both FP32 outputs bit-for-bit with the
+  existing independent test-owned E2M1 magnitude-table oracle. Signed zeros and
+  nibble ordering are included.
+- CUDA 12.6.77: standalone test compiled with C++20, `-arch=sm_86` and
+  `NINFER_SM8X_COMPAT=1`; all 256 bytes passed on Orin. The previously failing
+  `nvfp4_gemv.cu` also compiled successfully with the same profile.
+- CUDA 12.9: the standalone decoder test compiled successfully. This is focused
+  newer-toolkit compile evidence, not yet a full-project compatibility gate.
+- Unrestricted `nvidia-smi` succeeds and identifies Orin, driver 540.4.0, CUDA
+  12.6. Earlier GPU-access errors were caused by sandbox device isolation. GPU
+  tests require execution outside that sandbox. Running SM86 code on Orin is
+  evidence for this codec only, not SM86 hardware regression or SM87 qualification.
+- Local FFmpeg 6.1.2 and curl 8.10.1 dependency builds are in progress under
+  `build/jetson-deps`; system packages remain unchanged. The available Ubuntu
+  packages (FFmpeg 4.4 and curl 7.81) do not meet the current project minimums.
+- The CUDA toolkit floor remains 12.8 until the complete compatibility build
+  provides sufficient evidence.
