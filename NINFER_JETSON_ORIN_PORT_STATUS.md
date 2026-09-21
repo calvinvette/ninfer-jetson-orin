@@ -2,10 +2,11 @@
 
 Status assessed: 2026-09-21.
 
-Work has resumed in Phase 1. The CUDA 12.6 E2M1 decoder backport is implemented
-and exhaustively checked on the Orin GPU using SM86 code. **The complete CUDA
-12.6 build and explicit SM87 execution target remain unqualified.** The governing sequence
-and detailed inventory remain in [the port plan](NINFER_JETSON_ORIN_PORT_PLAN.md).
+Phases 0 through 2 are complete, and Phase 3 has been completed to the currently
+qualified operator and real-model test scope. Phase 4 has started with initial
+Orin performance samples; controlled baseline measurement and broader Phase 3
+coverage remain open. The governing sequence and detailed inventory remain in
+[the port plan](NINFER_JETSON_ORIN_PORT_PLAN.md).
 
 ## Phase status
 
