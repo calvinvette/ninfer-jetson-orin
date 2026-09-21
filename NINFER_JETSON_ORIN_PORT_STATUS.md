@@ -154,6 +154,11 @@ experiments and schedule optimization remain later, separately verified phases.
   acceptance and no fallback steps. `tegrastats` observed 99% GR3D utilization;
   GPU clock locking was unavailable without elevated Jetson privileges, so this
   is a controlled-power-mode sample rather than a final clock-normalized result.
+- An Nsight Systems CUDA trace of the short BF16/MTP route identified the
+  quantized Q4/Q5 GEMM families as the dominant GPU kernel-time contributors,
+  with GDN recurrent kernels and attention below them. This is Phase 5 triage
+  evidence only; no SM87 schedule has been changed from the qualified
+  implementation yet.
 - The causal-score real test was attempted with the pinned artifact and reached
   the runtime correctly, but its fixture requests FP8 E4M3 KV. The runtime
   rejects that storage on SM87 because the FP8 causal-attention implementation
