@@ -170,6 +170,12 @@ experiments and schedule optimization remain later, separately verified phases.
   2.00 GiB KV payload and reported 9.47 GiB free after startup; INT8 used a
   1.03 GiB payload and reported 10.39 GiB free. These are capacity-headroom
   probes with a short prompt, not maximum-context or long-prefill claims.
+- The complete native CTest sweep passed all 96 tests that were eligible under
+  the configured artifact/environment; five unrelated target fixtures skipped
+  because their source artifacts were not present. The one apparent failure in
+  the first sweep was a variable mismatch: the Qwen3.8 artifact was supplied to
+  the Qwen3.6-named prefix fixture. Rerunning that established prefix gate with
+  `NINFER_QWEN3_8_27B_WEIGHTS` passed in 31.87 seconds.
 - The causal-score real test was attempted with the pinned artifact and reached
   the runtime correctly, but its fixture requests FP8 E4M3 KV. The runtime
   rejects that storage on SM87 because the FP8 causal-attention implementation
