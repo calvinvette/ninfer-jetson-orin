@@ -3,6 +3,8 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdlib>
+#include <memory>
+#include <stdexcept>
 #include <iostream>
 #include <string>
 #include <vector>
@@ -18,15 +20,30 @@ int main() {
     options.artifact_path = artifact;
     options.purpose       = ninfer::EnginePurpose::CausalScoring;
     options.max_context   = 2048;
-    options.kv_cache      = ninfer::KvCacheStorage::Fp8E4M3Row256;
-    ninfer::Engine engine(options);
-    const auto& effective = engine.options();
+    const auto score_kv =
+#if defined(NINFER_SCORE_KV_BF16)
+        ninfer::KvCacheStorage::BFloat16;
+#else
+        ninfer::KvCacheStorage::Fp8E4M3Row256;
+#endif
+    options.kv_cache = score_kv;
+    std::unique_ptr<ninfer::Engine> engine;
+    try {
+        engine = std::make_unique<ninfer::Engine>(options);
+    } catch (const std::invalid_argument& error) {
+        if (std::string(error.what()).find("FP8 E4M3 causal attention") != std::string::npos) {
+            std::cout << "SKIP: FP8 causal scoring is unavailable on this GPU\n";
+            return 77;
+        }
+        throw;
+    }
+    const auto& effective = engine->options();
     if (effective.max_concurrency != 1 || effective.prefill_chunk != 1024 ||
         effective.kv_capacity.mode != ninfer::KvCapacityMode::Explicit ||
         effective.kv_capacity.explicit_tokens != effective.max_context ||
         effective.context_cache.enabled ||
         effective.speculative.backend != ninfer::SpeculativeBackend::None ||
-        effective.kv_cache != ninfer::KvCacheStorage::Fp8E4M3Row256) {
+        effective.kv_cache != score_kv) {
         std::cerr << "causal scoring options were not normalized correctly\n";
         return 1;
     }
@@ -38,13 +55,13 @@ int main() {
     std::vector<ninfer::TokenId> tokens;
     while (tokens.size() < 1537) {
         text += paragraph;
-        tokens = engine.tokenize_text(text);
+        tokens = engine->tokenize_text(text);
     }
     tokens.resize(1537);
 
-    const std::vector<float> all      = engine.score_tokens(tokens, 1);
-    const std::vector<float> suffix   = engine.score_tokens(tokens, 513);
-    const std::vector<float> repeated = engine.score_tokens(tokens, 513);
+    const std::vector<float> all      = engine->score_tokens(tokens, 1);
+    const std::vector<float> suffix   = engine->score_tokens(tokens, 513);
+    const std::vector<float> repeated = engine->score_tokens(tokens, 513);
     if (all.size() != 1536 || suffix.size() != 1024 || repeated.size() != suffix.size()) {
         std::cerr << "causal scoring returned an invalid result shape\n";
         return 1;
