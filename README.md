@@ -210,7 +210,7 @@ An `artifact magic is not NInfer version 1` message means the executable is outd
 current model download is necessarily corrupt.
 
 Developers can build from source on Windows or Linux. Windows uses Visual Studio 2022 and vcpkg.
-Linux uses GCC 13 with system packages or the pinned vcpkg manifest. Both builds require CUDA 12.8
+Linux uses GCC 13 with system packages or the pinned vcpkg manifest. Both builds require CUDA 12.6
 or newer and CMake 3.28 or newer.
 
 See the [Windows build guide](docs/rtx-3090-windows.md) or the

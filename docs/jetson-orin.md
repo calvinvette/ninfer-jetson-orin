@@ -57,6 +57,7 @@ from SM87 enablement. This command deliberately does not select SM87:
 
 ```bash
 export PKG_CONFIG_PATH="$PWD/build/jetson-deps/install/lib/pkgconfig${PKG_CONFIG_PATH:+:$PKG_CONFIG_PATH}"
+export LD_LIBRARY_PATH="$PWD/build/jetson-deps/install/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
 cmake -S . -B build/port-cuda126-sm86 -G Ninja \
   -DCMAKE_BUILD_TYPE=Release \
   -DCMAKE_CUDA_COMPILER=/usr/local/cuda-12.6/bin/nvcc \
@@ -72,3 +73,6 @@ GPU tests must have access to the host's NVIDIA device nodes. An isolated sandbo
 can report a driver initialization failure even when CUDA works on the host.
 An SM86-compiled codec test running on Orin verifies that codec; it does not
 replace SM86 hardware regression tests or the full SM87 qualification gates.
+
+Keep the local prefix in `LD_LIBRARY_PATH` when running applications or tests:
+FFmpeg's transitive shared-library dependencies also reside in that prefix.

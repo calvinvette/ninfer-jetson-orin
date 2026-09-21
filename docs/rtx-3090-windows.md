@@ -112,7 +112,7 @@ Concurrency 8 was rejected by admission rather than overcommitting the GPU. Repe
 
 ## Build from source
 
-Use Visual Studio 2022, CUDA 12.8 or newer, CMake, and vcpkg:
+Use Visual Studio 2022, CUDA 12.6 or newer, CMake, and vcpkg:
 
 ```powershell
 $vcpkgToolchain = 'C:\path\to\vcpkg\scripts\buildsystems\vcpkg.cmake'

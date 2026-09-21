@@ -43,7 +43,7 @@ The API is available at `http://127.0.0.1:8080/v1`.
 
 ## Native Ubuntu 24.04 build
 
-Install the CUDA Toolkit 12.8 or newer from NVIDIA.
+Install the CUDA Toolkit 12.6 or newer from NVIDIA.
 Then install the host compiler and media dependencies:
 
 ```bash
