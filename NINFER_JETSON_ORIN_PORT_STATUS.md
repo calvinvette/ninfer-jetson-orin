@@ -15,8 +15,8 @@ coverage remain open. The governing sequence and detailed inventory remain in
 | 0 — Baseline and inventory | Source inventory complete; inherited SM86 behavior documented. | No fresh SM86 runtime baseline was established. Published validation is the baseline evidence currently available. |
 | 1 — CUDA 12.6 compatibility | E2M1 decode backported and exactly qualified; complete CUDA 12.6/SM86 build passed. | Commit/document the floor change, preserve newer-toolkit support, and run the focused SM87-native checks. |
 | 2 — Native aarch64 build | Native dependency setup, full aarch64 compilation, application help checks and focused runtime tests passed. | Keep the local dependency runtime path documented; no CPU portability fix has been needed. |
-| 3 — SM87 correctness | Explicit architecture 87 configuration is enabled. The full native SM87 build passed 480/480 compile/link steps; device, CUDA Graph, E2M1 codec, GDN projection, real Qwen3.8-27B prefix integration and short CLI/MTP generation tests pass on Orin. | Broader operator coverage, repeated decode stability and performance baseline. |
-| 4 — Orin performance baseline | Initial controlled C1 text sample recorded with BF16 KV: MTP off 7.71, draft-2 12.86, draft-3 16.06 and draft-4 13.67 decode tok/s. Draft-3 is the current candidate. | Repeat with controlled power/clock settings and a larger workload before publishing a baseline. |
+| 3 — SM87 correctness | Explicit architecture 87 configuration is enabled. The full native SM87 build passed 480/480 compile/link steps; device, CUDA Graph, E2M1 codec, GDN projection, real Qwen3.8-27B prefix integration and short CLI/MTP generation tests pass on Orin. A repeated 64-token CLI decode also reproduced identical output and MTP counters across two fresh processes. | Broader operator coverage remains. The causal-score fixture currently requests FP8 KV, which has no SM87 implementation; a BF16/INT8 scoring qualification is still needed. |
+| 4 — Orin performance baseline | Initial text samples recorded with BF16 KV: MTP off 7.71, draft-2 12.86, draft-3 16.06 and draft-4 13.67 decode tok/s. A repeated 64-token draft-3 sample measured 12.75 tok/s on both runs with 59.70% acceptance and no fallbacks. Draft-3 remains the current candidate. | Repeat with controlled power/clock settings and a larger workload before publishing a baseline. |
 | 5 — SM87 schedule tuning | Not started. | Profile and tune only after correctness and baseline measurements. |
 | 6 — Memory experiments | Not started. | Compare selected allocation classes against the existing device-allocation control. |
 | 7 — Capacity/context tuning | Not started. | Establish system-memory headroom and qualified BF16/INT8 KV context limits. |
@@ -133,6 +133,17 @@ experiments and schedule optimization remain later, separately verified phases.
   10.98 overall tok/s and 68.75% acceptance, with one fallback step. The
   observed draft-3 advantage is a workload sample, not enough evidence to change
   a product default.
+- A repeated fresh-process CLI run used the pinned artifact, the same 24-token
+  prompt, 64 generated tokens, greedy/no-thinking sampling, BF16 KV and MTP
+  draft-3. Both runs produced identical text, 23 MTP rounds, 67 drafted tokens,
+  40 accepted tokens, 59.70% acceptance, no fallbacks and 12.75 decode tok/s.
+  This supports repeated decode stability for this route; it is not a controlled
+  power or clock-normalized performance baseline.
+- The causal-score real test was attempted with the pinned artifact and reached
+  the runtime correctly, but its fixture requests FP8 E4M3 KV. The runtime
+  rejects that storage on SM87 because the FP8 causal-attention implementation
+  is limited to newer architectures; the test therefore remains unqualified on
+  Orin pending a supported BF16 or INT8 scoring fixture.
 
 ## Artifact acquisition milestone
 
