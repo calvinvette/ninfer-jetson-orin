@@ -76,3 +76,21 @@ replace SM86 hardware regression tests or the full SM87 qualification gates.
 
 Keep the local prefix in `LD_LIBRARY_PATH` when running applications or tests:
 FFmpeg's transitive shared-library dependencies also reside in that prefix.
+
+## Repeatable Orin benchmark
+
+Build the product benchmark with `-DNINFER_BUILD_BENCHMARKS=ON`, then run a fixed
+`pp512+tg64` matrix against the pinned artifact:
+
+```bash
+NINFER=/home/calvin/models/qwen3_8_27b_v1/qwen3_8_27b.ninfer
+LD_LIBRARY_PATH="$PWD/build/jetson-deps/install/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}" \
+  build/port-cuda126-sm87/bench/ninfer_bench \
+  --weights "$NINFER" --prompt-gen 512,64 --repetitions 3 --warmup 1 \
+  --max-ctx 2048 --kv-dtype bf16 --mtp-draft-tokens 3 --lm-head-draft
+```
+
+Record `nvpmodel -q` and `tegrastats` output with the result. `jetson_clocks`
+requires elevated Jetson privileges; when those are unavailable, report the
+power mode and dynamic-clock limitation instead of calling the result
+clock-normalized.
