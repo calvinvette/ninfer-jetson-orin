@@ -8,6 +8,11 @@ telemetry sample; clock-normalized final baseline work remains open. The
 governing sequence and detailed inventory remain in
 [the port plan](NINFER_JETSON_ORIN_PORT_PLAN.md).
 
+The public README now documents only the Jetson AGX Orin Arm64/Ubuntu product
+and its JetPack 6.2/CUDA 12.6 and JetPack 7.1/CUDA 13.1 build targets. It
+explains the SM86-to-SM87 and physical-unified-memory differences from the
+upstream RTX 3090 project and removes the superseded desktop platform guide.
+
 ## Phase status
 
 | Phase | Current state | Remaining acceptance work |
