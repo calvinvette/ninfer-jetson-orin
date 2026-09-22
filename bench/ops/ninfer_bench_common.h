@@ -28,8 +28,6 @@
 
 namespace ninfer::bench {
 
-constexpr double kRooflineGBs = 1792.0; // RTX 5090 GDDR7 bandwidth roofline.
-
 inline std::uint16_t f32_to_bf16(float f) {
     std::uint32_t u;
     std::memcpy(&u, &f, 4);
@@ -54,10 +52,20 @@ inline DeviceBuffer make_zeros(std::size_t bytes) {
     return d;
 }
 
-// cudaDeviceProp memory-clock fields were removed in CUDA 13; the in-process
-// GB/s is informational anyway (ncu is the acceptance gate), so report against
-// the known RTX 5090 roofline constant.
-inline double device_peak_bw_gbs(int /*dev*/ = 0) { return kRooflineGBs; }
+// cudaDeviceProp memory-clock fields were removed in CUDA 13.  The device
+// attributes remain available, which keeps this informational readout tied to
+// the GPU actually running the benchmark instead of a desktop-only constant.
+inline double device_peak_bw_gbs(int device = 0) {
+    int memory_clock_khz = 0;
+    int memory_bus_bits  = 0;
+    CUDA_CHECK(cudaDeviceGetAttribute(&memory_clock_khz, cudaDevAttrMemoryClockRate, device));
+    CUDA_CHECK(cudaDeviceGetAttribute(&memory_bus_bits, cudaDevAttrGlobalMemoryBusWidth, device));
+    if (memory_clock_khz <= 0 || memory_bus_bits <= 0) {
+        throw std::runtime_error("CUDA device did not report a usable memory bandwidth roofline");
+    }
+    return 2.0 * static_cast<double>(memory_clock_khz) * 1.0e3 *
+           (static_cast<double>(memory_bus_bits) / 8.0) / 1.0e9;
+}
 
 struct ColdTiming {
     double median_us = 0.0;
@@ -330,10 +338,11 @@ inline Result bench_loop(const launch_fn& launch, double bytes_moved, int warmup
 }
 
 inline void print_result(const char* tag, const Result& r) {
+    const double roofline_gbs = device_peak_bw_gbs();
     std::printf(
         "%-32s median=%8.2f us  min=%8.2f us  p95=%8.2f us  %8.1f GB/s  (%.1f%% of %.0f GB/s "
         "roofline)\n",
-        tag, r.median_us, r.min_us, r.p95_us, r.gbs, r.gbs / kRooflineGBs * 100.0, kRooflineGBs);
+        tag, r.median_us, r.min_us, r.p95_us, r.gbs, r.gbs / roofline_gbs * 100.0, roofline_gbs);
 }
 
 } // namespace ninfer::bench

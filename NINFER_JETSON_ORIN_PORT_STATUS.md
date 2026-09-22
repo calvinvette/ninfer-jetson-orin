@@ -1,6 +1,6 @@
 # NInfer Jetson Orin Port Status
 
-Status assessed: 2026-09-21.
+Status assessed: 2026-09-22.
 
 Phases 0 through 2 are complete, and Phase 3 is qualified for the tested SM87
 operator and real-model scope. Phase 4 has a consistent MAXN comparison and
@@ -24,7 +24,7 @@ upstream RTX 3090 project and removes the superseded desktop platform guide.
 | 4 — Orin performance baseline | The repeated product benchmark held `pp512+tg64`, BF16 KV, MAXN, three measured repetitions and one warmup constant: MTP off 7.67 decode tok/s, draft-2 10.57 at 58.62% acceptance, draft-3 10.98 at 47.44% acceptance and draft-4 9.37 at 35.92% acceptance. Prefill was 234.96–238.09 tok/s; no fallback steps occurred. The independent CLI sample remains 12.75 decode tok/s for its shorter prompt. Draft-3 remains the best product-benchmark candidate. | GPU clocks were not lockable from the unprivileged session; repeat with fixed clocks and a larger workload before publishing a final baseline. |
 | 5 — SM87 schedule tuning | Profiling and repeatable operator benchmark sweep started; no schedule divergence has been introduced. | Use the measured Q4/Q5 candidates to test an explicit SM87 schedule only if an end-to-end gain is demonstrated. |
 | 6 — Memory experiments | Not started. | Compare selected allocation classes against the existing device-allocation control. |
-| 7 — Capacity/context tuning | Explicit-capacity startup probes and real 32,768-token prefill gates pass for both BF16 and INT8 KV on the pinned artifact. The long prefill used 32,768 prompt tokens plus one generated token; INT8 used a 1.03 GiB KV payload and BF16 used 2.00 GiB. | Establish the practical upper limit beyond 32K with system headroom; 32K is now a qualified measured context point, not the maximum claim. |
+| 7 — Capacity/context tuning | Explicit-capacity startup probes and real 32,768-token prefill gates pass for both BF16 and INT8 KV on the pinned artifact. The long prefill used 32,768 prompt tokens plus one generated token; INT8 used a 1.03 GiB KV payload and BF16 used 2.00 GiB. | Establish the practical upper limit beyond 32K with system headroom. A 40,960-token INT8 attempt lost its execution session and briefly consumed nearly all host RAM, so it is not a qualified capacity point and must not be retried without host-pressure monitoring. |
 | 8 — Final qualification | Not started. | Compare llama.cpp, initial SM87 and tuned SM87 with controlled workloads and energy measurements. |
 
 ## Evidence retained from the interrupted work
@@ -192,6 +192,18 @@ experiments and schedule optimization remain later, separately verified phases.
   209.03 prefill tok/s with a 1.03 GiB KV payload; BF16 measured 211.50 prefill
   tok/s with a 2.00 GiB payload. Both runs completed with the configured 32,769
   token capacity and retained the engine's reported startup headroom.
+- On 2026-09-22, a bounded eager `pp40960+tg1` INT8-KV benchmark began after
+  model load but its execution channel disappeared before a result was returned.
+  Immediately afterward the host reported 29 GiB RAM used, 174 MiB available,
+  and 663 MiB swap used, although no GPU or host benchmark process remained.
+  Memory recovered to 25.9 GiB free shortly afterward. This is an interrupted
+  pressure observation, not a pass, failure classification, or practical-limit
+  claim. Do not repeat it until the run can retain host-pressure telemetry.
+- Shared operator benchmark reporting now derives its informational DRAM
+  roofline from CUDA's memory-clock and bus-width attributes rather than the
+  former RTX 5090-only constant. The target-specific linear benchmark retains
+  its explicitly labeled RTX 5090 reference columns for cross-device schedule
+  comparison; its SM87 measurements are not used as native roofline values.
 - The complete native CTest sweep passed all 96 tests that were eligible under
   the configured artifact/environment; five unrelated target fixtures skipped
   because their source artifacts were not present. The one apparent failure in
