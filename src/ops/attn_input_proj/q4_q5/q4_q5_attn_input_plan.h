@@ -12,7 +12,7 @@ namespace ninfer::ops::detail {
 enum class Q4Q5AttnInputScheduleId {
     ParentSplitFixed,
     GroupedHomogeneousPairMmaR16C64S3,
-    GroupedHomogeneousPairMmaR32C128S2,
+    GroupedHomogeneousPairMmaR64C128S2,
 };
 
 struct Q4Q5AttnInputProblem {

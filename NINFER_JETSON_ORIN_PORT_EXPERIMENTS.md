@@ -17,22 +17,32 @@ CUDA 12.6 build on Jetson AGX Orin. Fixed-clock entries use MAXN plus
 | Q4 SwiGLU C128 control | ✅ Complete | T=1024 cold-cache public Op | 28.40–28.53 ms | Selected large-prefill schedule. |
 | Q4 SwiGLU C64 tile | ❌ Rejected | T=1024 cold-cache public Op | 42.44 ms | Oracle passed; ~49% slower than C128. Removed. |
 | Q4 SwiGLU C96 tile | ❌ Rejected | T=1024 cold-cache public Op | 38.21 ms | Oracle passed; ~34% slower than C128. Removed. |
+| Q4 SwiGLU C128 `ca` loads | ❌ Rejected | T=1024 public Op | 29.435 ms | Oracle passed; slower than the 28.40–28.53 ms `cg` control. Removed. |
 | Q5 GDN-output C128 control | ✅ Complete | N=6144, K=5120, T=1024 public Linear | 5.008–5.019 ms | Selected large-prefill schedule. |
 | Q5 GDN-output C64 tile | ❌ Rejected | N=6144, K=5120, T=1024 public Linear | 7.271 ms | Oracle passed; ~45% slower than C128. Removed. |
 | Q5 GDN-output C128 `ca` loads | ❌ Rejected | N=6144, K=5120, T=1024 public Linear | 6.075 ms | Oracle passed; ~21% slower than the `cg` control. Removed. |
+| Q5 GDN-output C128 scalar scales | ❌ Rejected | N=6144, K=5120, T=1024 public Linear | 5.202 ms | Oracle passed; 3.9% slower than Pair32 scales. Removed. |
+| Q5 GDN-output C128 ping-pong fragments | ❌ Rejected | N=6144, K=5120, T=1024 public Linear | 5.041 ms | Oracle passed; did not beat the 5.038 ms serial control. Removed. |
 | Q4/Q5 GDN-input R64C128 control | ✅ Complete | mixed Q4/Q5 GDN input, T=1024, cold public Op | 14.494 ms | Exact owner of the 15.3% grouped-MMA trace contributor. |
 | Q4/Q5 GDN-input R64C64 tile | ❌ Rejected | mixed Q4/Q5 GDN input, T=1024, cold public Op | 17.394 ms | Oracle passed; 20.0% slower than R64C128. Removed. |
 | Q4/Q5 GDN-input R32C128 tile | ❌ Rejected | mixed Q4/Q5 GDN input, T=1024, cold public Op | 17.345 ms | Oracle passed; 19.7% slower than R64C128. Removed. |
 | Q4/Q5 attention-input R32C64S4 control | ✅ Complete | mixed Q4/Q5 attention input, T=1024, cold public Op | 21.648 ms | Trace owner for the paired Q4 (4.0%) and Q5 (3.6%) grouped-MMA kernels. |
-| Q4/Q5 attention-input R32C128S2 | ✅ Selected | mixed Q4/Q5 attention input, T=1024, cold public Op | 19.448 ms | Oracle passed; 10.1% faster than control. Promoted to the selected route. |
+| Q4/Q5 attention-input R32C128S2 | ✅ Complete | mixed Q4/Q5 attention input, T=1024, cold public Op | 19.448 ms | Oracle passed; 10.1% faster than the original control; later superseded. |
 | Q4/Q5 attention-input R16C128S2 | ❌ Rejected | mixed Q4/Q5 attention input, T=1024, cold public Op | 20.867 ms | Oracle passed; 7.3% slower than R32C128S2. Removed. |
-| End-to-end validation of any Q5 winner | ⏸ Waiting | fixed-clock INT8 draft-3 `pp2048+tg128` | Pending | Requires a qualified operator winner; baseline is 17.26 decode tok/s. |
-| End-to-end validation of attention-input winner | ⏸ Pressure blocked | fixed-clock INT8 `pp2048+tg128` | Pending | Model setup crosses the retained 2 GiB host-memory floor before prefill. |
+| Q4/Q5 attention-input R32C64S3 | ❌ Rejected | mixed Q4/Q5 attention input, T=1024, cold public Op | 20.355 ms | Oracle passed; 4.7% slower than R32C128S2. Removed. |
+| Q4/Q5 attention-input R64C64S3 | ✅ Complete | mixed Q4/Q5 attention input, T=1024, cold public Op | 16.236 ms | Oracle passed; later superseded by R64C128S2. |
+| Q4/Q5 attention-input R64C128S2 | ✅ Selected | mixed Q4/Q5 attention input, T=1024, cold public Op | 13.570 ms | Oracle passed; 37.3% faster than original R32C64S4 control. |
+| Q4/Q5 attention-input R128C64S3 | ❌ Not admitted | mixed Q4/Q5 attention input, T=1024 | No binary | Compile-time shared-memory check rejected its >48 KiB staging footprint. |
+| Q4/Q5 attention-input R128C64S2 | ❌ Rejected | mixed Q4/Q5 attention input, T=1024, cold public Op | 15.592 ms | Oracle passed; 14.9% slower than R64C128S2. Removed. |
+| Q4/Q5 attention-input R64C128S2 `ca` loads | ❌ Rejected | mixed Q4/Q5 attention input, T=1024, cold public Op | 13.998 ms | Oracle passed; 3.2% slower than the `cg` control. Removed. |
+| Q4/Q5 attention-input R64C128S2 individual scales | ❌ Rejected | mixed Q4/Q5 attention input, T=1024, cold public Op | 16.778 ms | Oracle passed; 23.6% slower than paired-scale staging. Removed. |
+| End-to-end validation of Q5 candidates | ✅ Not required | fixed-clock INT8 draft-3 `pp2048+tg128` | No Q5 winner | Every qualified Q5 variant lost to the selected serial/Pair32/C128 route. |
+| End-to-end validation of attention-input winner | ⚠️ Pressure limited | fixed-clock INT8 `pp2048+tg128` | No new result | Model setup crosses the retained 2 GiB host-memory floor before prefill. |
 | Map Q4/Q5 grouped-rowsplit trace | ✅ Complete | 15.3% of fixed-clock draft-3 GPU kernel time | GDN input R64C128 mixed-MMA | Exact `5120 -> {4096,6144,6144}` public projection at T=1024. |
 | Long BF16 MTP-window matrix | ✅ Complete | `pp2048+tg128`, draft-2 and draft-4 | 13.95 / 17.86 decode tok/s | Acceptance 94.32% / 91.74%; draft-4 is the BF16 winner at this workload. |
 | Long INT8 MTP-window matrix | ⚠️ Pressure limited | `pp2048+tg128`, draft-2 and draft-4 | No additional result | A guarded draft-2 retry stopped during model setup at 1.67 GiB `MemAvailable`; draft-4 was not started. |
-| Safe context expansion | ⏳ Planned | INT8 capacity above 32K | Pending | Host-pressure wrapper must stay above configured floor through prefill. |
-| Jetson allocation-class trial | ⏳ Planned | selected allocation class vs explicit `cudaMalloc` control | Pending | Preserve correctness and CUDA-Graph stability; require end-to-end gain. |
+| Safe context expansion | ⚠️ Pressure limited | INT8 capacity above 32K | No additional point | The guarded 40,960-token point stopped before prefill at 1.49 GiB `MemAvailable`; do not lower the 2 GiB safety floor. |
+| Jetson allocation-class trial | ⚠️ Not admitted | memory-pool class vs explicit `cudaMalloc` | No implementation | The active allocator has no allocation-class switch; a valid pool route requires explicit graph-lifetime ownership and qualification first. |
 
 ## Completed tests
 
@@ -57,9 +67,10 @@ the independent Op oracle but lost by about 20%, so the selected implementation
 remains unchanged.
 
 The following traced pair belongs to the Q4/Q5 attention input projection. Its
-R32C128S2 route measures 19.448 ms at T=1024, versus 21.648 ms for the former
-R32C64S4 route. The 10.1% improvement passed the public Op's numerical test and
-has been promoted with matching schedule diagnostics.
+final selected R64C128S2 route measures 13.570 ms at T=1024, versus 21.648 ms
+for the former R32C64S4 route. The 25.0% improvement passed the public Op's
+numerical test and replaced the superseded R32C128S2 schedule with matching
+schedule diagnostics.
 
 ## Planned and active tests
 
