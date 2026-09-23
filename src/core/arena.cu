@@ -37,9 +37,11 @@ std::uintptr_t align_up_addr(std::uintptr_t addr, std::size_t align) {
     return with_mask & ~static_cast<std::uintptr_t>(mask);
 }
 
-void free_device(void*& ptr) noexcept {
+void free_device(void*& ptr, DeviceAllocationClass allocation) noexcept {
     if (ptr != nullptr) {
-        log_cuda_error("cudaFree", cudaFree(ptr));
+        const bool ordered = allocation == DeviceAllocationClass::StreamOrdered;
+        log_cuda_error(ordered ? "cudaFreeAsync" : "cudaFree",
+                       ordered ? cudaFreeAsync(ptr, nullptr) : cudaFree(ptr));
         ptr = nullptr;
     }
 }
@@ -53,33 +55,38 @@ void free_pinned(void*& ptr) noexcept {
 
 } // namespace
 
-DeviceBuffer::DeviceBuffer(std::size_t size_bytes) : bytes(size_bytes) {
+DeviceBuffer::DeviceBuffer(std::size_t size_bytes, DeviceAllocationClass allocation)
+    : bytes(size_bytes), allocation(allocation) {
     if (bytes == 0) { return; }
 
     void* ptr             = nullptr;
-    const cudaError_t err = cudaMalloc(&ptr, bytes);
+    const bool ordered = allocation == DeviceAllocationClass::StreamOrdered;
+    const cudaError_t err = ordered ? cudaMallocAsync(&ptr, bytes, nullptr) : cudaMalloc(&ptr, bytes);
     if (err != cudaSuccess) {
-        throw std::runtime_error(cuda_error_message("cudaMalloc failed", err));
+        throw std::runtime_error(cuda_error_message(ordered ? "cudaMallocAsync failed" : "cudaMalloc failed", err));
     }
     p = ptr;
 }
 
-DeviceBuffer::~DeviceBuffer() { free_device(p); }
+DeviceBuffer::~DeviceBuffer() { free_device(p, allocation); }
 
-DeviceBuffer::DeviceBuffer(DeviceBuffer&& other) noexcept : p(other.p), bytes(other.bytes) {
+DeviceBuffer::DeviceBuffer(DeviceBuffer&& other) noexcept : p(other.p), bytes(other.bytes), allocation(other.allocation) {
     other.p     = nullptr;
     other.bytes = 0;
+    other.allocation = DeviceAllocationClass::Explicit;
 }
 
 DeviceBuffer& DeviceBuffer::operator=(DeviceBuffer&& other) noexcept {
     if (this == &other) { return *this; }
 
-    free_device(p);
+    free_device(p, allocation);
     p     = other.p;
     bytes = other.bytes;
+    allocation = other.allocation;
 
     other.p     = nullptr;
     other.bytes = 0;
+    other.allocation = DeviceAllocationClass::Explicit;
     return *this;
 }
 
@@ -131,15 +138,18 @@ DeviceArena::Scope::Scope(Scope&& other) noexcept
     other.arena_ = nullptr;
 }
 
-DeviceArena::DeviceArena(std::size_t capacity_bytes) {
+DeviceArena::DeviceArena(std::size_t capacity_bytes, DeviceAllocationClass allocation)
+    : allocation_(allocation) {
     if (capacity_bytes == 0) {
         throw std::invalid_argument("DeviceArena capacity must be nonzero");
     }
 
     void* ptr             = nullptr;
-    const cudaError_t err = cudaMalloc(&ptr, capacity_bytes);
+    const bool ordered = allocation_ == DeviceAllocationClass::StreamOrdered;
+    const cudaError_t err = ordered ? cudaMallocAsync(&ptr, capacity_bytes, nullptr)
+                                    : cudaMalloc(&ptr, capacity_bytes);
     if (err != cudaSuccess) {
-        throw std::runtime_error(cuda_error_message("cudaMalloc failed", err));
+        throw std::runtime_error(cuda_error_message(ordered ? "cudaMallocAsync failed" : "cudaMalloc failed", err));
     }
 
     base_ = ptr;
@@ -155,34 +165,37 @@ DeviceArena::DeviceArena(DeviceSpan storage)
 }
 
 DeviceArena::~DeviceArena() {
-    if (owns_) { free_device(base_); }
+    if (owns_) { free_device(base_, allocation_); }
 }
 
 DeviceArena::DeviceArena(DeviceArena&& other) noexcept
     : base_(other.base_), cap_(other.cap_), off_(other.off_), peak_(other.peak_),
-      owns_(other.owns_) {
+      owns_(other.owns_), allocation_(other.allocation_) {
     other.base_ = nullptr;
     other.cap_  = 0;
     other.off_  = 0;
     other.peak_ = 0;
     other.owns_ = true;
+    other.allocation_ = DeviceAllocationClass::Explicit;
 }
 
 DeviceArena& DeviceArena::operator=(DeviceArena&& other) noexcept {
     if (this == &other) { return *this; }
 
-    if (owns_) { free_device(base_); }
+    if (owns_) { free_device(base_, allocation_); }
     base_ = other.base_;
     cap_  = other.cap_;
     off_  = other.off_;
     peak_ = other.peak_;
     owns_ = other.owns_;
+    allocation_ = other.allocation_;
 
     other.base_ = nullptr;
     other.cap_  = 0;
     other.off_  = 0;
     other.peak_ = 0;
     other.owns_ = true;
+    other.allocation_ = DeviceAllocationClass::Explicit;
     return *this;
 }
 

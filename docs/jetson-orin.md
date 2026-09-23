@@ -111,3 +111,12 @@ python3 tools/bench/run_with_host_pressure.py \
 Do not classify an aborted run as a capacity result. Preserve the JSON report,
 including its minimum `mem_available_bytes` sample, when reporting a pass or a
 pressure-limited result.
+
+## Allocation classes
+
+The Engine default remains explicit `cudaMalloc`. The core also exposes an opt-in
+stream-ordered `cudaMallocAsync`/`cudaFreeAsync` class for `DeviceBuffer` and
+`DeviceArena`; its Orin allocation, transfer, suballocation, and destruction gate
+passes. It is not selected for Engine allocations because an end-to-end benefit and
+CUDA-Graph-stability advantage have not been demonstrated. Do not substitute managed
+or mapped allocations globally based only on unified physical LPDDR.

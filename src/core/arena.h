@@ -14,12 +14,15 @@ struct DeviceSpan {
     std::size_t bytes = 0;
 };
 
+enum class DeviceAllocationClass : std::uint8_t { Explicit, StreamOrdered };
+
 // Owning device allocation for long-lived buffers. DeviceArena remains the
 // suballocation primitive for workspaces; this type owns exactly one cudaMalloc.
 class DeviceBuffer {
 public:
     DeviceBuffer() noexcept = default;
-    explicit DeviceBuffer(std::size_t size_bytes);
+    explicit DeviceBuffer(std::size_t size_bytes,
+                          DeviceAllocationClass allocation = DeviceAllocationClass::Explicit);
     ~DeviceBuffer();
 
     DeviceBuffer(const DeviceBuffer&)            = delete;
@@ -34,6 +37,7 @@ public:
     // Raw access is intentional: Tensor and Weight are non-owning views.
     void* p           = nullptr;
     std::size_t bytes = 0;
+    DeviceAllocationClass allocation = DeviceAllocationClass::Explicit;
 
 private:
     void require_range(std::size_t byte_offset, std::size_t count, const char* operation) const;
@@ -59,7 +63,8 @@ public:
         std::size_t saved_offset_ = 0;
     };
 
-    explicit DeviceArena(std::size_t capacity_bytes);
+    explicit DeviceArena(std::size_t capacity_bytes,
+                         DeviceAllocationClass allocation = DeviceAllocationClass::Explicit);
     // Non-owning arena over an already allocated device region.
     explicit DeviceArena(DeviceSpan storage);
     ~DeviceArena();
@@ -86,6 +91,7 @@ private:
     std::size_t off_  = 0;
     std::size_t peak_ = 0;
     bool owns_        = true;
+    DeviceAllocationClass allocation_ = DeviceAllocationClass::Explicit;
 };
 
 class PinnedHostBuffer {

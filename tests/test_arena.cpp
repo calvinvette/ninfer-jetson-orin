@@ -85,6 +85,22 @@ int main() {
     failures += expect_size(buffer.bytes, 0, "moved-from device buffer size");
     failures += expect_size(moved_buffer.bytes, host_source.size(), "moved device buffer size");
 
+    ninfer::DeviceBuffer ordered_buffer(host_source.size(),
+                                        ninfer::DeviceAllocationClass::StreamOrdered);
+    ordered_buffer.copy_from_host(host_source.data(), host_source.size());
+    ordered_buffer.copy_to_host(host_destination.data(), host_destination.size());
+    if (host_destination != host_source) {
+        ++failures;
+        std::cerr << "stream-ordered device buffer round trip changed payload\n";
+    }
+
+    ninfer::DeviceArena ordered_arena(1024, ninfer::DeviceAllocationClass::StreamOrdered);
+    failures += expect_size(ordered_arena.capacity(), 1024, "stream-ordered arena capacity");
+    if (ordered_arena.alloc(ninfer::DType::U8, {17}).data == nullptr) {
+        ++failures;
+        std::cerr << "stream-ordered arena allocation is null\n";
+    }
+
     ninfer::DeviceArena arena(1024);
     failures += expect_size(arena.capacity(), 1024, "arena.capacity");
     failures += expect_size(arena.used(), 0, "arena.used initial");

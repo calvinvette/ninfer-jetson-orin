@@ -643,6 +643,8 @@ The SM87 experiment campaign is complete and its result ledger is
   setup at the retained 2 GiB `MemAvailable` safety floor, not inference
   failures or capacity classifications.
 - Explicit `cudaMalloc` remains the device-allocation control. A memory-pool
-  experiment is not admitted without an Engine-owned allocation-class design
-  that preserves CUDA Graph address stability and has a meaningful end-to-end
-  measurement route.
+  experiment now has an Engine-owned opt-in allocation class: stream-ordered
+  `cudaMallocAsync`/`cudaFreeAsync` allocations pass the `DeviceBuffer` and
+  `DeviceArena` transfer/suballocation gate on Orin. Explicit allocation stays
+  selected because no end-to-end advantage or CUDA-Graph stability evidence
+  justifies a global policy change.

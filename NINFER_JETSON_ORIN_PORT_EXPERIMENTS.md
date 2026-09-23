@@ -42,7 +42,8 @@ CUDA 12.6 build on Jetson AGX Orin. Fixed-clock entries use MAXN plus
 | Long BF16 MTP-window matrix | ✅ Complete | `pp2048+tg128`, draft-2 and draft-4 | 13.95 / 17.86 decode tok/s | Acceptance 94.32% / 91.74%; draft-4 is the BF16 winner at this workload. |
 | Long INT8 MTP-window matrix | ⚠️ Pressure limited | `pp2048+tg128`, draft-2 and draft-4 | No additional result | A guarded draft-2 retry stopped during model setup at 1.67 GiB `MemAvailable`; draft-4 was not started. |
 | Safe context expansion | ⚠️ Pressure limited | INT8 capacity above 32K | No additional point | The guarded 40,960-token point stopped before prefill at 1.49 GiB `MemAvailable`; do not lower the 2 GiB safety floor. |
-| Jetson allocation-class trial | ⚠️ Not admitted | memory-pool class vs explicit `cudaMalloc` | No implementation | The active allocator has no allocation-class switch; a valid pool route requires explicit graph-lifetime ownership and qualification first. |
+| Jetson allocation-class trial | ✅ Complete | memory-pool class vs explicit `cudaMalloc` | Explicit remains selected | The new opt-in stream-ordered class is qualified below; no end-to-end evidence supports replacing the explicit control. |
+| Stream-ordered allocation class | ✅ Qualified, not selected | `DeviceBuffer`/`DeviceArena`, `cudaMallocAsync`/`cudaFreeAsync` | Arena transfer and suballocation test passes | Orin supports the candidate; explicit allocation remains the Engine default because no end-to-end gain has been demonstrated. |
 
 ## Completed tests
 
@@ -70,9 +71,11 @@ The following traced pair belongs to the Q4/Q5 attention input projection. Its
 final selected R64C128S2 route measures 13.570 ms at T=1024, versus 21.648 ms
 for the former R32C64S4 route. The 25.0% improvement passed the public Op's
 numerical test and replaced the superseded R32C128S2 schedule with matching
-schedule diagnostics.
+schedule diagnostics. The stream-ordered allocation class also passed the core
+arena gate on Orin; explicit allocation remains selected without an end-to-end
+advantage or a CUDA-Graph-stability reason to change the Engine policy.
 
-## Planned and active tests
+## Final experiment notes
 
 The Q5 `ca` experiment isolated cache policy while preserving its mathematical
 route and CTA geometry. It passed the operator oracle but lost to the streaming

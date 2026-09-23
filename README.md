@@ -23,11 +23,13 @@ execution targets: launch residency, shared-memory/register budgets, device prop
 supported tensor-core routes must be qualified on the actual GPU.
 
 Physical memory being shared does not make every CUDA allocation a Unified Memory allocation.
-This port keeps the existing explicit `cudaMalloc` device-allocation model as its correctness and
-performance control. `cudaMallocManaged`, mapped host memory, and other allocation strategies are
-separate experiments; they are not enabled globally merely because Orin has unified physical
-memory. CUDA Graph address stability, page residency, synchronization, and CPU access behavior
-still depend on the allocation type.
+This port keeps explicit `cudaMalloc` as its selected device-allocation model. An opt-in
+stream-ordered `cudaMallocAsync`/`cudaFreeAsync` class is qualified for core buffer and arena
+ownership on Orin, but it is not the Engine default because no end-to-end gain or CUDA-Graph
+stability advantage has been demonstrated. `cudaMallocManaged`, mapped host memory, and other
+strategies are not enabled globally merely because Orin has unified physical memory. CUDA Graph
+address stability, page residency, synchronization, and CPU access behavior still depend on the
+allocation type.
 
 The port therefore makes the following boundaries explicit:
 
