@@ -86,9 +86,9 @@ host-memory floor was crossed at 1.67 GiB during model setup, and memory
 recovered immediately after termination. The existing INT8 draft-3 control
 remains valid; no new draft-2 or draft-4 result was produced.
 
-The remaining planned work maps the next large trace contributor before any
-code changes, completes the guarded INT8 long-window matrix, establishes a
-safe context point beyond 32K, and compares one Jetson-specific allocation
-class against the explicit-device-allocation control. These are not assumed to
-produce a code change; each must meet its stated correctness and performance
-criterion.
+Phase 7 therefore qualifies 32,768 prompt tokens plus one generated token as
+the supported long-context point for both BF16 and INT8 KV on this host. The
+next tested INT8 point, 40,960 prompt tokens, is pressure-limited during setup
+under the retained 2 GiB host-memory floor. It is not a failed inference run or
+a measured maximum-context value, and the floor must not be lowered to extend
+the result.

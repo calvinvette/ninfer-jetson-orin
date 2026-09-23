@@ -642,6 +642,10 @@ The SM87 experiment campaign is complete and its result ledger is
   higher-context and long INT8 extension attempts are pressure-limited during
   setup at the retained 2 GiB `MemAvailable` safety floor, not inference
   failures or capacity classifications.
+- Phase 7 consequently selects 32,768 prompt tokens plus one generated token
+  as the supported long-context point for both qualified KV formats on this
+  host. The 40,960-token INT8 attempt is a safety boundary, not an upper-limit
+  measurement; retain the 2 GiB guard for future capacity work.
 - Explicit `cudaMalloc` remains the device-allocation control. A memory-pool
   experiment now has an Engine-owned opt-in allocation class: stream-ordered
   `cudaMallocAsync`/`cudaFreeAsync` allocations pass the `DeviceBuffer` and

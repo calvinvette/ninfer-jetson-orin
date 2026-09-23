@@ -55,6 +55,12 @@ at the short workload for both qualified KV formats, while BF16 draft-4 is best 
 workload. INT8 KV halves the reserved KV payload at the qualified 32K capacity point without a
 measured short-workload decode penalty.
 
+The supported long-context point is **32,768 prompt tokens plus one generated token** for both
+BF16 and INT8 KV. Those eager-prefill gates measure 211.50 BF16 and 209.03 INT8 prefill tok/s;
+the respective KV payloads are 2.00 GiB and 1.03 GiB. The guarded 40,960-token INT8 attempt
+stopped during setup below the retained 2 GiB host-memory floor, so it is a safety boundary—not a
+capacity failure or a published maximum context.
+
 | Best configuration | Workload | PP tok/s | TG tok/s | MTP acceptance |
 |---|---|---:|---:|---:|
 | INT8 KV, draft-3 | `pp512+tg64` | 235.32 | **11.00** | 47.44% |

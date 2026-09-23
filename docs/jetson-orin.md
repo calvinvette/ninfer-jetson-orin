@@ -95,10 +95,13 @@ requires elevated Jetson privileges; when those are unavailable, report the
 power mode and dynamic-clock limitation instead of calling the result
 clock-normalized.
 
-For contexts above the qualified 32K point, retain host-memory telemetry and
-stop before Linux memory pressure can destabilize the board. This wrapper writes
-a sample stream from `/proc/meminfo` and terminates the child if `MemAvailable`
-falls below its 2 GiB default floor:
+The supported long-context point is 32,768 prompt tokens plus one generated token
+for either BF16 or INT8 KV. The eager gates measure 211.50 BF16 and 209.03 INT8
+prefill tok/s, with 2.00 GiB and 1.03 GiB KV payloads respectively. For contexts
+above that point, retain host-memory telemetry and stop before Linux memory
+pressure can destabilize the board. This wrapper writes a sample stream from
+`/proc/meminfo` and terminates the child if `MemAvailable` falls below its 2 GiB
+default floor:
 
 ```bash
 python3 tools/bench/run_with_host_pressure.py \
