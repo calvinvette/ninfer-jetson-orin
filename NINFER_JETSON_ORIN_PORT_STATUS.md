@@ -3,9 +3,10 @@
 Status assessed: 2026-09-22.
 
 Phases 0 through 2 are complete, and Phase 3 is qualified for the tested SM87
-operator and real-model scope. Phase 4 has a consistent MAXN comparison and
-telemetry sample; clock-normalized final baseline work remains open. The
-governing sequence and detailed inventory remain in
+operator and real-model scope. Phase 4 has fixed-clock controls for BF16/INT8
+and both complete BF16/INT8 MTP matrices. A fixed-clock `pp2048+tg128` BF16
+control confirms the draft-3 choice at a longer decode length. The governing
+sequence and detailed inventory remain in
 [the port plan](NINFER_JETSON_ORIN_PORT_PLAN.md).
 
 The public README now documents only the Jetson AGX Orin Arm64/Ubuntu product
@@ -21,10 +22,10 @@ upstream RTX 3090 project and removes the superseded desktop platform guide.
 | 1 — CUDA 12.6 compatibility | E2M1 decode backported and exactly qualified; complete CUDA 12.6/SM86 build passed; the floor change and newer-toolkit compatibility are documented. | No remaining Phase 1 acceptance work. |
 | 2 — Native aarch64 build | Native dependency setup, full aarch64 compilation, application help checks and focused runtime tests passed. | No CPU portability fix has been needed. |
 | 3 — SM87 correctness | Explicit architecture 87 configuration is enabled. The full native SM87 build passed 480/480 compile/link steps; the native device/runtime, CUDA Graph, E2M1 codec, 30 core scheduling/state tests, 21 supported operator/projection tests, real Qwen3.8-27B prefix integration, BF16 causal scoring, INT8-KV MTP generation and short CLI/MTP generation tests pass on Orin. A repeated 64-token CLI decode also reproduced identical output and MTP counters across two fresh processes. | The original FP8 causal-score fixture now skips cleanly on SM87 because that route has no supported implementation; BF16 scoring is the qualified Orin path. |
-| 4 — Orin performance baseline | The repeated product benchmark held `pp512+tg64`, BF16 KV, MAXN, three measured repetitions and one warmup constant: MTP off 7.67 decode tok/s, draft-2 10.57 at 58.62% acceptance, draft-3 10.98 at 47.44% acceptance and draft-4 9.37 at 35.92% acceptance. Prefill was 234.96–238.09 tok/s; no fallback steps occurred. The independent CLI sample remains 12.75 decode tok/s for its shorter prompt. Draft-3 remains the best product-benchmark candidate. | GPU clocks were not lockable from the unprivileged session; repeat with fixed clocks and a larger workload before publishing a final baseline. |
-| 5 — SM87 schedule tuning | Profiling and repeatable operator benchmark sweep started; no schedule divergence has been introduced. | Use the measured Q4/Q5 candidates to test an explicit SM87 schedule only if an end-to-end gain is demonstrated. |
+| 4 — Orin performance baseline | Fixed-clock `pp512+tg64` controls cover BF16 MTP-off/draft-2/draft-3/draft-4 at 7.68/10.60/10.98/9.39 decode tok/s and INT8 at 7.70/10.26/11.00/9.05. At `pp2048+tg128`, BF16/INT8 draft-3 reached 17.21/17.26 tok/s at 93.07% acceptance, versus 7.62/7.63 with MTP off. | Expand the longer fixed-clock workload to the remaining MTP windows before publishing a final baseline. |
+| 5 — SM87 schedule tuning | The traced Q4/Q5 attention-input grouped projection now selects R32C128S2 at T>=21. At T=1024 its public-op median is 19.448 ms, 10.1% faster than the former R32C64S4 route; its numerical test passes. | Run a guarded end-to-end validation when the model can retain the 2 GiB host-memory floor. |
 | 6 — Memory experiments | Not started. | Compare selected allocation classes against the existing device-allocation control. |
-| 7 — Capacity/context tuning | Explicit-capacity startup probes and real 32,768-token prefill gates pass for both BF16 and INT8 KV on the pinned artifact. The long prefill used 32,768 prompt tokens plus one generated token; INT8 used a 1.03 GiB KV payload and BF16 used 2.00 GiB. | Establish the practical upper limit beyond 32K with system headroom. A 40,960-token INT8 attempt lost its execution session and briefly consumed nearly all host RAM, so it is not a qualified capacity point and must not be retried without host-pressure monitoring. |
+| 7 — Capacity/context tuning | Explicit-capacity startup probes and real 32,768-token prefill gates pass for both BF16 and INT8 KV on the pinned artifact. The long prefill used 32,768 prompt tokens plus one generated token; INT8 used a 1.03 GiB KV payload and BF16 used 2.00 GiB. A fixed-clock 40,960-token INT8 retry was safely terminated by retained host-pressure telemetry at a 1.49 GiB `MemAvailable` sample during setup. | Establish the practical upper limit beyond 32K with system headroom. The 40,960-token point is pressure-limited, not a qualified capacity result. |
 | 8 — Final qualification | Not started. | Compare llama.cpp, initial SM87 and tuned SM87 with controlled workloads and energy measurements. |
 
 ## Evidence retained from the interrupted work
@@ -172,6 +173,47 @@ experiments and schedule optimization remain later, separately verified phases.
   9.37 tok/s at 35.92% acceptance. The benchmark's CUDA-Graph MTP paths had no
   fallback steps. This is the first repeat-based product benchmark evidence;
   clock locking remains the outstanding control for final publication.
+- Fixed-clock controls are now available through noninteractive `sudo`. The
+  pre-change policy was saved, `jetson_clocks` locked the GPU at 1,300.5 MHz,
+  all twelve CPU cores at 2,201.6 MHz, and EMC override was enabled under
+  MAXN. The first three-repetition `pp512+tg64` controls with the pinned
+  artifact measured BF16 MTP-off at 238.35 prefill / 7.68 decode tok/s. The
+  complete INT8 matrix measured MTP-off at 237.88 / 7.70; draft-2 at 235.91 /
+  10.26 with 54.10% acceptance; draft-3 at 235.32 / 11.00 with 47.44%
+  acceptance and three fallback steps; and draft-4 at 234.59 / 9.05 with
+  33.64% acceptance. These controls retained tegrastats logs and showed
+  98–99% GR3D utilization without a visible clock drop. The matching BF16
+  MTP matrix measured draft-2 at 236.42 / 10.60 tok/s with 58.62% acceptance,
+  draft-3 at 235.76 / 10.98 with 47.44%, and draft-4 at 235.13 / 9.39 with
+  35.92%; each speculative case recorded three fallback steps. Draft-3 remains
+  the fixed-clock winner for both KV formats.
+- The larger fixed-clock BF16 `pp2048+tg128` control retained the same artifact,
+  three measured repetitions, one warmup, 4096-token reservation and CUDA-Graph
+  product route. MTP-off measured 239.51 prefill / 7.62 decode tok/s. Draft-3
+  measured 238.49 / 17.21 tok/s at 93.07% acceptance with no fallback steps.
+  This is an initial longer-workload comparison, not the complete long matrix.
+- The fixed-clock BF16 long-window extension measured draft-2 at 238.56
+  prefill / 13.95 decode tok/s with 94.32% acceptance and three fallback
+  steps; draft-4 measured 238.25 / 17.86 with 91.74% acceptance and no
+  fallback steps. Draft-4 is the best measured BF16 window at this longer
+  workload. The analogous INT8 extension was interrupted before a result when
+  a lingering benchmark reduced host `MemAvailable` to 472 MiB; its exact
+  processes were terminated and future retries require the pressure wrapper.
+- The corresponding fixed-clock INT8 `pp2048+tg128` controls measured MTP-off
+  at 238.44 prefill / 7.63 decode tok/s and draft-3 at 237.41 / 17.26 tok/s,
+  also at 93.07% acceptance with no fallback steps. At this workload, the
+  guarded draft-2 extension stopped during model setup at a 1.67 GiB
+  `MemAvailable` sample, below its retained 2 GiB floor; it did not reach
+  prefill and draft-4 was not started. Host memory recovered immediately after
+  termination, so this is a pressure-limited result rather than a throughput
+  or correctness classification. The existing control shows that INT8 payload
+  reduction does not trade away decode throughput.
+- A local llama.cpp CUDA comparison at checkout `8be759e6f` used the
+  Qwen3.8-27B Q4_K_XL GGUF, full GPU offload, Flash Attention, FP16 KV, and
+  three repetitions under the same fixed-clock profile. It measured 238.15
+  ± 4.21 prefill tok/s and 7.78 ± 0.06 decode tok/s. Its GGUF quantization and
+  KV representation are not NInfer's groupwise `.ninfer` artifact, so this is
+  a matched-family system reference rather than an exact-weight comparison.
 - The native Qwen3.6-27B operator suite was also measured with five samples per
   point after two warmups on SM87. Representative cold-cache points were the
   Q4 draft head (N=131072,K=5120,T=1) at 2.58 ms and the Q5 GDN output gate
@@ -182,6 +224,26 @@ experiments and schedule optimization remain later, separately verified phases.
   with GDN recurrent kernels and attention below them. This is Phase 5 triage
   evidence only; no SM87 schedule has been changed from the qualified
   implementation yet.
+- A fixed-clock Nsight Systems trace of the longer INT8 `pp2048+tg128`,
+  draft-3 route confirms that attribution: the Q4 SwiGLU split-half pair GEMM
+  consumed 40.1% of GPU kernel time, the Q5 rowsplit MMA GEMM 26.7%, and the
+  Q4 grouped rowsplit MMA path 15.3%. GDN state passing (1.1%) and INT8 causal
+  attention (1.0%) are secondary. This identifies the Q4 SwiGLU pair path as
+  the first explicit SM87 schedule candidate; no code change is justified
+  until a competing schedule is measured end-to-end.
+- Direct SM87 Q4 SwiGLU T=1024 operator experiments then compared 64- and
+  96-column split-half pair tiles with the qualified 128-column tile. C64/C96
+  were numerically qualified but measured 42.44/38.21 ms versus C128's 28.44–
+  28.53 ms under the same cold-cache protocol, so both were removed. C128
+  remains the selected large-prefill schedule; these results do not establish
+  an end-to-end change.
+- The traced Q5 GDN output-gate geometry (`N=6144,K=5120,T=1024`) similarly
+  rejected its already-qualified C64 ping-pong schedule: it passed the Q5
+  oracle but measured 7.271 ms through public Linear versus 5.019 ms for the
+  selected C128 serial schedule. The C128 dispatch was restored.
+- The C128 Q5 cache-policy alternative also lost on SM87: cache-all (`ca`)
+  loads passed the Q5 oracle but measured 6.075 ms against 5.008 ms for the
+  streaming (`cg`) control, so the qualified `cg` schedule was restored.
 - Explicit-capacity startup probes at 8,192, 16,384 and 32,768 tokens passed for
   both BF16 and INT8 KV with the pinned artifact. At 32,768 tokens, BF16 used a
   2.00 GiB KV payload and reported 9.47 GiB free after startup; INT8 used a
@@ -199,6 +261,13 @@ experiments and schedule optimization remain later, separately verified phases.
   Memory recovered to 25.9 GiB free shortly afterward. This is an interrupted
   pressure observation, not a pass, failure classification, or practical-limit
   claim. Do not repeat it until the run can retain host-pressure telemetry.
+- A later fixed-clock retry used `tools/bench/run_with_host_pressure.py`, which
+  samples `/proc/meminfo` every 250 ms and terminates the child below its 2 GiB
+  `MemAvailable` floor. The run was stopped during setup after 10.76 seconds;
+  its lowest retained `MemAvailable` sample was 1.49 GiB and swap remained
+  essentially unchanged. It did not reach prefill, so it remains neither a
+  pass nor a measured upper-context point, but it is a safe pressure-limited
+  result and the earlier execution-channel loss was not reproduced.
 - Shared operator benchmark reporting now derives its informational DRAM
   roofline from CUDA's memory-clock and bus-width attributes rather than the
   former RTX 5090-only constant. The target-specific linear benchmark retains

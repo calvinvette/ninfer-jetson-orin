@@ -94,3 +94,20 @@ Record `nvpmodel -q` and `tegrastats` output with the result. `jetson_clocks`
 requires elevated Jetson privileges; when those are unavailable, report the
 power mode and dynamic-clock limitation instead of calling the result
 clock-normalized.
+
+For contexts above the qualified 32K point, retain host-memory telemetry and
+stop before Linux memory pressure can destabilize the board. This wrapper writes
+a sample stream from `/proc/meminfo` and terminates the child if `MemAvailable`
+falls below its 2 GiB default floor:
+
+```bash
+python3 tools/bench/run_with_host_pressure.py \
+  --output /tmp/pp40960-host-pressure.json -- \
+  build/port-cuda126-sm87/bench/ninfer_bench \
+  --weights "$NINFER" --prompt-gen 40960,1 --repetitions 1 --warmup 0 \
+  --max-ctx 40961 --kv-dtype int8 --no-cuda-graph
+```
+
+Do not classify an aborted run as a capacity result. Preserve the JSON report,
+including its minimum `mem_available_bytes` sample, when reporting a pass or a
+pressure-limited result.
