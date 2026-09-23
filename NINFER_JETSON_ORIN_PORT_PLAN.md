@@ -625,3 +625,24 @@ prerequisites, then compile the complete relevant SM86 project using CUDA 12.6
 with `cmake --build build/port-cuda126-sm86 -j`. Lower the advertised CUDA floor
 only after compatibility evidence exists. Keep SM87 changes and memory experiments
 out of that phase.
+
+## Execution status: completed SM87 experiment campaign (2026-09-23)
+
+The historical inventory and phased criteria above remain the porting rationale.
+The SM87 experiment campaign is complete and its result ledger is
+[`NINFER_JETSON_ORIN_PORT_EXPERIMENTS.md`](NINFER_JETSON_ORIN_PORT_EXPERIMENTS.md).
+
+- Fixed `MAXN`/`jetson_clocks` matrices establish short-workload INT8 draft-3
+  at 235.32 PP tok/s and 11.00 TG tok/s (`pp512+tg64`), and long-workload BF16
+  draft-4 at 238.25 PP tok/s and 17.86 TG tok/s (`pp2048+tg128`).
+- Trace-directed tuning selected the Q4/Q5 attention-input R64C128S2 route for
+  T>=21. Its 13.570 ms T=1024 public-op median is 37.3% below the original
+  R32C64S4 control, and the numerical gate passes.
+- Both BF16 and INT8 KV complete real 32,768-token prefill gates. Guarded
+  higher-context and long INT8 extension attempts are pressure-limited during
+  setup at the retained 2 GiB `MemAvailable` safety floor, not inference
+  failures or capacity classifications.
+- Explicit `cudaMalloc` remains the device-allocation control. A memory-pool
+  experiment is not admitted without an Engine-owned allocation-class design
+  that preserves CUDA Graph address stability and has a meaningful end-to-end
+  measurement route.

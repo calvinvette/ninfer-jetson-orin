@@ -47,20 +47,27 @@ correctness is qualified for the tested operator and real-model scope, including
 CUDA Graphs, NVFP4 codec, Q4/Q5/W8/BF16 routes, GDN paths, real-model prefix/state behavior,
 BF16 causal scoring, INT8-KV MTP generation, and repeated decode stability.
 
-Phase 4 has repeatable MAXN product measurements. On the pinned Qwen3.8-27B groupwise artifact,
-using BF16 KV and a `pp512+tg64` workload with three measured repetitions:
+Phase 4 SM87 experiments have completed. Fixed `MAXN`/`jetson_clocks` measurements on the pinned
+Qwen3.8-27B groupwise artifact establish MTP as the decisive decode optimization: draft-3 is best
+at the short workload for both qualified KV formats, while BF16 draft-4 is best at the long
+workload. INT8 KV halves the reserved KV payload at the qualified 32K capacity point without a
+measured short-workload decode penalty.
 
-| MTP mode | Decode tok/s | Acceptance |
-|---|---:|---:|
-| Off | 7.67 | — |
-| Draft 2 | 10.57 | 58.62% |
-| Draft 3 | 10.98 | 47.44% |
-| Draft 4 | 9.37 | 35.92% |
+| Best configuration | Workload | PP tok/s | TG tok/s | MTP acceptance |
+|---|---|---:|---:|---:|
+| INT8 KV, draft-3 | `pp512+tg64` | 235.32 | **11.00** | 47.44% |
+| BF16 KV, draft-3 | `pp512+tg64` | 235.76 | 10.98 | 47.44% |
+| BF16 KV, draft-4 | `pp2048+tg128` | 238.25 | **17.86** | 91.74% |
+| INT8 KV, draft-3 | `pp2048+tg128` | 237.41 | 17.26 | 93.07% |
 
-These measurements use the Orin `MAXN` power mode. GPU clock locking was unavailable from the
-unprivileged session, so they are not final clock-normalized or cross-device performance claims.
-See the [live port status](NINFER_JETSON_ORIN_PORT_STATUS.md) for provenance, limitations, and
-remaining schedule, memory, and final-comparison work.
+SM87 kernel work also replaced the Q4/Q5 attention-input large-prefill route with R64C128S2.
+At T=1024, its public-op median is 13.570 ms, 37.3% faster than the original R32C64S4 route;
+the associated numerical test passes.
+
+The full result matrix—including rejected schedules, capacity guard outcomes, commands, and
+hardware context—is in the [SM87 experiment ledger](NINFER_JETSON_ORIN_PORT_EXPERIMENTS.md).
+See the [live port status](NINFER_JETSON_ORIN_PORT_STATUS.md) for current port provenance and
+limitations.
 
 ## Build on Orin
 

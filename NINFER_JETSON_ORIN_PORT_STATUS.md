@@ -1,12 +1,12 @@
 # NInfer Jetson Orin Port Status
 
-Status assessed: 2026-09-22.
+Status assessed: 2026-09-23.
 
 Phases 0 through 2 are complete, and Phase 3 is qualified for the tested SM87
-operator and real-model scope. Phase 4 has fixed-clock controls for BF16/INT8
-and both complete BF16/INT8 MTP matrices. A fixed-clock `pp2048+tg128` BF16
-control confirms the draft-3 choice at a longer decode length. The governing
-sequence and detailed inventory remain in
+operator and real-model scope. The fixed-clock SM87 experiment campaign is
+complete: performance matrices, traced schedule trials, capacity gates, and
+terminal safety classifications are recorded in the experiment ledger. The
+governing sequence and detailed inventory remain in
 [the port plan](NINFER_JETSON_ORIN_PORT_PLAN.md).
 
 The public README now documents only the Jetson AGX Orin Arm64/Ubuntu product
@@ -22,11 +22,11 @@ upstream RTX 3090 project and removes the superseded desktop platform guide.
 | 1 — CUDA 12.6 compatibility | E2M1 decode backported and exactly qualified; complete CUDA 12.6/SM86 build passed; the floor change and newer-toolkit compatibility are documented. | No remaining Phase 1 acceptance work. |
 | 2 — Native aarch64 build | Native dependency setup, full aarch64 compilation, application help checks and focused runtime tests passed. | No CPU portability fix has been needed. |
 | 3 — SM87 correctness | Explicit architecture 87 configuration is enabled. The full native SM87 build passed 480/480 compile/link steps; the native device/runtime, CUDA Graph, E2M1 codec, 30 core scheduling/state tests, 21 supported operator/projection tests, real Qwen3.8-27B prefix integration, BF16 causal scoring, INT8-KV MTP generation and short CLI/MTP generation tests pass on Orin. A repeated 64-token CLI decode also reproduced identical output and MTP counters across two fresh processes. | The original FP8 causal-score fixture now skips cleanly on SM87 because that route has no supported implementation; BF16 scoring is the qualified Orin path. |
-| 4 — Orin performance baseline | Fixed-clock `pp512+tg64` controls cover BF16 MTP-off/draft-2/draft-3/draft-4 at 7.68/10.60/10.98/9.39 decode tok/s and INT8 at 7.70/10.26/11.00/9.05. At `pp2048+tg128`, BF16/INT8 draft-3 reached 17.21/17.26 tok/s at 93.07% acceptance, versus 7.62/7.63 with MTP off. | Expand the longer fixed-clock workload to the remaining MTP windows before publishing a final baseline. |
-| 5 — SM87 schedule tuning | The traced Q4/Q5 attention-input grouped projection now selects R64C128S2 at T>=21. At T=1024 its public-op median is 13.570 ms, 37.3% faster than the former R32C64S4 route; its numerical test passes. | Run a guarded end-to-end validation when the model can retain the 2 GiB host-memory floor. |
-| 6 — Memory experiments | Not started. | Compare selected allocation classes against the existing device-allocation control. |
-| 7 — Capacity/context tuning | Explicit-capacity startup probes and real 32,768-token prefill gates pass for both BF16 and INT8 KV on the pinned artifact. The long prefill used 32,768 prompt tokens plus one generated token; INT8 used a 1.03 GiB KV payload and BF16 used 2.00 GiB. A fixed-clock 40,960-token INT8 retry was safely terminated by retained host-pressure telemetry at a 1.49 GiB `MemAvailable` sample during setup. | Establish the practical upper limit beyond 32K with system headroom. The 40,960-token point is pressure-limited, not a qualified capacity result. |
-| 8 — Final qualification | Not started. | Compare llama.cpp, initial SM87 and tuned SM87 with controlled workloads and energy measurements. |
+| 4 — Orin performance baseline | Fixed-clock `pp512+tg64` controls cover BF16 MTP-off/draft-2/draft-3/draft-4 at 7.68/10.60/10.98/9.39 decode tok/s and INT8 at 7.70/10.26/11.00/9.05. At `pp2048+tg128`, BF16 draft-4 is best at 17.86 decode tok/s; INT8 draft-3 reaches 17.26 at 93.07% acceptance. | Complete; the additional INT8 draft-2/draft-4 extension is pressure-limited before prefill. |
+| 5 — SM87 schedule tuning | The traced Q4/Q5 attention-input grouped projection selects R64C128S2 at T>=21. At T=1024 its public-op median is 13.570 ms, 37.3% faster than the former R32C64S4 route; its numerical test passes. | Complete; rejected tile, cache, scale, and pipeline variants are retained in the ledger. |
+| 6 — Memory experiments | Explicit `cudaMalloc` remains the control. No allocation-class switch exists, so a pool/managed-memory trial is not admitted without graph-lifetime ownership and qualification. | Terminal classification: not admitted as a one-line benchmark toggle. |
+| 7 — Capacity/context tuning | Real 32,768-token prefill gates pass for both BF16 and INT8 KV; INT8 uses a 1.03 GiB KV payload and BF16 2.00 GiB. The guarded 40,960-token INT8 point stopped at 1.49 GiB `MemAvailable` during setup. | Terminal classification: pressure-limited; do not lower the 2 GiB guard. |
+| 8 — Final qualification | A local llama.cpp CUDA reference was measured; all SM87 experiments have terminal outcomes. | Complete for the declared experiment campaign; cross-runtime results remain descriptive because GGUF quantization/KV differ. |
 
 ## Evidence retained from the interrupted work
 
