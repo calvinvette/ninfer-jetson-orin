@@ -160,6 +160,7 @@ int main(int argc, char** argv) {
         engine_options.speculative.draft_tokens  = options.mtp_draft_tokens;
         engine_options.speculative.proposal_head = options.proposal_head;
         engine_options.use_cuda_graph            = options.use_cuda_graph;
+        engine_options.context_cache.enabled     = options.use_context_cache;
 
         ninfer::bench::BenchEnvironment env;
         env.artifact_path            = options.artifact_path;
@@ -170,6 +171,7 @@ int main(int argc, char** argv) {
         env.mtp_draft_tokens         = options.mtp_draft_tokens;
         env.proposal_head            = options.proposal_head;
         env.use_cuda_graph           = options.use_cuda_graph;
+        env.use_context_cache         = options.use_context_cache;
         env.repetitions              = options.repetitions;
         env.warmup                   = options.warmup;
         env.corpus_path              = options.corpus_path;

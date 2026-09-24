@@ -1,9 +1,9 @@
 # Native Jetson Orin development
 
-The Jetson port is in progress. See the
-[port status](../NINFER_JETSON_ORIN_PORT_STATUS.md) for completed gates and
-remaining limitations. A successful native build is not a claim of qualified
-SM87 inference or performance.
+The Jetson AGX Orin SM87 port and its Phase 8 qualification are complete. See
+the [port status](../NINFER_JETSON_ORIN_PORT_STATUS.md) and
+[experiment ledger](../NINFER_JETSON_ORIN_PORT_EXPERIMENTS.md) for the exact
+validated scope and measurement limitations.
 
 Use the native Linux/aarch64 environment and the CUDA installation supplied with
 JetPack. The existing desktop CUDA Docker image is not the Jetson build path.
@@ -87,7 +87,8 @@ NINFER=/home/calvin/models/qwen3_8_27b_v1/qwen3_8_27b.ninfer
 LD_LIBRARY_PATH="$PWD/build/jetson-deps/install/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}" \
   build/port-cuda126-sm87/bench/ninfer_bench \
   --weights "$NINFER" --prompt-gen 512,64 --repetitions 3 --warmup 1 \
-  --max-ctx 2048 --kv-dtype bf16 --mtp-draft-tokens 3 --lm-head-draft
+  --max-ctx 2048 --kv-dtype int8 --mtp-draft-tokens 3 --lm-head-draft \
+  --no-prefix-reuse
 ```
 
 Record `nvpmodel -q` and `tegrastats` output with the result. `jetson_clocks`
@@ -95,12 +96,19 @@ requires elevated Jetson privileges; when those are unavailable, report the
 power mode and dynamic-clock limitation instead of calling the result
 clock-normalized.
 
+The completed Phase 8 comparison uses this NInfer command with the same fixed
+clock profile for the reconstructed R32C64S4 and selected R64C128S2 schedules.
+It measures 235.01/10.976 and 242.28/10.981 PP/TG tok/s respectively. The
+selected route improves TTFT from 2.179 s to 2.113 s. `VDD_GPU_SOC` is reported
+as the rail-power scope; it is not whole-board input power. See the experiment
+ledger for memory reservations, 32K capacity evidence, and tokens/J.
+
 The supported long-context point is 32,768 prompt tokens plus one generated token
 for either BF16 or INT8 KV. The eager gates measure 211.50 BF16 and 209.03 INT8
 prefill tok/s, with 2.00 GiB and 1.03 GiB KV payloads respectively. For contexts
 above that point, retain host-memory telemetry and stop before Linux memory
 pressure can destabilize the board. This wrapper writes a sample stream from
-`/proc/meminfo` and terminates the child if `MemAvailable` falls below its 2 GiB
+`/proc/meminfo` and terminates the child if `MemAvailable` falls below its 1.2 GiB
 default floor:
 
 ```bash

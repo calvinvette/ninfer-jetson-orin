@@ -640,12 +640,22 @@ The SM87 experiment campaign is complete and its result ledger is
   R32C64S4 control, and the numerical gate passes.
 - Both BF16 and INT8 KV complete real 32,768-token prefill gates. Guarded
   higher-context and long INT8 extension attempts are pressure-limited during
-  setup at the retained 2 GiB `MemAvailable` safety floor, not inference
+  dispatch at the retained 1.2 GiB `MemAvailable` safety floor, not inference
   failures or capacity classifications.
 - Phase 7 consequently selects 32,768 prompt tokens plus one generated token
   as the supported long-context point for both qualified KV formats on this
   host. The 40,960-token INT8 attempt is a safety boundary, not an upper-limit
-  measurement; retain the 2 GiB guard for future capacity work.
+  measurement; retain the 1.2 GiB guard for future capacity work.
+- Phase 8 is complete. Disabling unused benchmark prefix reuse removes the 8 GiB host-KV
+  reservation without changing inference math; this permits the matched fixed-clock comparison.
+  At `pp512+tg64`, INT8 KV/MTP-3, initial R32C64S4 measures 235.01 PP / 10.976 TG tok/s and
+  tuned R64C128S2 measures 242.28 / 10.981. TTFT, reservation, 32K capacity, VDD_GPU_SOC power,
+  and rail-normalized tokens/J are recorded in the experiment ledger. llama.cpp UD-Q4_K_M is the
+  accepted matched-family reference, with its GGUF/FP16-KV limitation explicitly retained.
+- The completed llama.cpp reference uses UD-Q4_K_M with full CUDA offload,
+  FlashAttention, and FP16 KV. Its Phase 8 PP/TG, prefill proxy, and rail-power
+  values are recorded with the final comparison; it remains non-equivalent to
+  NInfer groupwise-int weights and INT8 KV.
 - Explicit `cudaMalloc` remains the device-allocation control. A memory-pool
   experiment now has an Engine-owned opt-in allocation class: stream-ordered
   `cudaMallocAsync`/`cudaFreeAsync` allocations pass the `DeviceBuffer` and

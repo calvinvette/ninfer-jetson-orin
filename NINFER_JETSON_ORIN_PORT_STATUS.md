@@ -25,10 +25,15 @@ upstream RTX 3090 project and removes the superseded desktop platform guide.
 | 4 — Orin performance baseline | Fixed-clock `pp512+tg64` controls cover BF16 MTP-off/draft-2/draft-3/draft-4 at 7.68/10.60/10.98/9.39 decode tok/s and INT8 at 7.70/10.26/11.00/9.05. At `pp2048+tg128`, BF16 draft-4 is best at 17.86 decode tok/s; INT8 draft-3 reaches 17.26 at 93.07% acceptance. | Complete; the additional INT8 draft-2/draft-4 extension is pressure-limited before prefill. |
 | 5 — SM87 schedule tuning | The traced Q4/Q5 attention-input grouped projection selects R64C128S2 at T>=21. At T=1024 its public-op median is 13.570 ms, 37.3% faster than the former R32C64S4 route; its numerical test passes. | Complete; rejected tile, cache, scale, and pipeline variants are retained in the ledger. |
 | 6 — Memory experiments | Explicit `cudaMalloc` remains the control. An opt-in stream-ordered `cudaMallocAsync`/`cudaFreeAsync` class is qualified for `DeviceBuffer` and `DeviceArena` allocation, transfer, suballocation, and destruction on Orin. | Complete: retain explicit allocation because the pool class has no demonstrated end-to-end advantage or graph-stability qualification. |
-| 7 — Capacity/context tuning | The selected long-context point is 32,768 prompt tokens plus one generated token for BF16 and INT8 KV; INT8 uses a 1.03 GiB KV payload and BF16 2.00 GiB. The guarded 40,960-token INT8 point stopped at 1.49 GiB `MemAvailable` during setup. | Complete: pressure boundary only; do not lower the 2 GiB guard. |
-| 8 — Final qualification | A local llama.cpp CUDA reference was measured; all SM87 experiments have terminal outcomes. | Complete for the declared experiment campaign; cross-runtime results remain descriptive because GGUF quantization/KV differ. |
+| 7 — Capacity/context tuning | The selected long-context point is 32,768 prompt tokens plus one generated token for BF16 and INT8 KV; INT8 uses a 1.03 GiB KV payload and BF16 2.00 GiB. The 1.2 GiB guarded 40,960-token retry reached benchmark dispatch but stopped at 1.06 GiB. | Complete: pressure boundary only; the active guard is 1.2 GiB. |
+| 8 — Final qualification | ✅ Complete. Fixed-clock, cache-disabled `pp512+tg64` INT8-KV/MTP-3 comparison: initial SM87 235.01 PP / 10.976 TG tok/s; tuned SM87 242.28 / 10.981. llama.cpp UD-Q4_K_M reference measures 252.06 PP / 8.434 TG. | Q4 is matched-family only: its GGUF weights and FP16 KV are not groupwise-int/INT8-KV equivalent. Power is the `VDD_GPU_SOC` rail, not whole-board input power. |
 
 ## Evidence retained from the interrupted work
+
+After external services were reduced, the selected-route 1.2 GiB guarded
+retries still stopped during common model setup: long INT8 draft-2 at 1.167 GiB
+after 10.02 seconds and the 40,960-token gate at 1.075 GiB after 9.76 seconds.
+The latter reached dispatch but neither produced a benchmark result.
 
 The plan's execution-status section records the initial investigation. Those
 historical observations are retained below for provenance; later milestones
@@ -203,7 +208,7 @@ experiments and schedule optimization remain later, separately verified phases.
   at 238.44 prefill / 7.63 decode tok/s and draft-3 at 237.41 / 17.26 tok/s,
   also at 93.07% acceptance with no fallback steps. At this workload, the
   guarded draft-2 extension stopped during model setup at a 1.67 GiB
-  `MemAvailable` sample, below its retained 2 GiB floor; it did not reach
+  `MemAvailable` sample, below the then-active 2 GiB floor; it did not reach
   prefill and draft-4 was not started. Host memory recovered immediately after
   termination, so this is a pressure-limited result rather than a throughput
   or correctness classification. The existing control shows that INT8 payload
@@ -262,7 +267,7 @@ experiments and schedule optimization remain later, separately verified phases.
   pressure observation, not a pass, failure classification, or practical-limit
   claim. Do not repeat it until the run can retain host-pressure telemetry.
 - A later fixed-clock retry used `tools/bench/run_with_host_pressure.py`, which
-  samples `/proc/meminfo` every 250 ms and terminates the child below its 2 GiB
+  samples `/proc/meminfo` every 250 ms and terminates the child below its then-active 2 GiB
   `MemAvailable` floor. The run was stopped during setup after 10.76 seconds;
   its lowest retained `MemAvailable` sample was 1.49 GiB and swap remained
   essentially unchanged. It did not reach prefill, so it remains neither a

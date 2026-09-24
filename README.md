@@ -58,7 +58,7 @@ measured short-workload decode penalty.
 The supported long-context point is **32,768 prompt tokens plus one generated token** for both
 BF16 and INT8 KV. Those eager-prefill gates measure 211.50 BF16 and 209.03 INT8 prefill tok/s;
 the respective KV payloads are 2.00 GiB and 1.03 GiB. The guarded 40,960-token INT8 attempt
-stopped during setup below the retained 2 GiB host-memory floor, so it is a safety boundary—not a
+stopped after dispatch below the retained 1.2 GiB host-memory floor, so it is a safety boundary—not a
 capacity failure or a published maximum context.
 
 | Best configuration | Workload | PP tok/s | TG tok/s | MTP acceptance |
@@ -72,10 +72,25 @@ SM87 kernel work also replaced the Q4/Q5 attention-input large-prefill route wit
 At T=1024, its public-op median is 13.570 ms, 37.3% faster than the original R32C64S4 route;
 the associated numerical test passes.
 
+The accepted llama.cpp comparator uses the downloaded UD-Q4_K_M GGUF, full CUDA offload,
+FlashAttention, and FP16 KV. It is a matched-family conventional-Q4 system reference, not an exact
+groupwise-int or KV-format equivalent to NInfer.
+
 The full result matrix—including rejected schedules, capacity guard outcomes, commands, and
 hardware context—is in the [SM87 experiment ledger](NINFER_JETSON_ORIN_PORT_EXPERIMENTS.md).
 See the [live port status](NINFER_JETSON_ORIN_PORT_STATUS.md) for current port provenance and
 limitations.
+
+### Phase 8 comparison
+
+At fixed MAXN/`jetson_clocks`, with `pp512+tg64`, 2,048-token reservation, and the standalone
+`--no-prefix-reuse` benchmark mode, the reconstructed initial SM87 route measures 235.01 PP and
+10.976 TG tok/s. The selected R64C128S2 route measures 242.28 PP and 10.981 TG tok/s: a 3.1%
+prefill improvement and effectively unchanged decode. TTFT is 2.179 s initial versus 2.113 s
+tuned. The corresponding `VDD_GPU_SOC` measured-window means are 40.18 W and 41.38 W, yielding
+5.849/5.855 PP tokens/J and 0.273/0.265 TG tokens/J. The accepted llama.cpp UD-Q4_K_M reference
+is 252.06 PP and 8.434 TG tok/s; its conventional GGUF Q4 weights and FP16 KV are not an exact
+NInfer weight/KV comparison.
 
 ## Build on Orin
 

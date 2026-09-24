@@ -296,6 +296,7 @@ std::string usage_text(std::string_view program) {
         << "  --lm-head-draft             use the optimized proposal head; requires MTP\n"
         << "  --device <id>               CUDA device ordinal (default: 0)\n"
         << "  --no-cuda-graph             use eager decode\n"
+        << "  --no-prefix-reuse           disable the unused context cache for a standalone run\n"
         << "  --profile-measured          bracket one measured repetition with CUDA profiler API\n"
         << "  -o, --output <table|json|csv>  output format (default: table)\n"
         << "  --output-file <path>        write report to a file\n"
@@ -356,6 +357,8 @@ BenchOptions parse_args(int argc, char** argv) {
             options.device = parse_nonnegative(value("--device"), "device");
         } else if (arg == "--no-cuda-graph") {
             options.use_cuda_graph = false;
+        } else if (arg == "--no-prefix-reuse") {
+            options.use_context_cache = false;
         } else if (arg == "--profile-measured") {
             options.profile_measured = true;
         } else if (arg == "-o" || arg == "--output") {
@@ -698,6 +701,7 @@ std::string format_json(const BenchEnvironment& env, const std::string& command,
         << "    \"mtp_draft_tokens\": " << env.mtp_draft_tokens << ",\n"
         << "    \"proposal_head\": \"" << proposal_head_name(env.proposal_head) << "\",\n"
         << "    \"use_cuda_graph\": " << (env.use_cuda_graph ? "true" : "false") << ",\n"
+        << "    \"use_context_cache\": " << (env.use_context_cache ? "true" : "false") << ",\n"
         << "    \"decode_path\": \"" << decode_path_name(env.use_cuda_graph, env.mtp_draft_tokens)
         << "\",\n"
         << "    \"decode_graph_prime\": {\"primed\": "

@@ -39,8 +39,8 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--output", required=True, help="JSON telemetry output path")
     parser.add_argument("--interval-ms", type=int, default=250)
-    parser.add_argument("--min-available-gib", type=positive_gib, default=2 * (1 << 30),
-                        help="terminate when MemAvailable falls below this value (default: 2)")
+    parser.add_argument("--min-available-gib", type=positive_gib, default=int(1.2 * (1 << 30)),
+                        help="terminate when MemAvailable falls below this value (default: 1.2)")
     parser.add_argument("command", nargs=argparse.REMAINDER,
                         help="command to run; place -- before the command")
     args = parser.parse_args()

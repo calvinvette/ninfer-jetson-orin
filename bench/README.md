@@ -50,7 +50,7 @@ ninfer_bench --weights <artifact.ninfer>
           [--max-ctx <tokens>] [--prefill-chunk <tokens>]
           [--kv-dtype <bf16|int8|fp8>]
           [--mtp-draft-tokens <0..5>] [--lm-head-draft]
-          [--device <id>] [--no-cuda-graph] [--profile-measured]
+          [--device <id>] [--no-cuda-graph] [--no-prefix-reuse] [--profile-measured]
           [-o, --output <table|json|csv>] [--output-file <path>]
 ```
 
@@ -68,6 +68,10 @@ Example:
 row-scaled E4M3 D256 KV storage. MTP is enabled with
 `--mtp-draft-tokens`; `--lm-head-draft` selects the optimized proposal head. CUDA Graph decode is
 enabled by default.
+
+`--no-prefix-reuse` disables the Engine context cache for a standalone benchmark. It is useful
+when the measured workload does not exercise continuation or prefix reuse and should not reserve
+its host-KV capacity.
 
 `--profile-measured` is a benchmark-only profiler boundary. It requires exactly one selected test
 and `-r 1`, synchronizes after warmup, and brackets only the measured repetition with
