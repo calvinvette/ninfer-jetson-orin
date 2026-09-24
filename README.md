@@ -24,13 +24,31 @@ best measured short-workload decode setting and halves the KV payload relative t
 sudo nvpmodel -m 0
 sudo jetson_clocks
 
-build/port-cuda126-sm87/apps/ninfer \
+LD_LIBRARY_PATH=./build/jetson-deps/install/lib/ \
+  build/port-cuda126-sm87/apps/ninfer \
   /home/calvin/models/qwen3_8_27b_v1/qwen3_8_27b.ninfer \
   --prompt 'Explain paged KV caching in two sentences.' \
   --max-context 32768 --kv-capacity 32768 --max-new 128 \
   --kv-dtype int8 --spec mtp --draft-tokens 3 --lm-head-draft \
   --no-thinking --greedy
 ```
+
+To serve the same configuration through OpenAI- and Anthropic-compatible HTTP endpoints, build the
+server target once and start it with the dependency prefix:
+
+```bash
+cmake --build build/port-cuda126-sm87 -j --target ninfer-serve
+
+LD_LIBRARY_PATH=./build/jetson-deps/install/lib/ \
+  build/port-cuda126-sm87/apps/ninfer-serve \
+  /home/calvin/models/qwen3_8_27b_v1/qwen3_8_27b.ninfer \
+  --host 127.0.0.1 --port 8080 \
+  --max-context 32768 --kv-capacity 32768 --max-concurrency 1 \
+  --kv-dtype int8 --spec mtp --draft-tokens 3 --lm-head-draft
+```
+
+See [HTTP serving](docs/serving.md) for API-key, streaming, OpenAI Responses, Anthropic Messages,
+vision, and request-log options.
 
 For the highest measured long-output throughput (`pp2048+tg128`), change the KV format to BF16
 and use a four-token MTP draft:
@@ -170,7 +188,8 @@ qualification host is a placeholder configuration file, not a model directory.
 Run a short BF16-KV MTP generation:
 
 ```bash
-build/port-cuda126-sm87/apps/ninfer \
+LD_LIBRARY_PATH=./build/jetson-deps/install/lib/ \
+  build/port-cuda126-sm87/apps/ninfer \
   /home/calvin/models/qwen3_8_27b_v1/qwen3_8_27b.ninfer \
   --prompt 'What is 2+2?' --max-new 16 --no-thinking --greedy \
   --kv-dtype bf16 --spec mtp --draft-tokens 2 --lm-head-draft
