@@ -14,6 +14,36 @@ The supported platform is Ubuntu on Jetson AGX Orin:
 
 The code is deliberately native aarch64, and this README documents only the Jetson Ubuntu path.
 
+## Recommended Orin settings
+
+For the best practical default on this qualification host, use the registered Qwen3.8-27B
+groupwise-int artifact with INT8 group-64 KV and the optimized three-token MTP draft. This is the
+best measured short-workload decode setting and halves the KV payload relative to BF16:
+
+```bash
+sudo nvpmodel -m 0
+sudo jetson_clocks
+
+build/port-cuda126-sm87/apps/ninfer \
+  /home/calvin/models/qwen3_8_27b_v1/qwen3_8_27b.ninfer \
+  --prompt 'Explain paged KV caching in two sentences.' \
+  --max-context 32768 --kv-capacity 32768 --max-new 128 \
+  --kv-dtype int8 --spec mtp --draft-tokens 3 --lm-head-draft \
+  --no-thinking --greedy
+```
+
+For the highest measured long-output throughput (`pp2048+tg128`), change the KV format to BF16
+and use a four-token MTP draft:
+
+```bash
+  --kv-dtype bf16 --spec mtp --draft-tokens 4 --lm-head-draft
+```
+
+These are fixed-clock, single-request recommendations. The 32,768-token context setting is the
+qualified capacity point; use a smaller explicit context when it better matches the request. See
+the [experiment ledger](NINFER_JETSON_ORIN_PORT_EXPERIMENTS.md) for throughput, power, and
+matched-family llama.cpp comparison details.
+
 ## Why this port is different
 
 The upstream RTX 3090 implementation is compiled and tuned for **SM86** (GA102), a discrete GPU
