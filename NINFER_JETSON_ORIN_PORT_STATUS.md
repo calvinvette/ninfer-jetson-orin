@@ -1,6 +1,6 @@
 # NInfer Jetson Orin Port Status
 
-Status assessed: 2026-09-23.
+Status assessed: 2026-09-26.
 
 Phases 0 through 2 are complete, and Phase 3 is qualified for the tested SM87
 operator and real-model scope. The fixed-clock SM87 experiment campaign is
@@ -27,6 +27,7 @@ upstream RTX 3090 project and removes the superseded desktop platform guide.
 | 6 — Memory experiments | Explicit `cudaMalloc` remains the control. An opt-in stream-ordered `cudaMallocAsync`/`cudaFreeAsync` class is qualified for `DeviceBuffer` and `DeviceArena` allocation, transfer, suballocation, and destruction on Orin. | Complete: retain explicit allocation because the pool class has no demonstrated end-to-end advantage or graph-stability qualification. |
 | 7 — Capacity/context tuning | The selected long-context point is 32,768 prompt tokens plus one generated token for BF16 and INT8 KV; INT8 uses a 1.03 GiB KV payload and BF16 2.00 GiB. The 1.2 GiB guarded 40,960-token retry reached benchmark dispatch but stopped at 1.06 GiB. | Complete: pressure boundary only; the active guard is 1.2 GiB. |
 | 8 — Final qualification | ✅ Complete. Fixed-clock, cache-disabled `pp512+tg64` INT8-KV/MTP-3 comparison: initial SM87 235.01 PP / 10.976 TG tok/s; tuned SM87 242.28 / 10.981. llama.cpp UD-Q4_K_M reference measures 252.06 PP / 8.434 TG. | Q4 is matched-family only: its GGUF weights and FP16 KV are not groupwise-int/INT8-KV equivalent. Power is the `VDD_GPU_SOC` rail, not whole-board input power. |
+| 9 — 35B-A3B MoE performance matrix | ✅ Complete. Pinned v2 groupwise-int artifact: full short/long BF16+INT8 MTP matrices, plus 8K/16K/32K capacity gates, all pass. Short BF16/INT8 MTP-2 reaches 43.63 / 42.16 TG tok/s; long BF16/INT8 MTP-4 reaches 62.91 / 62.31 TG tok/s. | Current publisher v3 artifact is retained but incompatible with the port's v1/v2 reader; results use publisher v2 revision `3c739ac9`. DFlash is outside the comparable MTP matrix. |
 
 ## Evidence retained from the interrupted work
 

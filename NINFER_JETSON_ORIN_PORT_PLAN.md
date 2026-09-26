@@ -662,3 +662,19 @@ The SM87 experiment campaign is complete and its result ledger is
   `DeviceArena` transfer/suballocation gate on Orin. Explicit allocation stays
   selected because no end-to-end advantage or CUDA-Graph stability evidence
   justifies a global policy change.
+
+## 35B-A3B MoE follow-up matrix (2026-09-26)
+
+The corresponding product-route matrix is complete and recorded in
+[`NINFER_JETSON_ORIN_PORT_EXPERIMENTS.md`](NINFER_JETSON_ORIN_PORT_EXPERIMENTS.md).
+The current publisher artifact is container v3 and cannot be read by this
+port's v1/v2 reader; do not bypass that framing check. The compatible v2
+publisher revision `3c739ac9` was pinned for the results. With MAXN plus
+`jetson_clocks`, CUDA Graphs, no prefix reuse, one warm-up, and three measured
+repetitions, MTP-2 is best for `pp512+tg64` (43.63 BF16-KV and 42.16 INT8-KV
+decode tok/s). MTP-4 is best for `pp2048+tg128` (62.91 BF16-KV and 62.31
+INT8-KV decode tok/s), against 36.68 / 36.83 MTP-off controls. The matching
+eager 8K, 16K, and 32K capacity gates pass for both KV formats under the 1.2
+GiB host-memory guard. This is the direct MTP comparison; the MoE-specific,
+text-only DFlash backend remains a separate experiment rather than a hidden
+substitute for an MTP data point.

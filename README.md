@@ -116,6 +116,29 @@ capacity failure or a published maximum context.
 | BF16 KV, draft-4 | `pp2048+tg128` | 238.25 | **17.86** | 91.74% |
 | INT8 KV, draft-3 | `pp2048+tg128` | 237.41 | 17.26 | 93.07% |
 
+### Dense and MoE before/after comparison
+
+The table compares the MTP-off product-route baseline with the best measured
+MTP configuration for the same model and workload. All rows use fixed
+MAXN/`jetson_clocks`, CUDA 12.6, SM87, CUDA Graph decode, and three measured
+repetitions after one warm-up. PP is prefill throughput; TG is generated-token
+throughput. The MoE rows use the compatible pinned v2
+`qwen3.6-35b-a3b/groupwise-int` artifact, rather than the newer publisher v3
+container, which this port's v1/v2 reader cannot load.
+
+| Model / workload | Before optimization | PP / TG before | After optimization | PP / TG after | PP change | TG change |
+|---|---|---:|---|---:|---:|---:|
+| Qwen3.8-27B dense, `pp512+tg64` | BF16 KV, MTP off | 238.35 / 7.68 | INT8 KV, MTP-3 | 235.32 / **11.00** | -1.3% | **+43.2%** |
+| Qwen3.8-27B dense, `pp2048+tg128` | BF16 KV, MTP off | 239.51 / 7.62 | BF16 KV, MTP-4 | 238.25 / **17.86** | -0.5% | **+134.4%** |
+| Qwen3.6-35B-A3B MoE, `pp512+tg64` | BF16 KV, MTP off | 1192.99 / 37.50 | BF16 KV, MTP-2 | 1178.62 / **43.63** | -1.2% | **+16.3%** |
+| Qwen3.6-35B-A3B MoE, `pp2048+tg128` | BF16 KV, MTP off | 1376.16 / 36.68 | BF16 KV, MTP-4 | 1359.73 / **62.91** | -1.2% | **+71.5%** |
+
+For the dense model, the separate SM87 attention-input schedule optimization
+also improves the fixed short INT8/MTP-3 prefill result from 235.01 to 242.28
+tok/s (+3.1%) while leaving decode effectively unchanged (10.976 to 10.981
+tok/s). The MTP window, not that kernel schedule change, is the dominant
+decode optimization in both model families.
+
 SM87 kernel work also replaced the Q4/Q5 attention-input large-prefill route with R64C128S2.
 At T=1024, its public-op median is 13.570 ms, 37.3% faster than the original R32C64S4 route;
 the associated numerical test passes.
