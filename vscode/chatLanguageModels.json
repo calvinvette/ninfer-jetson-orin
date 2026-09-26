@@ -1,0 +1,19 @@
+[
+  {
+    "name": "NInfer Jetson Orin",
+    "vendor": "customendpoint",
+    "apiKey": "ninfer-local",
+    "apiType": "chatCompletions",
+    "models": [
+      {
+        "id": "ninfer-qwen3.8-27b",
+        "name": "NInfer Qwen3.8-27B (Jetson Orin)",
+        "url": "http://127.0.0.1:8080/v1/chat/completions",
+        "toolCalling": true,
+        "vision": false,
+        "maxInputTokens": 32768,
+        "maxOutputTokens": 4096
+      }
+    ]
+  }
+]
