@@ -1,12 +1,13 @@
 # NInfer Jetson Orin Experiment Ledger
 
-Status assessed: 2026-09-26. All performance results below use the native SM87
+Status assessed: 2026-11-05. All performance results below use the native SM87
 CUDA 12.6 build on Jetson AGX Orin. Fixed-clock entries use MAXN plus
 `jetson_clocks`: 1,300.5 MHz GPU, 2,201.6 MHz CPU, and EMC override.
 
 | Test | State | Route / shape | Result | Criterion / outcome |
 | --- | --- | --- | --- | --- |
 | Qwen3.6-35B-A3B current v3 artifact | ❌ Incompatible | Publisher revision `ee449580`; 22,790,484,480-byte v3 `.ninfer` | Rejected at reader framing | This port implements only v1/v2 framing; v3 uses an expanded header and is not safely interchangeable. |
+| Qwen3.8-Flash-Next NInfer v3 artifact | ❌ Incompatible | Local `ninfer-v3` artifact; attempted `pp512+tg64` on the Orin port | Rejected before model loading: artifact magic is not NInfer v1/v2 | No performance baseline; Flash-Next/Qwen4 is not a registered target. [Details](bench/results/2026-11-05-qwen38fn-v3-compatibility/README.md). |
 | Qwen3.6-35B-A3B pinned v2 artifact | ✅ Complete | Publisher revision `3c739ac9`; SHA-256 `1fb9…325d2`; 21.22 GiB | Loads as `qwen3_6_35b_a3b/groupwise-int` | Exact compatible artifact for this port; 21.04 GiB of weights resident at the short control. |
 | 35B-A3B short BF16 MTP matrix | ✅ Complete | `pp512+tg64`, off/2/3/4, 3 reps | 37.50 / **43.63** / 34.34 / 29.41 decode tok/s | MTP-2 wins; acceptance n/a / 56.67% / 34.41% / 26.02%. |
 | 35B-A3B short INT8 MTP matrix | ✅ Complete | `pp512+tg64`, off/2/3/4, 3 reps | 37.45 / **42.16** / 36.50 / 32.31 decode tok/s | MTP-2 wins; acceptance n/a / 53.23% / 38.64% / 30.97%. |
@@ -111,6 +112,13 @@ arena gate on Orin; explicit allocation remains selected without an end-to-end
 advantage or a CUDA-Graph-stability reason to change the Engine policy.
 
 ## Final experiment notes
+
+The quick Qwen3.8-Flash-Next artifact attempt on 2026-11-05 used this
+checkout's Orin SM87 binary, not the upstream RTX 3090 engine. The artifact
+uses `NINFER\0\3` framing and this reader rejects it before loading; the
+Flash-Next target is also not registered here. The attempt produced no PP/TG
+metrics and does not change the supported model matrix. See the
+[compatibility report](bench/results/2026-11-05-qwen38fn-v3-compatibility/README.md).
 
 The Q5 `ca` experiment isolated cache policy while preserving its mathematical
 route and CTA geometry. It passed the operator oracle but lost to the streaming
