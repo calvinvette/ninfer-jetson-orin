@@ -276,6 +276,15 @@ execution, but they do not support changing the generic GDN replay/fold implemen
 first response. The next useful comparison is at the real model's first-layer projection/mixer
 boundaries and around layer 36, with the stored operator inputs and state held explicit.
 
+That boundary comparison found bit-identical layer-0 GDN inputs. The FP32 control projection
+differs by at most 7.7e-6; projected query/key/value tensors differ slightly, while the replay
+recurrent output differs by a mean 7.3e-7. The GDN output projection has a mean absolute
+difference of 2.7e-4. At transformer layer 36 (GDN state index 27), its input already differs
+by a mean 0.011, while the recurrent output remains within a mean 1.8e-5. This supports an
+accumulating cross-shape projection/activation difference rather than a large recurrence replay
+error. It still needs independent operator-oracle measurements at the real artifact's shapes;
+these temporary captures were removed after analysis.
+
 The disk schedule runs eagerly: CUDA Graph capture is disabled for this route until stable
 cache contents and graph replay are supported. Numerical comparison of a real layer against
 an independent oracle, MTP acceptance/commit and state-restoration qualification, Vision,
