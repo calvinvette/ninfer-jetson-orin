@@ -39,6 +39,11 @@ void run() {
     const auto count = map_file_range(view, 0, view.bytes, segments);
     require(count == 2, "cross-file object mapping changed");
     require(map_file_range(view, view.bytes, 0, {}) == 0, "empty terminal range failed");
+    std::array<std::byte, 20> subrange{};
+    owner.read_range(tensor, 248, subrange);
+    require(std::equal(subrange.begin(), subrange.end(), fixture.payload.begin() + 504),
+            "cross-file range read differs from fixture bytes");
+    owner.read_range(tensor, view.bytes, {});
     rejects([&] { (void)map_file_range(view, view.bytes, 1, segments); },
             "range overflow accepted");
     rejects([&] { (void)map_file_range(view, 0, view.bytes, std::span(segments).first(1)); },

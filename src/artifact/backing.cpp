@@ -1,6 +1,8 @@
 #include "artifact/backing.h"
+#include "core/buffer.h"
 
 #include <algorithm>
+#include <cstring>
 #include <map>
 
 namespace ninfer::artifact {
@@ -39,6 +41,27 @@ const WeightGeometry& FileBacking::geometry(ObjectHandle handle) const {
 
 std::span<const io::FileView> FileBacking::files() const noexcept {
     return impl_ ? std::span<const io::FileView>(impl_->files) : std::span<const io::FileView>{};
+}
+
+void FileBacking::read_range(ObjectHandle handle, std::uint64_t offset,
+                             std::span<std::byte> destination) const {
+    const auto view = object(handle);
+    std::vector<ReadSegment> parts(view.segments.size());
+    const auto count = map_file_range(view, offset, destination.size(), parts);
+    for (std::size_t i = 0; i < count; ++i) {
+        const auto& part = parts[i];
+        const auto& file = impl_->owners.at(part.file_index);
+        const auto window = io::direct_read_window(file.view(), part.file_offset,
+                                                  static_cast<std::size_t>(part.bytes));
+        HostBuffer scratch(window.bytes, file.view().memory_alignment);
+        const auto actual = file.read_direct(window.offset,
+                                             {static_cast<std::byte*>(scratch.data()), scratch.size()});
+        if (actual < window.required)
+            throw ArtifactError("short direct read of file-backed object");
+        std::memcpy(destination.data() + part.destination_offset,
+                    static_cast<const std::byte*>(scratch.data()) + window.prefix,
+                    static_cast<std::size_t>(part.bytes));
+    }
 }
 
 FileBacking prepare_file_backing(const Reader& reader, std::span<const ObjectHandle> objects) {

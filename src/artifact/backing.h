@@ -25,6 +25,9 @@ public:
     [[nodiscard]] FileObjectView object(ObjectHandle handle) const;
     [[nodiscard]] const WeightGeometry& geometry(ObjectHandle handle) const;
     [[nodiscard]] std::span<const io::FileView> files() const noexcept;
+    // Read an object subrange through bounded direct-I/O scratch storage.
+    void read_range(ObjectHandle handle, std::uint64_t offset,
+                    std::span<std::byte> destination) const;
 
 private:
     struct Impl;
