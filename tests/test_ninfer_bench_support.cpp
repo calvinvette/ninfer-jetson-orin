@@ -54,6 +54,11 @@ void options_test() {
                                "--warmup=0", "--repetitions=1", "--profile-measured"});
     expect(copied.inputs.size() == 1 && copied.concurrency == 4 && copied.warmup == 0,
            "one input copied across requests");
+    const auto token_input = parse({"bench", "model.ninfer", "--token-ids", "corpus.ids"});
+    expect(token_input.inputs.size() == 1 &&
+               token_input.inputs[0].kind == bench::InputKind::TokenIds &&
+               token_input.inputs[0].value == "corpus.ids",
+           "raw token-ID benchmark input");
     const auto capacity = parse(
         {"bench", "model.ninfer", "--prompt", "x", "--concurrency", "4", "--max-concurrency", "2"});
     expect(capacity.launch.engine.max_concurrency == 2, "explicit engine capacity preserved");

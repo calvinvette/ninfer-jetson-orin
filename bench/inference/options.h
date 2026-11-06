@@ -4,7 +4,7 @@
 
 namespace ninfer::bench {
 
-enum class InputKind { Prompt, Messages };
+enum class InputKind { Prompt, Messages, TokenIds };
 enum class OutputFormat { Table, Json, Csv };
 
 struct InputSource {

@@ -260,9 +260,12 @@ Json make_report(const Options& options, const EngineDescription& description,
                    item.value);
     for (std::size_t row = 0; row < seeds.size(); ++row) {
         const auto& input = options.inputs[options.inputs.size() == 1 ? 0 : row];
+        const auto kind = input.kind == InputKind::Prompt    ? "prompt"
+                          : input.kind == InputKind::Messages ? "messages"
+                                                              : "token_ids";
         report["inputs"].push_back(
             {{"row", row},
-             {"kind", input.kind == InputKind::Prompt ? "prompt" : "messages"},
+             {"kind", kind},
              {"source", input.value},
              {"seed", seeds[row]}});
     }

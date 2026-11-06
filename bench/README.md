@@ -33,6 +33,8 @@ Spark 使用 `dgx-spark-dev`；分布式配置需启用分布式构建。`*-ops`
 
 `--prompt` 与 `--messages` 可以重复，提供一个输入时复制为 C 条，提供多个时数量须与并发相同。
 消息文件使用 CLI 的 conversation 格式。TOML 提供引擎与生成配置，不读取其 `[cli]` 输入作为语料。
+`--token-ids FILE` 直接读取空白分隔的 artifact token ID，并调用 `Engine::prepare_tokens`；它不添加
+chat template 或 special token，适合需要精确复现 token 语料的对比测量。
 KV、Vision、backend、draft、proposal head、Graph 与 deployment 沿用公共启动参数。
 
 `--max-tokens 1` 用于 Prefill；更大值测正常生成。输出上限不是 decode step 数，遵循 EOS。

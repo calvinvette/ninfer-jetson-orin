@@ -8,7 +8,7 @@ namespace ninfer::bench {
 namespace {
 
 constexpr product::CommandLineOption kOptions[] = {
-    {"--prompt"}, {"--messages"}, {"--concurrency"}, {"--repetitions"},
+    {"--prompt"}, {"--messages"}, {"--token-ids"}, {"--concurrency"}, {"--repetitions"},
     {"--warmup"}, {"--output"},   {"--output-file"}, {"--profile-measured", false},
 };
 
@@ -33,10 +33,12 @@ Options parse_options(int argc, char** argv) {
     std::optional<std::uint32_t> concurrency;
     for (const auto& argument : parsed.extra_arguments) {
         const auto& flag = argument.flag;
-        if (flag == "--prompt" || flag == "--messages") {
+        if (flag == "--prompt" || flag == "--messages" || flag == "--token-ids") {
             if (argument.value.empty()) throw std::invalid_argument(flag + " must not be empty");
-            options.inputs.push_back(
-                {flag == "--prompt" ? InputKind::Prompt : InputKind::Messages, argument.value});
+            const auto kind = flag == "--prompt"   ? InputKind::Prompt
+                              : flag == "--messages" ? InputKind::Messages
+                                                      : InputKind::TokenIds;
+            options.inputs.push_back({kind, argument.value});
         } else if (flag == "--concurrency")
             concurrency = count(argument);
         else if (flag == "--repetitions")
@@ -59,7 +61,8 @@ Options parse_options(int argc, char** argv) {
                 throw std::invalid_argument("--output must be table, json or csv");
         }
     }
-    if (options.inputs.empty()) throw std::invalid_argument("provide --prompt or --messages");
+    if (options.inputs.empty())
+        throw std::invalid_argument("provide --prompt, --messages or --token-ids");
     if (options.inputs.size() > std::numeric_limits<std::uint32_t>::max())
         throw std::invalid_argument("too many inputs");
     options.concurrency = concurrency.value_or(static_cast<std::uint32_t>(options.inputs.size()));
@@ -78,8 +81,9 @@ Options parse_options(int argc, char** argv) {
 std::string usage_text(std::string_view executable) {
     return product::startup_usage_text(executable, product::EntryPoint::Bench) + R"(
 benchmark:
-  --prompt TEXT / --messages FILE
+  --prompt TEXT / --messages FILE / --token-ids FILE
       Repeat to supply independent requests, in order. Messages use the CLI conversation format.
+      Token-ID files contain whitespace-separated artifact token IDs and bypass chat templating.
       Inputs are explicit command-line arguments; the TOML [cli] input section is not used.
   --concurrency N
       Default: input count. A single input is copied N times; otherwise N must equal input count.

@@ -12,18 +12,45 @@
 #include <exception>
 #include <fstream>
 #include <iostream>
+#include <limits>
 #include <stdexcept>
+#include <variant>
 
 namespace {
 
 using namespace ninfer;
 
+using BenchmarkInput = std::variant<PromptInput, std::vector<TokenId>>;
+
+PreparedPrompt prepare_input(Engine& engine, const BenchmarkInput& input) {
+    if (const auto* tokens = std::get_if<std::vector<TokenId>>(&input))
+        return engine.prepare_tokens(*tokens, false);
+    return engine.prepare(std::get<PromptInput>(input));
+}
+
+std::vector<TokenId> read_token_ids(const std::filesystem::path& path) {
+    std::ifstream file(path);
+    if (!file) throw std::runtime_error("cannot open token-ID input: " + path.string());
+    std::vector<TokenId> tokens;
+    std::int64_t token = 0;
+    while (file >> token) {
+        if (token < 0 || token > std::numeric_limits<TokenId>::max())
+            throw std::invalid_argument("token-ID input contains an out-of-range ID: " +
+                                        path.string());
+        tokens.push_back(static_cast<TokenId>(token));
+    }
+    if (!file.eof()) throw std::invalid_argument("token-ID input is not whitespace-separated IDs: " +
+                                                 path.string());
+    if (tokens.empty()) throw std::invalid_argument("token-ID input is empty: " + path.string());
+    return tokens;
+}
+
 bench::Repetition run(Engine& engine, const bench::Options& options,
-                      const std::vector<PromptInput>& inputs,
+                      const std::vector<BenchmarkInput>& inputs,
                       std::span<const RequestOptions> requests, bool measured) {
     if (options.launch.generation.max_tokens > 1) {
-        for (std::size_t row = 0; row < requests.size(); ++row) {
-            auto prompt  = engine.prepare(inputs[inputs.size() == 1 ? 0 : row]);
+        for (std::size_t row = 0; row + 1 < requests.size(); ++row) {
+            auto prompt  = prepare_input(engine, inputs[inputs.size() == 1 ? 0 : row]);
             auto prefill = requests[row];
             prefill.execution.requested_output_tokens = 1;
             auto handle = engine.submit(std::move(prompt), std::move(prefill));
@@ -37,7 +64,7 @@ bench::Repetition run(Engine& engine, const bench::Options& options,
     handles.reserve(requests.size());
     repetition.requests.reserve(requests.size());
     for (std::size_t row = 0; row < requests.size(); ++row)
-        prompts.push_back(engine.prepare(inputs[inputs.size() == 1 ? 0 : row]));
+        prompts.push_back(prepare_input(engine, inputs[inputs.size() == 1 ? 0 : row]));
     if (measured) {
         repetition.before = engine.begin_measurement({.profile = options.profile_measured});
     }
@@ -98,25 +125,36 @@ int main(int argc, char** argv) {
         engine_options.startup_observer = startup_log.observer();
 
         const auto& defaults = options.launch.generation;
-        std::vector<PromptInput> inputs;
+        std::vector<BenchmarkInput> inputs;
         for (const auto& source : options.inputs) {
-            auto input = source.kind == bench::InputKind::Prompt
-                             ? product::prompt_from_text(source.value, defaults.enable_thinking)
-                             : product::prompt_from_messages(source.value, defaults.enable_thinking,
-                                                             engine_options.enable_vision);
-
-            input.options.preserve_thinking = defaults.preserve_thinking;
-            inputs.push_back(std::move(input));
+            if (source.kind == bench::InputKind::TokenIds) {
+                inputs.emplace_back(read_token_ids(source.value));
+            } else {
+                auto input = source.kind == bench::InputKind::Prompt
+                                 ? product::prompt_from_text(source.value, defaults.enable_thinking)
+                                 : product::prompt_from_messages(source.value,
+                                                                 defaults.enable_thinking,
+                                                                 engine_options.enable_vision);
+                input.options.preserve_thinking = defaults.preserve_thinking;
+                inputs.emplace_back(std::move(input));
+            }
         }
         std::vector<RequestOptions> requests(options.concurrency);
         std::vector<std::uint64_t> seeds;
-        for (auto& request : requests) {
+        for (std::size_t row = 0; row < requests.size(); ++row) {
+            auto& request = requests[row];
             request.execution.sampling = defaults.sampling;
             if (!request.execution.sampling.seed)
                 request.execution.sampling.seed = product::random_sampling_seed();
             seeds.push_back(*request.execution.sampling.seed);
             request.execution.requested_output_tokens = defaults.max_tokens;
             request.execution.thinking.budget         = defaults.thinking_budget;
+            const auto& source = options.inputs[options.inputs.size() == 1 ? 0 : row];
+            if (source.kind == bench::InputKind::TokenIds) {
+                request.stop.include_model_defaults    = false;
+                request.output.raw                     = true;
+                request.output.preserve_special_tokens = true;
+            }
         }
 
         Engine engine(std::move(engine_options));
