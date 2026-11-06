@@ -328,19 +328,22 @@ records, normalizing keys with epsilon 1e-6 and comparing the final FP32 persist
 accepted prefix 2, the GPU fold differs from this oracle by mean/max absolute 2.26e-10/5.64e-7
 at state 0 and 1.10e-10/4.31e-8 at state 27. This rules out fold arithmetic as the source of
 the observed route drift for these inputs. The SM87 fused Q8 projection used the single-column
-GEMV schedule for T=1 but switched to sliced-K for T=2. T=1 and T=2 now use a two-column GEMV
-tile over flattened request columns, preserving per-column GEMV accumulation while reusing
-decoded weights. The exact first-column regression checks Q/K/V, Z, and convolution state at the
-Flash-Next 16384x2560 projection shape; it passes. Q8 T=2 snapshot and record-path tests also pass
-with eight batch rows and ragged valid extents.
+GEMV schedule for T=1 but switched to sliced-K for T=2. T=1 through T=8 now use width-matched
+GEMV tiles over flattened request columns (T=1 uses a two-column tile), preserving per-column
+GEMV accumulation while reusing decoded weights. The exact first-column regression checks Q/K/V,
+Z, and convolution state at the Flash-Next 16384x2560 projection shape for T=1 through T=5; the
+isolated case passes. The Q8 record-path test passes. The broad snapshot CTest fails in unrelated
+capture/capacity cases that leave CUDA stream capture active; running the new Flash-Next case
+alone passes.
 
 The public Flash-Next check was repeated with prompt `hi`, greedy seed 0, ten generated tokens,
 MTP-1, and CUDA Graphs disabled. It now emits the same sequence as MTP-off:
 `1596 1144 310 5707 310 1156 328 5834 3158 8722`. This resolves the previously observed
-token-7 divergence for the tested single-request SM87 route. The eight-row Q8 Op checks qualify
-the projection and record mechanics separately, but do not qualify batched end-to-end MTP. MTP
-qualification across acceptance extents, fallback boundaries, terminal commits, and state
-restoration remains open.
+token-7 divergence for the tested single-request SM87 route. The same token sequence was retained
+with draft windows 2 and 3: window 2 accepted 6 drafts with no pressure abort; window 3 accepted
+6 of 8 drafts over three rounds, also with no fallback or pressure abort. These runs exercise
+deeper verify extents but do not qualify batched end-to-end MTP. MTP qualification across
+acceptance extents, fallback boundaries, terminal commits, and state restoration remains open.
 
 The disk schedule runs eagerly: CUDA Graph capture is disabled for this route until stable
 cache contents and graph replay are supported. Numerical comparison of a real layer against
