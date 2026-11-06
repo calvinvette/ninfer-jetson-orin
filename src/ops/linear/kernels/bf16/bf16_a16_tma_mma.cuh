@@ -195,7 +195,18 @@ void launch_bf16_a16_tma_mma(const Bf16A16Operands& p, Output output, Epilogue e
         Schedule::kWarpTokens, Schedule::kStages, Schedule::kMinBlocksPerSm,
         Schedule::kWeightCache, Schedule::kActivationCache, Schedule::kFragmentPipeline,
         Schedule::kRaster, Bf16MmaSwizzle::Xor64, Schedule::kRasterGroupRows>;
-    launch_bf16_mma_partitions<AmpereSchedule, Splits>(p, output, epilogue, stream);
+    if constexpr (requires { Epilogue::kTmaCollective; } ||
+                  requires(Epilogue e, const LinearBf16Output& out) {
+                      e.store_fragment(out, 0, 0, make_float4(0, 0, 0, 0), 1, 1);
+                  }) {
+        launch_bf16_mma_partitions<AmpereSchedule, Splits>(p, output, epilogue, stream);
+    } else if (p.rows % AmpereSchedule::kBlockRows == 0 &&
+               p.k % (AmpereSchedule::kBlockK * Splits) == 0) {
+        launch_bf16_mma_partitions<AmpereSchedule, Splits>(p, output, epilogue, stream);
+    } else {
+        using TailSchedule = Bf16KTailSchedule<Bf16RowTailSchedule<AmpereSchedule>>;
+        launch_bf16_mma_partitions<TailSchedule, Splits>(p, output, epilogue, stream);
+    }
 #else
     if constexpr (Splits > 1) {
         if (p.k % (Schedule::kBlockK * Splits))

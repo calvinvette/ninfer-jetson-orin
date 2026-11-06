@@ -573,9 +573,15 @@ void validate_target_options(const execution::ModelProfile& profile, DeviceConte
         }
         break;
     }
+#if !NINFER_TARGET_JETSON_ORIN
     if (device.compute_capability() != 120) {
         throw std::invalid_argument("Qwen3.5 family runtime requires compute capability 12.0");
     }
+#else
+    if (device.compute_capability() != 87) {
+        throw std::invalid_argument("Jetson Orin runtime requires compute capability 8.7");
+    }
+#endif
 }
 
 std::unique_ptr<SequencePlanImpl> build_sequence_candidate(const SequencePlanningInputs& inputs,
