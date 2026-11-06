@@ -267,6 +267,15 @@ The next correctness investigation must compare the relevant target state and in
 boundaries against the model's mathematical semantics before attributing the difference to a
 specific kernel or changing MTP scheduling.
 
+A layerwise capture of the same input token found the first post-block difference at layer 0
+(mean absolute residual difference 0.0031), growing to 0.0844 by layer 35 and 0.7279 by layer
+47; the mean difference increases from 0.0844 at layer 35 to 0.1801 at layer 36. The focused
+GDN replay-record and GDN replay-fold tests both pass on SM87, including replay output equality
+and accepted-prefix state selection. These synthetic Op checks do not qualify the full Qwen4
+execution, but they do not support changing the generic GDN replay/fold implementation as the
+first response. The next useful comparison is at the real model's first-layer projection/mixer
+boundaries and around layer 36, with the stored operator inputs and state held explicit.
+
 The disk schedule runs eagerly: CUDA Graph capture is disabled for this route until stable
 cache contents and graph replay are supported. Numerical comparison of a real layer against
 an independent oracle, MTP acceptance/commit and state-restoration qualification, Vision,
