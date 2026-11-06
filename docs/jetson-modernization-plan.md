@@ -132,12 +132,19 @@ that a discrete-GPU host/device cache policy is efficient on shared LPDDR.
 
 The first JP6 implementation pass is on local branch `feat/jetson-orin-sm87-jp6` in
 `~/workspace/ninfer`, based on the planned `a754fcf3` source revision. Commits
-`a8f27562`, `6376058d`, and `b72ba228` add CUDA 12.6/SM87 build compatibility, explicit unsupported
-routes, target runtime admission, a predicated BF16 fallback for row/K tails, and Orin-specific
-expectations for compressed KV formats without qualified consumers. The
+`a8f27562`, `6376058d`, `b72ba228`, and `3209e283` add CUDA 12.6/SM87 build compatibility,
+explicit unsupported routes, target runtime admission, a predicated BF16 fallback for row/K
+tails, Orin-specific expectations for compressed KV formats without qualified consumers, and a
+decode-only NVFP4 vector route. The
 full build succeeds on Jetson AGX Orin (aarch64, SM87, CUDA 12.6). The push to the
 configured `Neroued/ninfer` remote was rejected because the authenticated account has
 read-only access; the commits remain local.
+
+The NVFP4 route reuses the exact E2M1/E4M3 unpack and FP32 vector contractions without
+instantiating Blackwell MXFP4 MMA. The complete block-scaled MoE T=1 CUDA Graph oracle case
+passes on the Orin, and the runtime-mechanisms CTest passes serially. This qualifies the
+decode shape only; the multi-token path intentionally remains unavailable on SM87 pending a
+separate prefill implementation and real-shape numerical qualification.
 
 Focused artifact reader, backing, and materialization tests pass serially. The BF16
 projection oracle passes 197 cases for the previously failing `324x10240` shape; the
