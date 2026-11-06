@@ -323,6 +323,36 @@ Gate: no known in-scope correctness regression, explained performance results, a
 limitations for any supported path that could not be exercised. Only then select the modern
 engine as the replacement baseline.
 
+Matched CUDA 12.6/SM87 and modern-engine measurements were run on the same Orin in MAXN with
+`jetson_clocks` enabled (CPU 2.2016 GHz, GPU 1.3005 GHz, EMC 3.199 GHz). The comparison used
+the original Qwen3.8-27B and Qwen3.6-35B-A3B V2 groupwise-int artifacts for the SM87 control and
+exactly migrated V3 copies for the modern engine. Both consumed exact 512-token and 2,048-token
+prefixes of `bench/fixtures/bench_corpus.ids`, greedy generation, INT8 group-64 KV, 1,024-token
+prefill chunks, no prefix reuse, CUDA Graphs, MTP off, one warmup, and three repetitions. All
+repetitions processed the full prompt and committed 64 or 128 decode tokens (65 or 129 outputs
+including the first prefill token). `tegrastats` sampled the runs; GPU temperature peaked at
+69.5 C.
+
+| Target/workload | SM87 V2 prefill/decode tok/s | Modern V3 prefill/decode tok/s | Change |
+| --- | ---: | ---: | ---: |
+| Qwen3.8-27B, pp512+tg64 | 244.03 / 7.672 | 249.00 / 7.299 | +2.0% / -4.9% |
+| Qwen3.8-27B, pp2048+tg128 | 244.71 / 7.606 | 249.39 / 7.270 | +1.9% / -4.4% |
+| Qwen3.6-35B-A3B, pp512+tg64 | 1,185.82 / 37.420 | 1,222.16 / 36.740 | +3.1% / -1.8% |
+| Qwen3.6-35B-A3B, pp2048+tg128 | 1,358.23 / 36.826 | 1,431.20 / 36.404 | +5.4% / -1.2% |
+
+The benchmark driver now accepts `--token-ids FILE`, which prepares the supplied IDs through
+the public Engine and preserves the old benchmark's raw-token behavior (no model default stop
+sequences and raw output). This allowed the two engines to consume identical prompts. Its parser
+test passes and the complete modern JP6 build succeeds. Context allocation cannot be made
+identical byte-for-byte: the modern Qwen3.8 runtime requires a 308.3 MB context pool (plus a
+103.9 MB workspace), while the old engine reserves 235.6/304.9 MB sequence storage plus a
+160.0 MB workspace. For Qwen3.6-35B-A3B, the modern pool was reduced to 130.0 MB, just above
+its 128.8 MB minimum, plus a 72.1 MB workspace; old sequence plus workspace reservations were
+201.7/223.3 MB. These runs are closely matched in workload and approximate total runtime
+allocation, not identical in internal reservation policy. The pressure guard did not abort any
+run. Results indicate small prefill gains and small decode regressions; they do not establish a
+general performance win. Flash-Next and full feature qualification remain separate open gates.
+
 ### 3. Native Flash-Next execution on SM87
 
 Verify the supplied V3 directory and bindings against the selected original runtime.
