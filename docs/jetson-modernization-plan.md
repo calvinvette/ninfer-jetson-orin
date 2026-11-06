@@ -132,7 +132,7 @@ that a discrete-GPU host/device cache policy is efficient on shared LPDDR.
 
 The first JP6 implementation pass is on local branch `feat/jetson-orin-sm87-jp6` in
 `~/workspace/ninfer`, based on the planned `a754fcf3` source revision. Commits
-`a8f27562`, `6376058d`, `b72ba228`, and `3209e283` add CUDA 12.6/SM87 build compatibility,
+`a8f27562`, `6376058d`, `b72ba228`, `3209e283`, and `0962c076` add CUDA 12.6/SM87 build compatibility,
 explicit unsupported routes, target runtime admission, a predicated BF16 fallback for row/K
 tails, Orin-specific expectations for compressed KV formats without qualified consumers, and a
 decode-only NVFP4 vector route. The
@@ -174,6 +174,12 @@ The generic V3 reader parses the supplied Flash-Next artifact (1,319 objects and
 materializer cannot fit its NVFP4 expert bank and NF4 PLE table in this host's physical
 memory, and no bounded disk-backed expert execution path has been implemented. There is
 no Flash-Next inference or performance result yet.
+
+The Qwen4Exp real-artifact loading test now also passes against that Flash-Next file without
+materializing weights. It verifies V3 model-definition binding, native expert geometry,
+runtime/workspace planning, PLE geometry, and explicit Orin rejection of the unqualified
+block-FP8 MTP and compressed KV routes. This is stronger than container parsing but still
+does not establish weight materialization, model execution, or inference support.
 
 ### 1. Modern JP6 platform and original models
 
