@@ -216,6 +216,13 @@ int main(int argc, char** argv) {
     selected_profiles.push_back(local_profile);
 #endif
     for (auto profile : selected_profiles) {
+        if (profile.format == QType::Q8_G32_FP16 && profile.hidden == 2560 &&
+            profile.qk_rows == 2048) {
+            suite.add("gdn_input_snapshot/q8/flash_next/t1_t2_first_column_exact", [=] {
+                Weights weights(profile, false);
+                return q8_first_column_invariance(weights) + weights.preserved();
+            });
+        }
         const auto tests = cases(profile);
         std::vector<OpCase> catalogue;
         for (auto c : tests) {

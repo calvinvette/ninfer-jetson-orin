@@ -615,7 +615,8 @@ int run_q4_q5_case(DevicePackedWeight& query_key, DevicePackedWeight& value_z_we
 }
 
 int run_q8_case(DevicePackedWeight& parent, std::int32_t tokens, std::int32_t initial_slot,
-                bool graph = false) {
+                bool graph = false, std::uint32_t route_seed = 0,
+                ninfer::test::gdn_input_conv::Q8RouteCapture* route_capture = nullptr) {
     const auto weight                        = parent.view();
     const std::int32_t kHidden               = weight.k;
     const std::int32_t kValueRows            = weight.n == 16384 ? 6144 : 4096;
@@ -623,12 +624,14 @@ int run_q8_case(DevicePackedWeight& parent, std::int32_t tokens, std::int32_t in
     const std::int32_t kChannels             = weight.n - kZRows;
     constexpr std::int32_t kSnapshotBaseSlot = 1;
     const std::int32_t slots                 = std::max(tokens + 2, initial_slot + 1);
-    std::vector<float> activation            = make_bf16_activation(kHidden, tokens, 701U + tokens);
+    const auto activation_seed = route_seed ? route_seed : 701U + tokens;
+    const auto state_seed = route_seed ? route_seed + 1 : 719U + tokens;
+    std::vector<float> activation = make_bf16_activation(kHidden, tokens, activation_seed);
     std::vector<std::uint16_t> activation_bits        = bf16_bits(activation);
     const std::vector<float> conv_weight              = make_conv_weight(kChannels, 709U);
     const std::vector<std::uint16_t> conv_weight_bits = bf16_bits(conv_weight);
     const std::vector<std::uint16_t> state_before =
-        make_state(kChannels, slots, initial_slot, 719U + tokens);
+        make_state(kChannels, slots, initial_slot, state_seed);
     const std::vector<std::int32_t> initial_value{initial_slot};
     const std::vector<std::int32_t> snapshot_base_value{kSnapshotBaseSlot};
 
@@ -712,6 +715,20 @@ int run_q8_case(DevicePackedWeight& parent, std::int32_t tokens, std::int32_t in
                 kHidden);
         });
     const std::vector<std::uint16_t> state_after = state.bits();
+    if (route_capture) {
+        const auto copy_first_column = [](std::vector<std::uint16_t>& output,
+                                          const GuardedBf16Tensor& input, std::int32_t rows) {
+            const auto bits = input.bits();
+            output.assign(bits.begin(), bits.begin() + rows);
+        };
+        copy_first_column(route_capture->query, query, kQueryRows);
+        copy_first_column(route_capture->key, key, kKeyRows);
+        copy_first_column(route_capture->value, value, kValueRows);
+        copy_first_column(route_capture->z, z, kZRows);
+        const auto base = static_cast<std::size_t>(kSnapshotBaseSlot) * 3 * kChannels;
+        route_capture->first_state.assign(state_after.begin() + base,
+                                          state_after.begin() + base + 3 * kChannels);
+    }
     const std::string suffix =
         " Q8 K=" + std::to_string(kHidden) + " A16 T=" + std::to_string(tokens) +
         " initial=" + std::to_string(initial_slot) + " base=" + std::to_string(kSnapshotBaseSlot);
@@ -1012,5 +1029,28 @@ int run_snapshot(Weights& weights, const SnapshotCase& c) {
                                                   valid, {q, k, v, z}, arena, execution);
         },
         p.qk_rows, c.graph, c.full_reference);
+}
+
+int q8_first_column_invariance(Weights& weights) {
+    if (weights.profile.format != QType::Q8_G32_FP16 || weights.profile.hidden != 2560 ||
+        weights.profile.qk_rows != 2048)
+        throw std::invalid_argument("Q8 first-column test requires the Flash-Next projection shape");
+    Q8RouteCapture single, pair;
+    int failures = run_q8_case(weights.first, 1, 4, false, 0x51a7U, &single);
+    failures += run_q8_case(weights.first, 2, 4, false, 0x51a7U, &pair);
+    const auto check = [&](const char* label, const std::vector<std::uint16_t>& a,
+                           const std::vector<std::uint16_t>& b) {
+        if (a == b) return 0;
+        std::size_t index = 0;
+        while (index < std::min(a.size(), b.size()) && a[index] == b[index]) ++index;
+        std::cerr << label << ": first-column route mismatch at element " << index << '\n';
+        return 1;
+    };
+    failures += check("Q8 GDN first-column query", single.query, pair.query);
+    failures += check("Q8 GDN first-column key", single.key, pair.key);
+    failures += check("Q8 GDN first-column value", single.value, pair.value);
+    failures += check("Q8 GDN first-column z", single.z, pair.z);
+    failures += check("Q8 GDN first-column convolution state", single.first_state, pair.first_state);
+    return failures;
 }
 } // namespace ninfer::test::gdn_input_conv

@@ -9,9 +9,9 @@ template <class Schedule, class Output, class Epilogue>
 void launch_q8_a16_gemv(const Q8LinearOperands& operands, Output output, Epilogue epilogue,
                         cudaStream_t stream) {
     validate_q8_operands(operands);
-    if (operands.tokens > Schedule::kBlockTokens || operands.k % 8 != 0)
-        throw std::invalid_argument(
-            "Q8 GEMV requires tokens within its capacity and K aligned to 8");
+    if (operands.tokens < 1 ||
+        (Schedule::kBlockTokens == 1 && operands.tokens != 1) || operands.k % 8 != 0)
+        throw std::invalid_argument("Q8 GEMV requires valid token tiles and K aligned to 8");
     if constexpr (Schedule::kStaticK > 0) {
         if (operands.k != Schedule::kStaticK || operands.padded_k != Schedule::kStaticK)
             throw std::invalid_argument(
@@ -24,8 +24,9 @@ void launch_q8_a16_gemv(const Q8LinearOperands& operands, Output output, Epilogu
                    stream>>>(operands, output, epilogue);
         else
             q8_a16_gemv_tile_kernel<Schedule, FullRows>
-                <<<common::div_up(operands.rows, Schedule::kBlockRows), Schedule::kThreads, 0,
-                   stream>>>(operands, output, epilogue);
+                <<<dim3(common::div_up(operands.rows, Schedule::kBlockRows),
+                        common::div_up(operands.tokens, Schedule::kBlockTokens)),
+                   Schedule::kThreads, 0, stream>>>(operands, output, epilogue);
         CUDA_CHECK(cudaGetLastError());
     };
     if (operands.rows % Schedule::kBlockRows == 0)

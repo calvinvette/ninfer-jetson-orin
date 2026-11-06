@@ -1,5 +1,6 @@
 #pragma once
 
+#include "core/platform.h"
 #include "ops/linear_attention/gated_delta_net/input_conv/q8/launch.h"
 #include "ops/linear_attention/gated_delta_net/input_conv/kernels/output.cuh"
 #include "ops/linear/kernels/q8/q8_gemv_launch.cuh"
@@ -103,6 +104,13 @@ void launch_window(const Tensor& x, const Weight& weight, const Tensor& conv_wei
             return;
         }
     }
+#if defined(NINFER_TARGET_JETSON_ORIN)
+    if constexpr (Width <= 2) {
+        using GemvTile = Q8A16GemvTileSchedule<2, 8, 1, 2, 2560, 8>;
+        launch_q8_a16_gemv<GemvTile>(operands, output, epilogue, stream);
+        return;
+    }
+#endif
     if constexpr (Width <= 8) {
         if (aggregate) {
             if constexpr (Width <= 4) {

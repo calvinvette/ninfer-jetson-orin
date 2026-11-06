@@ -7,6 +7,7 @@
 #include "ops/suite.h"
 
 #include <optional>
+#include <vector>
 
 namespace ninfer::test::gdn_input_conv {
 
@@ -58,7 +59,12 @@ struct RecordCase {
     ops::LinearPolicy policy = ops::LinearPolicy::A16Only;
 };
 
+struct Q8RouteCapture {
+    std::vector<std::uint16_t> query, key, value, z, first_state;
+};
+
 int run_snapshot(Weights& weights, const SnapshotCase& c);
+int q8_first_column_invariance(Weights& weights);
 int snapshot_capacity_contract();
 int run_record(Weights& weights, const RecordCase& c);
 

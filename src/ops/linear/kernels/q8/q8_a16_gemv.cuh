@@ -76,6 +76,7 @@ __launch_bounds__(Schedule::kThreads,
                                                                           Epilogue epilogue) {
     constexpr int R = Schedule::kBlockRows, W = Schedule::kWarpsPerRow;
     constexpr int T    = Schedule::kBlockTokens;
+    const int token_base = blockIdx.y * T;
     const int k        = Schedule::kStaticK > 0 ? Schedule::kStaticK : operands.k;
     const int padded_k = Schedule::kStaticK > 0 ? Schedule::kStaticK : operands.padded_k;
     const int lane = threadIdx.x & 31, warp = threadIdx.x >> 5;
@@ -103,9 +104,10 @@ __launch_bounds__(Schedule::kThreads,
                                  scale;
 #pragma unroll
                 for (int token = 0; token < T; ++token) {
-                    if (token < operands.tokens) {
+                    if (token_base + token < operands.tokens) {
                         const uint4 values =
-                            common::load_ldg<uint4>(operands.x + std::int64_t(token) * k + kk);
+                            common::load_ldg<uint4>(operands.x +
+                                                    std::int64_t(token_base + token) * k + kk);
                         const float2 xv[]{common::bf16x2_bits_to_float2(values.x),
                                           common::bf16x2_bits_to_float2(values.y),
                                           common::bf16x2_bits_to_float2(values.z),
@@ -133,8 +135,8 @@ __launch_bounds__(Schedule::kThreads,
 #pragma unroll
             for (int part = 0; part < W; ++part) values[token] += partial[local_row][part][token];
         }
-        linear_finish_row(linear_output_tile<R>(output, blockIdx.x * R), epilogue, row, 0, values,
-                          operands.tokens);
+        linear_finish_row(linear_output_tile<R>(output, blockIdx.x * R), epilogue, row,
+                          token_base, values, min(T, operands.tokens - token_base));
     }
 }
 } // namespace ninfer::ops::detail
