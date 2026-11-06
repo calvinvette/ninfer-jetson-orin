@@ -222,16 +222,26 @@ repeated route reuses cached experts (55,296,000 bytes uploaded across the two d
 routes, with no repeat uploads). The changed route also exercises dynamic cache-slot
 replacement.
 
-The public Engine also completes a ten-token Flash-Next smoke run using the explicit artifact
+The public Engine also completes Flash-Next runs using the explicit artifact
 `~/models/Qwen3.8-Flash-Next-NInfer/qwen3_8_flash_next.ninfer`, prompt `hi`, greedy sampling,
-prefill chunk 128, 512 MiB context reservation, and one active request. It reports 17.0 s
-prefill (3.1 tok/s), 5.9 s decode (1.5 tok/s), and 22.9 s total. The disk schedule runs
-eagerly: CUDA Graph capture is disabled for this route until stable cache contents and graph
-replay are supported. These results establish a bounded text execution bring-up path, not
-full model correctness or product qualification. MTP execution, numerical comparison of a
-real layer against an independent oracle, Vision, prefix reuse, graph capture, and matched
-performance benchmarks remain open. This is not a completed replacement for the existing
-original-model benchmark matrix.
+prefill chunk 128, 512 MiB context reservation, and one active request. A ten-token CLI smoke
+with MTP off reported 17.0 s prefill (3.1 tok/s), 5.9 s decode (1.5 tok/s), and 22.9 s total.
+The rebuilt public-Engine benchmark then completed one warmup and three measured runs each
+with MTP off and MTP-1. All runs used a 53-token prompt and committed 9 generated tokens
+under the MAXN/`jetson_clocks` profile recorded above.
+MTP off averaged 3.46 prefill / 1.60 decode tok/s; MTP-1 averaged 3.52 / 1.83 tok/s. MTP-1
+accepted all four drafts in each run, with one fallback step. Startup reported 6.91 GiB GPU
+weights without MTP and 9.42 GiB with the resident MTP bank; the bounded expert cache is
+5.27 GiB. These very short runs establish that the public benchmark path executes MTP with
+the disk-backed main experts, but are not stable throughput claims or full MTP state
+qualification. The benchmark process was rebuilt after the first attempt exposed a stale
+binary still using resident-only planning.
+
+The disk schedule runs eagerly: CUDA Graph capture is disabled for this route until stable
+cache contents and graph replay are supported. Numerical comparison of a real layer against
+an independent oracle, MTP acceptance/commit and state-restoration qualification, Vision,
+prefix reuse, graph capture, and matched performance benchmarks remain open. This is not a
+completed replacement for the existing original-model benchmark matrix.
 
 ### 1. Modern JP6 platform and original models
 
