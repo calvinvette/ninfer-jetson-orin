@@ -1,4 +1,7 @@
 #include "models/qwen4_exp/load.h"
+#include "models/qwen4_exp/execution/parameters.h"
+#include "core/arena.h"
+#include "core/buffer.h"
 #include "models/qwen4_exp/program/resources.h"
 #include "artifact/fixture.h"
 #include "core/transfer.h"
@@ -239,8 +242,8 @@ int main(int argc, char** argv) {
     if (argc < 2) return 77;
     try {
         DeviceContext device;
-        bool materialize = false, host = false;
-        int rank         = -1;
+        bool materialize = false, host = false, stream_one_layer = false;
+        int rank = -1;
         std::uint32_t ep = 2;
         for (int i = 2; i < argc; ++i) {
             const std::string_view arg(argv[i]);
@@ -248,13 +251,15 @@ int main(int argc, char** argv) {
                 materialize = true;
             else if (arg == "--host-experts")
                 host = true;
+            else if (arg == "--stream-one-layer")
+                stream_one_layer = true;
             else if (arg == "--ep" && i + 1 < argc)
                 ep = std::stoul(argv[++i]);
             else if (arg == "--rank" && i + 1 < argc)
                 rank = std::stoi(argv[++i]);
             else
                 throw std::invalid_argument(
-                    "expected --materialize, --host-experts, --rank N, or --ep N");
+                    "expected --materialize, --host-experts, --stream-one-layer, --rank N, or --ep N");
         }
         if (rank >= 0) {
             artifact::Reader reader(argv[1]);
@@ -262,9 +267,12 @@ int main(int argc, char** argv) {
             return 0;
         }
         const auto plan_for = [&](const auto& profile, const auto& geometry,
-                                  const EngineOptions& options, std::size_t available) {
-            auto prototype = host ? q4::describe_moe_plan(*profile, options.moe) : nullptr;
-            require(!host || prototype != nullptr, "target does not provide expert offload");
+                                  const EngineOptions& options, std::size_t available,
+                                  bool disk = false) {
+            auto prototype = disk ? q4::describe_moe_plan(*profile, options.moe, true)
+                                  : host ? q4::describe_moe_plan(*profile, options.moe) : nullptr;
+            require(!(host || disk) || prototype != nullptr,
+                    "target does not provide the requested expert schedule");
             return q4::plan_execution(profile, geometry, options, device, available, prototype);
         };
 #if NINFER_TARGET_JETSON_ORIN
@@ -323,21 +331,68 @@ int main(int argc, char** argv) {
                             disk_sources[index].gate_up.divisor(expert) > 0,
                         "file-backed Flash-Next expert range or divisor differs");
             }
-            bool rejected = false;
-            std::string reason;
-            try {
-                (void)plan_for(profile, load.ple_table().geometry(), options, 16 * GiB);
-            } catch (const std::invalid_argument& error) {
-                rejected = true;
-                reason = error.what();
-            }
-            require(rejected && reason.find("SM87 NVFP4 MoE") != std::string::npos,
-                    "Orin must reject unqualified Flash-Next NVFP4 prefill");
+            auto disk_plan = plan_for(profile, load.ple_table().geometry(), options, 16 * GiB, true);
+            require(disk_plan.has_value() && disk_plan->moe &&
+                        disk_plan->moe->description().cache_pinned_bytes > 0 &&
+                        disk_plan->moe->description().cache_bytes > 0,
+                    "Orin must plan bounded file-backed Flash-Next expert execution");
             std::cout << "mtp=" << mtp << " weights="
-                      << load.materialization().device_capacity_bytes
-                      << " prefill=unsupported on SM87\n";
+                      << load.materialization().device_capacity_bytes << " expert_cache="
+                      << disk_plan->moe->description().cache_bytes << " prefill=tokenwise NVFP4\n";
+            if (stream_one_layer && !mtp) {
+                auto model = q4::materialize_model(std::move(disk_load), device);
+                q4::execution::Parameters parameters(*model, profile);
+                std::vector<const models::moe::Parameters*> layers;
+                for (const auto& layer : parameters.text.layers) layers.push_back(&layer.moe);
+                auto schedule = disk_plan->moe->create(layers, model->expert_banks(), device,
+                                                       models::moe::ResourcePurpose::Execution);
+                const auto bank = parameters.text.layers.front().moe.bank;
+                auto activity = schedule->begin(1);
+                while (!schedule->try_before_layer(bank)) std::this_thread::yield();
+                const auto hidden_size = profile->config.text.hidden;
+                DeviceBuffer hidden_buffer(device.device(), std::size_t(hidden_size) * 2);
+                DeviceBuffer output_buffer(device.device(), std::size_t(hidden_size) * 2);
+                DeviceBuffer workspace_buffer(
+                    device.device(), std::max<std::size_t>(256, disk_plan->moe->workspace_bytes(
+                                                                    bank, 1, 1)));
+                std::vector<std::uint16_t> input(hidden_size);
+                for (std::size_t i = 0; i < input.size(); ++i) {
+                    const float value = static_cast<float>(static_cast<int>(i % 17) - 8) / 64.0F;
+                    auto bits = std::bit_cast<std::uint32_t>(value);
+                    bits += 0x7fffU + ((bits >> 16U) & 1U);
+                    input[i] = static_cast<std::uint16_t>(bits >> 16U);
+                }
+                hidden_buffer.copy_from_host(input.data(), hidden_buffer.size());
+                const auto hidden_width = static_cast<std::int32_t>(hidden_size);
+                Tensor hidden(hidden_buffer.span(), DType::BF16, {hidden_width, 1});
+                Tensor output(output_buffer.span(), DType::BF16, {hidden_width, 1});
+                MemoryArena workspace(workspace_buffer.span());
+                const auto run_layer = [&] {
+                    bool complete = schedule->start(bank, hidden, output, workspace, {});
+                    while (!complete) {
+                        complete = schedule->poll();
+                        std::this_thread::yield();
+                    }
+                    schedule->synchronize();
+                };
+                run_layer();
+                const auto first_upload = schedule->uploaded_bytes();
+                run_layer();
+                require(schedule->uploaded_bytes() == first_upload,
+                        "repeated file-backed route did not reuse its expert cache entries");
+                std::vector<std::uint16_t> values(hidden_size);
+                output_buffer.copy_to_host(values.data(), output_buffer.size());
+                require(std::any_of(values.begin(), values.end(), [](auto value) {
+                            const auto fp = std::bit_cast<float>(std::uint32_t(value) << 16);
+                            return std::isfinite(fp) && fp != 0.0F;
+                        }),
+                        "file-backed Flash-Next MoE produced no finite nonzero output");
+                std::cout << "PASS one real file-backed NVFP4 MoE layer; uploaded="
+                          << schedule->uploaded_bytes() << " bytes\n";
+            }
         }
-        std::cout << "PASS V3 metadata binding; no materialization or inference\n";
+        std::cout << (stream_one_layer ? "PASS V3 metadata binding and one-layer execution\n"
+                                      : "PASS V3 metadata binding; no materialization or inference\n");
         return 0;
 #endif
         std::unique_ptr<q4::ModelShard> model;

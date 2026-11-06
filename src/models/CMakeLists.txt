@@ -68,6 +68,7 @@ add_library(ninfer_model_execution STATIC
   common/context/transfer.cpp
   common/moe/execution.cpp
   common/moe/schedule.cpp
+  common/moe/file_schedule.cpp
   qwen4_exp/ple/hash.cpp
   qwen4_exp/ple/upload.cpp
   qwen4_exp/ple/disk/row_reader.cpp

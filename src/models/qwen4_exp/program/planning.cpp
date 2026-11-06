@@ -1,4 +1,5 @@
 #include "models/qwen4_exp/program/planning.h"
+#include "models/common/moe/file_schedule.h"
 #include "models/qwen4_exp/parallel/plan.h"
 #include "models/qwen4_exp/session/planning.h"
 #include "core/platform.h"
@@ -53,7 +54,8 @@ std::shared_ptr<const moe::Plan> describe_moe_plan(const execution::ModelProfile
     if (file_backed)
         for (auto& bank : banks)
             if (!bank.resident) bank.file_backed = true;
-    return moe::describe_plan(banks, layers);
+    return file_backed ? moe::describe_file_schedule(banks, layers)
+                       : moe::describe_plan(banks, layers);
 }
 
 namespace {
