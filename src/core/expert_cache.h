@@ -47,6 +47,7 @@ struct ExpertCacheRequirements {
 struct ExpertBankCacheSpec {
     WeightBankLayout gate_up, down;
     bool resident = false;
+    bool file_backed = false;
 };
 
 class ExpertCache;

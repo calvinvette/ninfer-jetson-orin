@@ -4,7 +4,7 @@
 
 namespace ninfer::models {
 
-enum class WeightPlacement { Resident, HostExperts };
+enum class WeightPlacement { Resident, HostExperts, DiskExperts };
 
 struct WeightCandidate {
     WeightPlacement placement;

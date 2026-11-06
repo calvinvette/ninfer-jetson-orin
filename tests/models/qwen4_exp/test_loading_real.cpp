@@ -294,6 +294,35 @@ int main(int argc, char** argv) {
                     std::to_string(profile->mtp.has_value()));
             }
             placement(load, false);
+            auto disk_load = q4::resolve_load(reader, definition, device.device(), Device::cpu(),
+                                              load.ple_table_owner(), true);
+            require(disk_load.materialization().device_capacity_bytes < 16 * GiB &&
+                        disk_load.materialization().registered_host_bytes == 0,
+                    "disk expert planning still materializes or registers the expert banks");
+            std::vector<artifact::ObjectHandle> expert_objects;
+            for (const auto& bank : definition->expert_banks()) {
+                expert_objects.push_back(bank.gate_up.object);
+                expert_objects.push_back(bank.down.object);
+            }
+            auto file_backing = std::make_shared<artifact::FileBacking>(
+                artifact::prepare_file_backing(reader, expert_objects));
+            const auto disk_sources =
+                models::moe::bind_file_banks(definition->expert_banks(), file_backing);
+            for (const auto index : {std::size_t{0}, std::size_t{47},
+                                     definition->expert_banks().size() - 1}) {
+                const auto& source = definition->expert_banks()[index].gate_up;
+                const auto plane  = source.layout.codes;
+                const auto expert = std::uint32_t{511};
+                std::array<std::byte, 64> actual{};
+                disk_sources[index].gate_up_read(
+                    plane.offset + expert * plane.expert_stride, actual);
+                const auto& object = reader.directory().tensor(source.object);
+                const auto expected = reader.read_range(
+                    object.offset + plane.offset + expert * plane.expert_stride, actual.size());
+                require(std::equal(actual.begin(), actual.end(), expected.begin()) &&
+                            disk_sources[index].gate_up.divisor(expert) > 0,
+                        "file-backed Flash-Next expert range or divisor differs");
+            }
             bool rejected = false;
             std::string reason;
             try {

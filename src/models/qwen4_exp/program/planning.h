@@ -59,7 +59,8 @@ struct ExecutionPlan {
                                                       const EngineOptions&);
 
 [[nodiscard]] std::shared_ptr<const moe::Plan> describe_moe_plan(const execution::ModelProfile&,
-                                                                 const MoeOptions&);
+                                                                 const MoeOptions&,
+                                                                 bool file_backed = false);
 
 // Available bytes exclude immutable GPU weights and the caller's startup headroom.
 // Shared-memory targets include planned Host preparation storage in the physical reservation.

@@ -87,6 +87,33 @@ struct Bank {
     }
 };
 
+ExpertBankSource file_source(const ExpertBankSource& original) {
+    ExpertBankSource out;
+    const auto bind = [&](const WeightBankView& matrix,
+                          std::shared_ptr<const WeightParent>& owner,
+                          std::shared_ptr<const std::vector<float>>& divisors_owner,
+                          std::function<void(std::uint64_t, std::span<std::byte>)>& read) {
+        auto divisors = std::make_shared<std::vector<float>>(
+            matrix.parent->weight_divisors.begin(), matrix.parent->weight_divisors.end());
+        auto parent = std::make_shared<WeightParent>(WeightParent{
+            matrix.parent->geometry, Device::cpu(), nullptr, *divisors});
+        auto bytes = std::make_shared<std::vector<std::byte>>(matrix.parent->geometry.bytes);
+        std::memcpy(bytes->data(), matrix.parent->data, bytes->size());
+        owner = std::move(parent);
+        divisors_owner = std::move(divisors);
+        read  = [bytes](std::uint64_t offset, std::span<std::byte> destination) {
+            if (offset > bytes->size() || destination.size() > bytes->size() - offset)
+                throw std::out_of_range("file-backed test source range");
+            std::memcpy(destination.data(), bytes->data() + offset, destination.size());
+        };
+        return bind_weight_bank_metadata(*owner, matrix.layout);
+    };
+    out.gate_up = bind(original.gate_up, out.gate_up_owner, out.gate_up_divisors_owner,
+                       out.gate_up_read);
+    out.down = bind(original.down, out.down_owner, out.down_divisors_owner, out.down_read);
+    return out;
+}
+
 struct Sizes {
     std::uint64_t bytes[6];
 };
@@ -561,6 +588,21 @@ void promote_partial_upload(const DeviceContext& device) {
             "promoting prefetch duplicated or relocated its payload");
 }
 
+void file_backed_staging(const DeviceContext& device) {
+    Bank bank(QType::NVFP4, QType::NVFP4);
+    const auto original = bank.source(device.device());
+    const std::array sources{file_source(original)};
+    auto req = describe_expert_cache(
+        sources, {.capacity_bytes = 262144, .max_batch_bytes = 1024, .upload_slots = 2});
+    require(req.pinned_bytes >= 2 * 1024, "file-backed staging is absent from pinned budget");
+    ExpertCache cache(sources, req, device, device.transfer_view());
+    const std::array keys{ExpertKey{{0}, 4}};
+    replace(cache, req, keys);
+    verify(cache, original, keys[0], device);
+    require(cache.uploaded_bytes() == req.banks[0].payload_bytes,
+            "file-backed cache did not transfer the complete encoded expert");
+}
+
 } // namespace
 
 int main() {
@@ -575,6 +617,7 @@ int main() {
         complete_bank(device);
         fixed_regions_and_windows(device);
         promote_partial_upload(device);
+        file_backed_staging(device);
         Bank failure_source(QType::NVFP4, QType::NVFP4);
         ninfer::test::expert_cache_cuda_errors(failure_source.source(device.device()), device);
         std::cout << "expert cache bytes, lifetimes, Graph and resident access passed\n";

@@ -4,6 +4,9 @@
 #include "core/weight_view.h"
 #include "core/layout.h"
 
+#include <functional>
+#include <memory>
+
 namespace ninfer {
 
 inline constexpr std::uint64_t kExpertAbsentOffset = UINT64_MAX;
@@ -82,6 +85,11 @@ struct ExpertBankSource {
     // Optional for CPU-only math; GPU replicas require registered views of both parents.
     CudaHostView gate_up_upload;
     CudaHostView down_upload;
+    // Optional disk-backed encoded parents. The metadata parents own geometry/divisors but no
+    // tensor payload; readers fill caller-owned encoded-plane staging on cache misses.
+    std::shared_ptr<const WeightParent> gate_up_owner, down_owner;
+    std::shared_ptr<const std::vector<float>> gate_up_divisors_owner, down_divisors_owner;
+    std::function<void(std::uint64_t, std::span<std::byte>)> gate_up_read, down_read;
 };
 
 struct Csf32BankDeviceView {
@@ -130,6 +138,8 @@ struct ExpertBankDeviceView {
                                                     const WeightBankRegion& region);
 [[nodiscard]] WeightBankView bind_weight_bank(const WeightParent& parent,
                                               const WeightBankLayout& layout);
+[[nodiscard]] WeightBankView bind_weight_bank_metadata(const WeightParent& parent,
+                                                       const WeightBankLayout& layout);
 [[nodiscard]] Weight matrix_weight(const WeightBankView& bank, std::uint32_t expert,
                                    float input_scale = 0.0F);
 // Borrows resident CUDA planes and matrix scalars; performs no allocation.

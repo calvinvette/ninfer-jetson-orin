@@ -93,8 +93,23 @@ WeightBankView bind_weight_bank(const WeightParent& parent, const WeightBankLayo
     return {&parent, layout};
 }
 
+WeightBankView bind_weight_bank_metadata(const WeightParent& parent,
+                                         const WeightBankLayout& layout) {
+    if (parent.data || parent.device != Device::cpu() ||
+        layout != describe_weight_bank(parent.geometry, layout.region) ||
+        parent.weight_divisors.size() != parent.geometry.divisor_count) {
+        throw std::invalid_argument("weight bank metadata differs from its layout");
+    }
+    for (const auto value : parent.weight_divisors) {
+        if (!std::isfinite(value) || value <= 0)
+            throw std::invalid_argument("weight bank divisor must be finite and positive");
+    }
+    return {&parent, layout};
+}
+
 ConstMemorySpan WeightBankView::plane(const WeightBankPlane& plane, std::uint32_t expert) const {
     check_expert(*this, expert);
+    if (!parent->data) throw std::logic_error("weight bank has metadata without encoded storage");
     if (!plane.expert_bytes) { return {nullptr, 0, parent->device}; }
     const auto offset = plane.offset + expert * plane.expert_stride;
     if (offset > parent->geometry.bytes || plane.expert_bytes > parent->geometry.bytes - offset) {

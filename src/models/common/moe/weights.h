@@ -1,6 +1,7 @@
 #pragma once
 
 #include "artifact/binder.h"
+#include "artifact/backing.h"
 #include "artifact/materializer.h"
 #include "core/weight_bank.h"
 #include "ninfer/ops/moe.h"
@@ -70,5 +71,8 @@ private:
 [[nodiscard]] std::vector<ExpertBankSource> bind_banks(std::span<const BankDescription>,
                                                        const artifact::MaterializedArtifact&,
                                                        std::span<const Device>);
+[[nodiscard]] std::vector<ExpertBankSource>
+bind_file_banks(std::span<const BankDescription>,
+                std::shared_ptr<const artifact::FileBacking> backing);
 
 } // namespace ninfer::models::moe

@@ -64,6 +64,9 @@ void bank_binding() {
     auto storage = artifact::materialize(reader, artifact::plan_materialization(reader, requests));
     const std::array devices{Device::cpu()};
     const auto sources = models::moe::bind_banks({&bank, 1}, storage, devices);
+    auto files = std::make_shared<artifact::FileBacking>(artifact::prepare_file_backing(
+        reader, std::array{bank.gate_up.object, bank.down.object}));
+    const auto disk_sources = models::moe::bind_file_banks({&bank, 1}, files);
     for (unsigned e = 0; e < 3; ++e) {
         const auto gu = matrix_weight(sources[0].gate_up, e);
         const auto dn = matrix_weight(sources[0].down, e);
@@ -72,6 +75,16 @@ void bank_binding() {
         require(static_cast<const std::byte*>(gu.qdata) - sources[0].gate_up.parent->data ==
                     e * 16384,
                 "expert codes offset");
+        std::array<std::byte, 32> streamed{};
+        const auto plane = bank.gate_up.layout.codes;
+        disk_sources[0].gate_up_read(plane.offset + e * plane.expert_stride, streamed);
+        require(std::equal(streamed.begin(), streamed.end(),
+                           sources[0].gate_up.parent->data + plane.offset +
+                               e * plane.expert_stride),
+                "file-backed expert plane differs from materialized source");
+        require(disk_sources[0].gate_up.divisor(e) == float(1U << e) &&
+                    disk_sources[0].down.divisor(e) == float(8U << e),
+                "file-backed expert divisors differ");
     }
     std::swap(u.binding.parts[0], u.binding.parts[1]);
     rejects([&] { (void)models::moe::describe_bank(reader, models::moe::ExpertBinding{g, u, d}); },

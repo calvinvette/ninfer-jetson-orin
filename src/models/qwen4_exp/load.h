@@ -42,7 +42,7 @@ private:
     friend ResolvedLoadPlan resolve_load(const artifact::Reader&,
                                          std::shared_ptr<const ModelDefinition>, Device,
                                          std::optional<Device>,
-                                         std::shared_ptr<const ple::disk::Table>);
+                                         std::shared_ptr<const ple::disk::Table>, bool);
     friend ResolvedLoadPlan resolve_rank_load(const artifact::Reader&,
                                               std::shared_ptr<const ModelDefinition>, RankPlan,
                                               Device);
@@ -50,12 +50,13 @@ private:
                                                          const StartupObserver*);
     ResolvedLoadPlan(const artifact::Reader&, std::shared_ptr<const ModelDefinition>,
                      artifact::MaterializationPlan, std::vector<Device>, std::vector<Device>,
-                     std::shared_ptr<const ple::disk::Table>);
+                     std::shared_ptr<const ple::disk::Table>, bool);
     const artifact::Reader* reader_;
     std::shared_ptr<const ModelDefinition> definition_;
     artifact::MaterializationPlan materialization_;
     std::vector<Device> devices_, bank_devices_;
     std::shared_ptr<const ple::disk::Table> ple_;
+    bool disk_experts_ = false;
     RankPlan rank_;
     std::optional<WeightSelection> selection_;
     std::vector<WeightParent> parents_;
@@ -65,7 +66,8 @@ private:
 [[nodiscard]] ResolvedLoadPlan resolve_load(const artifact::Reader&,
                                             std::shared_ptr<const ModelDefinition>, Device,
                                             std::optional<Device> main_experts            = {},
-                                            std::shared_ptr<const ple::disk::Table> table = {});
+                                            std::shared_ptr<const ple::disk::Table> table = {},
+                                            bool disk_experts = false);
 [[nodiscard]] std::unique_ptr<ModelShard> materialize_model(ResolvedLoadPlan&&, DeviceContext&,
                                                             const StartupObserver* = nullptr);
 [[nodiscard]] ResolvedLoadPlan resolve_rank_load(const artifact::Reader&,

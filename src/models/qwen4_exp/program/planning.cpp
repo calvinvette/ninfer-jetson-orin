@@ -28,13 +28,14 @@ PersistentLayout persistent(const execution::ModelProfile& p, const EngineOption
 } // namespace
 
 std::shared_ptr<const moe::Plan> describe_moe_plan(const execution::ModelProfile& p,
-                                                   const MoeOptions& o) {
+                                                   const MoeOptions& o, bool file_backed) {
     if (o.expert_priority && o.expert_priority->size() != p.text.layers.size())
         throw std::invalid_argument("expert priority must cover every Main layer");
     std::vector<moe::LayerSpec> layers;
     for (std::size_t i = 0; i < p.text.layers.size(); ++i) {
         const auto& m = p.text.layers[i].moe;
-        moe::LayerSpec layer{m.bank, m.math, ops::MoeEpilogue::Write, {}, {64, 15}};
+        moe::LayerSpec layer{m.bank, m.math, ops::MoeEpilogue::Write, {},
+                             file_backed ? moe::HybridPolicy{0, 15} : moe::HybridPolicy{64, 15}};
         if (o.expert_priority)
             layer.priority = (*o.expert_priority)[i];
         else if (const auto priority = default_expert_priority(p.config.text, i); !priority.empty())
@@ -46,8 +47,12 @@ std::shared_ptr<const moe::Plan> describe_moe_plan(const execution::ModelProfile
         layers.push_back(std::move(layer));
     }
     std::vector<ExpertBankCacheSpec> banks;
-    for (const auto& bank : p.banks) banks.push_back({bank.gate_up, bank.down, true});
+    for (const auto& bank : p.banks)
+        banks.push_back({bank.gate_up, bank.down, true, false});
     for (const auto& layer : layers) banks[layer.bank.index].resident = false;
+    if (file_backed)
+        for (auto& bank : banks)
+            if (!bank.resident) bank.file_backed = true;
     return moe::describe_plan(banks, layers);
 }
 
@@ -160,7 +165,9 @@ std::size_t ExecutionPlan::pinned_context_counts_bytes() const {
 
 std::size_t ExecutionPlan::host_reservation_bytes() const {
     const auto expert =
-        moe ? moe->description().bridge_pinned_bytes + moe->description().cpu_workspace_bytes : 0;
+        moe ? moe->description().bridge_pinned_bytes + moe->description().cpu_workspace_bytes +
+                  moe->description().cache_pinned_bytes
+            : 0;
     return host_context_bytes + pinned_draft_bytes + ple_prepare_bytes +
            ple_upload.ordinary_host_bytes + ple_upload.pinned_host_bytes + pinned_io_bytes +
            pinned_output_bytes + pinned_sampling_bytes + pinned_ple_handoff_bytes +

@@ -24,6 +24,14 @@ Startup::Startup(const artifact::Reader& definition_source, const artifact::Read
         placements_.push_back({WeightPlacement::HostExperts,
                                host.materialization().device_capacity_bytes,
                                host.materialization().host_capacity_bytes});
+        disk_offload_ = describe_moe_plan(*profile, options.moe, true);
+        if (disk_offload_) {
+            const auto disk =
+                resolve_load(reader_, definition_, device, Device::cpu(), table_, true);
+            placements_.push_back({WeightPlacement::DiskExperts,
+                                   disk.materialization().device_capacity_bytes,
+                                   disk.materialization().host_capacity_bytes});
+        }
     }
 }
 
@@ -31,9 +39,12 @@ std::optional<Startup::ExecutionPlan>
 Startup::plan(DeviceContext& device, const EngineOptions& options, WeightPlacement placement,
               std::size_t available, std::size_t available_host_bytes) const {
     const bool host = placement == WeightPlacement::HostExperts;
-    if (host && !offload_) return {};
+    const bool disk = placement == WeightPlacement::DiskExperts;
+    const auto& schedule = host ? offload_ : disk ? disk_offload_ : offload_;
+    if ((host || disk) && !schedule) return {};
     auto planned = plan_execution(profile, table_->geometry(), options, device, available,
-                                  host ? offload_ : nullptr, true, available_host_bytes);
+                                  host || disk ? schedule : nullptr, true,
+                                  available_host_bytes);
     if (!planned) return {};
     const auto capacity = planned->capacity;
     const auto chunk    = planned->shape.prefill_chunk;
@@ -43,9 +54,10 @@ Startup::plan(DeviceContext& device, const EngineOptions& options, WeightPlaceme
 
 std::unique_ptr<ModelShard> Startup::materialize(DeviceContext& device, WeightPlacement placement,
                                                  const StartupObserver& observer) {
-    auto resolved = resolve_load(
-        reader_, definition_, device.device(),
-        placement == WeightPlacement::HostExperts ? Device::cpu() : device.device(), table_);
+    auto resolved = resolve_load(reader_, definition_, device.device(),
+                                 placement == WeightPlacement::Resident ? device.device()
+                                                                        : Device::cpu(),
+                                 table_, placement == WeightPlacement::DiskExperts);
     return materialize_model(std::move(resolved), device, &observer);
 }
 

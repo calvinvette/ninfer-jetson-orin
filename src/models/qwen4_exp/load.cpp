@@ -2,6 +2,7 @@
 
 #include "models/common/bindings.h"
 #include "core/nf4.h"
+#include "artifact/views.h"
 
 namespace ninfer::models::qwen4_exp {
 
@@ -9,16 +10,16 @@ ResolvedLoadPlan::ResolvedLoadPlan(const artifact::Reader& reader,
                                    std::shared_ptr<const ModelDefinition> definition,
                                    artifact::MaterializationPlan materialization,
                                    std::vector<Device> devices, std::vector<Device> bank_devices,
-                                   std::shared_ptr<const ple::disk::Table> ple)
+                                   std::shared_ptr<const ple::disk::Table> ple, bool disk_experts)
     : reader_(&reader), definition_(std::move(definition)),
       materialization_(std::move(materialization)), devices_(std::move(devices)),
-      bank_devices_(std::move(bank_devices)), ple_(std::move(ple)),
+      bank_devices_(std::move(bank_devices)), ple_(std::move(ple)), disk_experts_(disk_experts),
       rank_(plan_single_rank(*definition_)) {}
 
 ResolvedLoadPlan resolve_load(const artifact::Reader& reader,
                               std::shared_ptr<const ModelDefinition> definition, Device cuda,
                               std::optional<Device> main_experts,
-                              std::shared_ptr<const ple::disk::Table> table) {
+                              std::shared_ptr<const ple::disk::Table> table, bool disk_experts) {
     if (!definition || definition->artifact_id() != reader.artifact_id())
         throw artifact::ArtifactError("model definition belongs to another artifact");
     const auto expert_device = main_experts.value_or(cuda);
@@ -27,13 +28,24 @@ ResolvedLoadPlan resolve_load(const artifact::Reader& reader,
         throw artifact::ArtifactError("weight placement requires the selected GPU or CPU");
     std::vector<Device> devices(definition->weight_data().size(), cuda);
     std::vector<Device> banks(definition->expert_banks().size(), cuda);
+    std::vector<bool> expert_weights(devices.size());
     for (const auto& layer : definition->weights().text.layers) {
         const auto& w = layer.moe;
         for (const auto id : {w.gate, w.up, w.down}) devices[id.index] = expert_device;
+        for (const auto id : {w.gate, w.up, w.down}) expert_weights[id.index] = true;
         banks[w.bank.index] = expert_device;
+    }
+    if (definition->weights().mtp) {
+        const auto& w = definition->weights().mtp->layer.moe;
+        for (const auto id : {w.gate, w.up, w.down}) {
+            devices[id.index] = disk_experts ? cuda : expert_device;
+            if (!disk_experts) expert_weights[id.index] = true;
+        }
+        banks[w.bank.index] = disk_experts ? cuda : expert_device;
     }
     std::vector<artifact::PlacementRequest> requests;
     for (std::size_t i = 0; i < devices.size(); ++i)
+        if (!(disk_experts && expert_weights[i]))
         for (const auto& part : definition->parameter({i}).binding.parts)
             requests.push_back({part.object, devices[i],
                                 devices[i] == Device::cpu() ? artifact::HostAccess::CudaTransfer
@@ -42,7 +54,7 @@ ResolvedLoadPlan resolve_load(const artifact::Reader& reader,
     if (!table)
         table = std::make_shared<const ple::disk::Table>(reader, definition->ple_parameters());
     return {reader,           std::move(definition), std::move(storage), std::move(devices),
-            std::move(banks), std::move(table)};
+            std::move(banks), std::move(table), disk_experts};
 }
 
 ResolvedLoadPlan resolve_rank_load(const artifact::Reader& reader,
@@ -53,7 +65,7 @@ ResolvedLoadPlan resolve_rank_load(const artifact::Reader& reader,
         throw artifact::ArtifactError("rank definition belongs to another artifact");
     auto selection = select_weights(reader, *definition, rank, device);
     auto storage   = artifact::plan_materialization(reader, selection.weights.requests);
-    ResolvedLoadPlan out(reader, std::move(definition), std::move(storage), {}, {}, {});
+    ResolvedLoadPlan out(reader, std::move(definition), std::move(storage), {}, {}, {}, false);
     out.rank_      = std::move(rank);
     out.selection_ = std::move(selection);
     out.parents_.reserve(out.materialization_.tensors.size());
@@ -113,8 +125,49 @@ std::unique_ptr<ModelShard> materialize_model(ResolvedLoadPlan&& plan, DeviceCon
         pending.push_back(
             {definition->parameter({i}), description.uses, description.source_objects});
     }
+    std::vector<ExpertBankSource> banks;
+    if (plan.disk_experts_) {
+        std::vector<bool> expert_weights(definition->weight_data().size());
+        for (const auto& layer : definition->weights().text.layers)
+            for (const auto id : {layer.moe.gate, layer.moe.up, layer.moe.down})
+                expert_weights[id.index] = true;
+        std::vector<BoundWeight> bound;
+        bound.reserve(pending.size());
+        for (std::size_t i = 0; i < pending.size(); ++i) {
+            if (expert_weights[i]) {
+                bound.push_back(definition->weight_data()[i]);
+                continue;
+            }
+            auto& item = pending[i];
+            auto view  = artifact::bind_view(item.reference, backing, plan.devices_[i]);
+            bound.push_back({std::move(item.reference.name), std::move(item.source_objects),
+                             std::move(view), std::move(item.uses)});
+        }
+        std::vector<artifact::ObjectHandle> objects;
+        const auto main_banks = definition->weights().text.layers.size();
+        objects.reserve(main_banks * 2);
+        for (const auto& bank : definition->expert_banks().first(main_banks)) {
+            objects.push_back(bank.gate_up.object);
+            objects.push_back(bank.down.object);
+        }
+        auto files = std::make_shared<artifact::FileBacking>(
+            artifact::prepare_file_backing(*plan.reader_, objects));
+        const auto descriptions = definition->expert_banks();
+        banks = moe::bind_file_banks(descriptions.first(main_banks), std::move(files));
+        if (descriptions.size() > main_banks) {
+            const auto resident = moe::bind_banks(
+                descriptions.subspan(main_banks), backing,
+                std::span(plan.bank_devices_).subspan(main_banks));
+            banks.insert(banks.end(), resident.begin(), resident.end());
+        }
+        auto out = std::unique_ptr<ModelShard>(new ModelShard(
+            std::move(definition), std::move(backing), std::move(bound), std::move(banks),
+            std::move(plan.ple_)));
+        out->rank_ = std::move(plan.rank_);
+        return out;
+    }
     auto bound = resolve_weights(std::move(pending), backing, plan.devices_);
-    auto banks = moe::bind_banks(definition->expert_banks(), backing, plan.bank_devices_);
+    banks      = moe::bind_banks(definition->expert_banks(), backing, plan.bank_devices_);
     auto out = std::unique_ptr<ModelShard>(new ModelShard(std::move(definition), std::move(backing),
                                                           std::move(bound), std::move(banks),
                                                           std::move(plan.ple_)));

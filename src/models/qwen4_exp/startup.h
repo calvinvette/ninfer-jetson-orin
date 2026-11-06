@@ -47,6 +47,7 @@ public:
 private:
     std::vector<WeightCandidate> placements_;
     std::shared_ptr<const moe::Plan> offload_;
+    std::shared_ptr<const moe::Plan> disk_offload_;
     const artifact::Reader& reader_;
     std::shared_ptr<const ModelDefinition> definition_;
     std::shared_ptr<const ple::disk::Table> table_;

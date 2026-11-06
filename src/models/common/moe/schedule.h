@@ -37,6 +37,7 @@ struct ScheduleDescription {
     std::vector<LayerDescription> layers;
     std::size_t device_bytes = 0, cache_bytes = 0, fixed_bytes = 0, target_bytes = 0;
     std::size_t bridge_device_bytes = 0, bridge_pinned_bytes = 0, cpu_workspace_bytes = 0;
+    std::size_t cache_pinned_bytes = 0;
     std::uint32_t window_count = 0, cpu_workers = 0;
 };
 

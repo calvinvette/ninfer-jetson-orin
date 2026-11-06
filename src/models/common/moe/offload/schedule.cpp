@@ -14,6 +14,7 @@ ScheduleDescription describe(const Plan& plan) {
                             .bridge_device_bytes = plan.bridge.device_frame_bytes,
                             .bridge_pinned_bytes = plan.bridge.pinned_frame_bytes,
                             .cpu_workspace_bytes = plan.bridge.cpu_workspace_bytes,
+                            .cache_pinned_bytes = plan.cache.pinned_bytes,
                             .window_count        = plan.window_count,
                             .cpu_workers =
                                 static_cast<std::uint32_t>(plan.team.worker_cpus.size())};
