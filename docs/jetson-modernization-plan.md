@@ -132,8 +132,9 @@ that a discrete-GPU host/device cache policy is efficient on shared LPDDR.
 
 The first JP6 implementation pass is on local branch `feat/jetson-orin-sm87-jp6` in
 `~/workspace/ninfer`, based on the planned `a754fcf3` source revision. Commits
-`a8f27562` and `6376058d` add CUDA 12.6/SM87 build compatibility, explicit unsupported
-routes, target runtime admission, and a predicated BF16 fallback for row/K tails. The
+`a8f27562`, `6376058d`, and `b72ba228` add CUDA 12.6/SM87 build compatibility, explicit unsupported
+routes, target runtime admission, a predicated BF16 fallback for row/K tails, and Orin-specific
+expectations for compressed KV formats without qualified consumers. The
 full build succeeds on Jetson AGX Orin (aarch64, SM87, CUDA 12.6). The push to the
 configured `Neroued/ninfer` remote was rejected because the authenticated account has
 read-only access; the commits remain local.
@@ -143,9 +144,9 @@ projection oracle passes 197 cases for the previously failing `324x10240` shape;
 `14336x5120`, T=129 route passes its two selected cases. The broader CTest run was
 started concurrently and is not a valid suite result: GPU resource/capture contention
 and target-independent tests that exercise deliberately unavailable compressed KV and
-block-scaled MoE routes caused failures. The Qwen3.5 runtime-mechanisms test also still
-needs target-specific expectations for FP8/NVFP4/K8V4 KV. Missing Python packages and
-the local FFmpeg runtime path affected unrelated tests.
+block-scaled MoE routes caused failures. The Qwen3.5 runtime-mechanisms test now passes
+with target-specific expectations for FP8/NVFP4/K8V4 KV rejection on Orin. Missing Python
+packages and the local FFmpeg runtime path affected unrelated tests.
 
 The public benchmark now completes short autoregressive runs on both original artifacts
 with CUDA Graphs and INT8-G64 KV:
