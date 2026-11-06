@@ -318,10 +318,29 @@ GDN state 0 has 2/30,720 BF16 convolution elements changed (mean absolute decode
 1.9e-10, max 3.8e-6) and FP32 recurrent state mean/max deltas of 2.2e-6/0.0046. At GDN state 27
 (transformer layer 36), convolution deltas are 0.034 mean / 0.461 max and recurrent deltas are
 1.23e-4 mean / 0.0188 max. The discrepancy therefore accumulates along the multi-token target
-execution while the selected commit prefix is correct; this still does not distinguish replay
-record inputs from replay recurrence/fold arithmetic. Next, compare the real artifact's per-token
-GDN replay records and folded state against the single-token route and an independent recurrence
-oracle at state 0 and state 27. The temporary capture was removed after this comparison.
+execution while the selected commit prefix is correct; this state comparison alone does not
+distinguish replay record inputs from replay recurrence/fold arithmetic. The temporary capture
+was removed after analysis.
+
+The recurrence oracle over the captured real-artifact records evaluates the complete FP64 state
+transition from the represented source FP32 state, BF16 key/value records, and FP32 gate/beta
+records, normalizing keys with epsilon 1e-6 and comparing the final FP32 persistent state. At
+accepted prefix 2, the GPU fold differs from this oracle by mean/max absolute 2.26e-10/5.64e-7
+at state 0 and 1.10e-10/4.31e-8 at state 27. This rules out fold arithmetic as the source of
+the observed route drift for these inputs. The SM87 fused Q8 projection used the single-column
+GEMV schedule for T=1 but switched to sliced-K for T=2. T=1 and T=2 now use a two-column GEMV
+tile over flattened request columns, preserving per-column GEMV accumulation while reusing
+decoded weights. The exact first-column regression checks Q/K/V, Z, and convolution state at the
+Flash-Next 16384x2560 projection shape; it passes. Q8 T=2 snapshot and record-path tests also pass
+with eight batch rows and ragged valid extents.
+
+The public Flash-Next check was repeated with prompt `hi`, greedy seed 0, ten generated tokens,
+MTP-1, and CUDA Graphs disabled. It now emits the same sequence as MTP-off:
+`1596 1144 310 5707 310 1156 328 5834 3158 8722`. This resolves the previously observed
+token-7 divergence for the tested single-request SM87 route. The eight-row Q8 Op checks qualify
+the projection and record mechanics separately, but do not qualify batched end-to-end MTP. MTP
+qualification across acceptance extents, fallback boundaries, terminal commits, and state
+restoration remains open.
 
 The disk schedule runs eagerly: CUDA Graph capture is disabled for this route until stable
 cache contents and graph replay are supported. Numerical comparison of a real layer against
