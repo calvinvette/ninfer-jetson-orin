@@ -29,6 +29,7 @@ The executable `--help` output is the exact source for command-line option spell
 
 ## Repository-local guides
 
+- [Jetson modernization plan](jetson-modernization-plan.md) — active JP6/CUDA 12.6 migration to modern NInfer and native V3 Flash-Next execution
 - [Benchmarks](../bench/README.md)
 - [Tests](../tests/README.md)
 - [Maintainer tools](../tools/README.md)
