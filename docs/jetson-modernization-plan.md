@@ -249,6 +249,15 @@ rounds with all three drafts accepted. This confirms the mismatch is not caused 
 A two-token eager request completed but did not enter an MTP round. Do not use the short MTP
 throughput result as a supported-path claim until greedy equivalence is resolved.
 
+The captured BF16 output-head logits identify the immediate divergence at the mismatching
+position: single-token decode scores token 328 at 23.25 and token 25 at 23.0, while the batched
+verify column scores both at 23.25. The greedy argmax's deterministic lower-ID tie break selects
+25 in the verify route. This is evidence of a batch-shape-dependent numerical boundary in the
+target forward result; it does not by itself distinguish which upstream operation causes that
+difference or establish state corruption. Keep the sampler's tie rule unchanged. Qualification
+needs a target-forward/state comparison at this boundary and a defined way to preserve greedy
+equivalence when verify and single-token paths disagree.
+
 The disk schedule runs eagerly: CUDA Graph capture is disabled for this route until stable
 cache contents and graph replay are supported. Numerical comparison of a real layer against
 an independent oracle, MTP acceptance/commit and state-restoration qualification, Vision,
