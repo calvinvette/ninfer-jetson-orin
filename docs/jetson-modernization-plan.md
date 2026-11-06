@@ -185,6 +185,13 @@ and 78.06 GB with MTP, beyond this host's physical RAM. These checks establish a
 definition/binding compatibility and decode-operator arithmetic only; they do not establish
 weight materialization, Engine execution, or inference support. MTP has no end-to-end result.
 
+The disk-streaming foundation now includes `FileBacking::read_range`, committed in the
+Orin source branch as `4106d05a`. It reads object subranges spanning continuation files
+with aligned direct I/O and per-fragment host scratch; an exact cross-file subrange check
+passes in `ninfer_artifact_backing_test`. This is a storage primitive only: Qwen4Exp expert
+sources still require full Host or CUDA parent tensors, so bounded expert streaming and real
+Flash-Next inference remain unimplemented.
+
 ### 1. Modern JP6 platform and original models
 
 Bring up CUDA 12.6/SM87 builds of the modern engine, applications, and relevant tests.
