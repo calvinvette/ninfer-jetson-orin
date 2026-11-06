@@ -185,12 +185,17 @@ and 78.06 GB with MTP, beyond this host's physical RAM. These checks establish a
 definition/binding compatibility and decode-operator arithmetic only; they do not establish
 weight materialization, Engine execution, or inference support. MTP has no end-to-end result.
 
-The disk-streaming foundation now includes `FileBacking::read_range`, committed in the
-Orin source branch as `4106d05a`. It reads object subranges spanning continuation files
-with aligned direct I/O and per-fragment host scratch; an exact cross-file subrange check
-passes in `ninfer_artifact_backing_test`. This is a storage primitive only: Qwen4Exp expert
-sources still require full Host or CUDA parent tensors, so bounded expert streaming and real
-Flash-Next inference remain unimplemented.
+The disk-streaming foundation includes `FileBacking::read_range`, committed in the Orin
+source branch as `4106d05a`. It reads object subranges spanning continuation files with
+aligned direct I/O and per-fragment host scratch; an exact cross-file subrange check passes
+in `ninfer_artifact_backing_test`. Commit `d83f2847` adds metadata-only expert-bank views,
+per-slot pinned staging, file-range cache fills, and Qwen4Exp disk-expert load planning. The
+synthetic cache test and real-artifact range/divisor checks pass. This is not yet a runnable
+Flash-Next path: the generic offload scheduler and CPU executor are currently compiled only
+for RTX5090, and enabling that whole target capability on Orin produces a link failure. A
+GPU-only file-backed scheduler is still required before bounded expert streaming can reach
+the public Engine. The NVFP4 Op wrapper also now decomposes multi-token execution into the
+qualified T=1 kernel route; operator/model correctness and inference remain to be verified.
 
 ### 1. Modern JP6 platform and original models
 
