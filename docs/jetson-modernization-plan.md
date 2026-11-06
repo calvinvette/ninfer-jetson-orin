@@ -348,6 +348,20 @@ regression is insufficient to qualify the end-to-end verify path, and draft wind
 reproduced greedy-correctness failure. MTP qualification across acceptance extents, fallback
 boundaries, terminal commits, and state restoration remains open.
 
+A focused T=5 trace confirms that the divergence is already present in the target forward pass,
+before state commit: for input token 1144, serial decode ranks token 310 at 22.375 above token
+5707 at 21.875, while verify column 1 ranks 5707 at 22.25 above 310 at 22.125. At layer 0,
+the captured GDN input and control values match bit-for-bit for this token, and the raw Q/K/V
+projection record matches the serial path's newest stored convolution input. The post-convolution
+Q/K/V values differ slightly, so the current evidence does not isolate whether the cause is the
+convolution source state or the multi-column convolution route. A separate capture of the selected
+convolution source buffers for serial token 1596 and verify column 0 found they differ, despite
+both executions being expected to read the selected source state. The capture's selector and
+buffer lineage have not been validated well enough to interpret that comparison. An initial
+hypothesis about BF16 history rounding is therefore unsubstantiated; no production change was made.
+Resolve the source-state selection and compare the convolution route against its independent
+mathematical oracle before attributing or fixing the T=5 failure. Temporary trace code was removed.
+
 The disk schedule runs eagerly: CUDA Graph capture is disabled for this route until stable
 cache contents and graph replay are supported. Numerical comparison of a real layer against
 an independent oracle, MTP acceptance/commit and state-restoration qualification, Vision,
