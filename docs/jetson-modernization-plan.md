@@ -1,6 +1,6 @@
 # Jetson Orin modernization plan
 
-Date: 2026-11-06. Status: agreed design; implementation has not started.
+Date: 2026-11-06. Status: implementation in progress; milestone gates remain open.
 
 This is the temporary execution plan for moving the Orin port onto modern NInfer while
 retaining JetPack 6.x / CUDA 12.6 support. It supersedes the instruction in the earlier
@@ -127,6 +127,45 @@ drive. No throughput target is established by the current source inspection. Do 
 that a discrete-GPU host/device cache policy is efficient on shared LPDDR.
 
 ## Delivery sequence and acceptance gates
+
+## Current execution status (2026-11-06)
+
+The first JP6 implementation pass is on local branch `feat/jetson-orin-sm87-jp6` in
+`~/workspace/ninfer`, based on the planned `a754fcf3` source revision. Commits
+`a8f27562` and `6376058d` add CUDA 12.6/SM87 build compatibility, explicit unsupported
+routes, target runtime admission, and a predicated BF16 fallback for row/K tails. The
+full build succeeds on Jetson AGX Orin (aarch64, SM87, CUDA 12.6). The push to the
+configured `Neroued/ninfer` remote was rejected because the authenticated account has
+read-only access; the commits remain local.
+
+Focused artifact reader, backing, and materialization tests pass serially. The BF16
+projection oracle passes 197 cases for the previously failing `324x10240` shape; the
+`14336x5120`, T=129 route passes its two selected cases. The broader CTest run was
+started concurrently and is not a valid suite result: GPU resource/capture contention
+and target-independent tests that exercise deliberately unavailable compressed KV and
+block-scaled MoE routes caused failures. The Qwen3.5 runtime-mechanisms test also still
+needs target-specific expectations for FP8/NVFP4/K8V4 KV. Missing Python packages and
+the local FFmpeg runtime path affected unrelated tests.
+
+The public benchmark now completes short autoregressive runs on both original artifacts
+with CUDA Graphs and INT8-G64 KV:
+
+| Artifact | Workload | Result |
+|---|---|---|
+| Qwen3.8-27B groupwise-int | 57 prompt tokens, 4 output tokens; context cap 1 GiB, max context 1024; no warmup, 1 repetition | 58.9 prefill tok/s; 3 decode steps in 137.1 ms |
+| Qwen3.6-35B-A3B groupwise-int | 15 prompt tokens, 6 output tokens; context cap 1 GiB, max context 1024; MTP-2, 1 warmup, 1 repetition | 85.5 prefill tok/s; 2 decode steps in 49.7 ms; 3/3 drafts accepted |
+
+These are bring-up checks, not matched replacements for the existing `pp512+tg64` and
+`pp2048+tg128` campaigns. The host currently exposes about 29 GiB physical RAM, so a
+12 GiB context reservation does not fit beside the 27B weights and required runtime
+resources; the smoke runs use a deliberately small 1 GiB cap. The plan's matched
+benchmark gate remains open.
+
+The generic V3 reader parses the supplied Flash-Next artifact (1,319 objects and
+108,440,379,396 payload bytes). This proves container parsing only. The current resident
+materializer cannot fit its NVFP4 expert bank and NF4 PLE table in this host's physical
+memory, and no bounded disk-backed expert execution path has been implemented. There is
+no Flash-Next inference or performance result yet.
 
 ### 1. Modern JP6 platform and original models
 
