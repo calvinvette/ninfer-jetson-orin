@@ -307,10 +307,21 @@ per-token states after 1144 (`5e54fccfb5670514`) and 310 (`b60a4505f6d953c1`). T
 already diverges by the first two-token verify commit, before the later token-7 mismatch. This
 hash is a diagnostic comparison, not a numerical oracle, and does not identify whether the source
 is verify-time state evolution or accepted-prefix commit selection. The trace copied all GDN state
-to host at each commit and expanded this ten-token run to 3m06, so it was removed. Next, compare
-the per-token candidate and committed GDN state for this first accepted pair against serial
-execution from the identical pre-verify state, separating verify state evolution from commit
-selection before investigating later layer, attention, or head boundaries.
+to host at each commit and expanded this ten-token run to 3m06, so it was removed. A narrower
+capture below resolves the prefix-selection question and measures the numerical state deltas.
+
+A narrower capture compared the actual state tensors. The prefill state and state after token 1596
+were bit-identical between modes. After the first accepted MTP pair (1144, 310), the committed
+state aligns with the MTP-off state after token 310, rather than the earlier state after 1144,
+which supports correct accepted-prefix selection. Relative to serial decode after token 310,
+GDN state 0 has 2/30,720 BF16 convolution elements changed (mean absolute decoded BF16 delta
+1.9e-10, max 3.8e-6) and FP32 recurrent state mean/max deltas of 2.2e-6/0.0046. At GDN state 27
+(transformer layer 36), convolution deltas are 0.034 mean / 0.461 max and recurrent deltas are
+1.23e-4 mean / 0.0188 max. The discrepancy therefore accumulates along the multi-token target
+execution while the selected commit prefix is correct; this still does not distinguish replay
+record inputs from replay recurrence/fold arithmetic. Next, compare the real artifact's per-token
+GDN replay records and folded state against the single-token route and an independent recurrence
+oracle at state 0 and state 27. The temporary capture was removed after this comparison.
 
 The disk schedule runs eagerly: CUDA Graph capture is disabled for this route until stable
 cache contents and graph replay are supported. Numerical comparison of a real layer against
