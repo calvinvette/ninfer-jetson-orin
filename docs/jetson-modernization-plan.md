@@ -139,7 +139,8 @@ compressed KV formats without qualified consumers, and decode-only NVFP4/block-F
 routes. The
 full build succeeds on Jetson AGX Orin (aarch64, SM87, CUDA 12.6). The push to the
 configured `Neroued/ninfer` remote was rejected because the authenticated account has
-read-only access; the commits remain local.
+read-only access. A push to `Don-Chad/ninfer-3090` was also rejected (HTTP 403 for the
+authenticated `calvinvette` account); the implementation commits remain local.
 
 The NVFP4 route reuses the exact E2M1/E4M3 unpack and FP32 vector contractions without
 instantiating Blackwell MXFP4 MMA. The block-FP8 route decodes its stored E4M3 codes and BF16
