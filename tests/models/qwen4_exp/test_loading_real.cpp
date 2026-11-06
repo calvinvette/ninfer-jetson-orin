@@ -362,12 +362,14 @@ int main(int argc, char** argv) {
                     bits += 0x7fffU + ((bits >> 16U) & 1U);
                     input[i] = static_cast<std::uint16_t>(bits >> 16U);
                 }
-                hidden_buffer.copy_from_host(input.data(), hidden_buffer.size());
+                auto alternate = input;
+                for (auto& value : alternate) value ^= 0x8000U;
                 const auto hidden_width = static_cast<std::int32_t>(hidden_size);
                 Tensor hidden(hidden_buffer.span(), DType::BF16, {hidden_width, 1});
                 Tensor output(output_buffer.span(), DType::BF16, {hidden_width, 1});
                 MemoryArena workspace(workspace_buffer.span());
-                const auto run_layer = [&] {
+                const auto run_layer = [&](const std::vector<std::uint16_t>& values) {
+                    hidden_buffer.copy_from_host(values.data(), hidden_buffer.size());
                     bool complete = schedule->start(bank, hidden, output, workspace, {});
                     while (!complete) {
                         complete = schedule->poll();
@@ -375,11 +377,16 @@ int main(int argc, char** argv) {
                     }
                     schedule->synchronize();
                 };
-                run_layer();
+                run_layer(input);
                 const auto first_upload = schedule->uploaded_bytes();
-                run_layer();
+                run_layer(input);
                 require(schedule->uploaded_bytes() == first_upload,
                         "repeated file-backed route did not reuse its expert cache entries");
+                run_layer(alternate);
+                const auto alternate_upload = schedule->uploaded_bytes();
+                run_layer(alternate);
+                require(schedule->uploaded_bytes() == alternate_upload,
+                        "repeated alternate route did not reuse its expert cache entries");
                 std::vector<std::uint16_t> values(hidden_size);
                 output_buffer.copy_to_host(values.data(), output_buffer.size());
                 require(std::any_of(values.begin(), values.end(), [](auto value) {
