@@ -192,18 +192,18 @@ reports are local under `/tmp/ninfer-jp6-qwen38-27b-chunk1024.json` and
 `/tmp/ninfer-jp6-qwen36-35b-mtp2.json`.
 
 The generic V3 reader parses the supplied Flash-Next artifact (1,319 objects and
-108,440,379,396 payload bytes). This proves container parsing only. The current resident
-materializer cannot fit its NVFP4 expert bank and NF4 PLE table in this host's physical
-memory, and no bounded disk-backed expert execution path has been implemented. There is
-no Flash-Next inference or performance result yet.
+108,440,379,396 payload bytes). That initial check established container parsing only. The
+resident materializer cannot fit its NVFP4 expert bank and NF4 PLE table in this host's
+physical memory; the bounded disk-backed execution path and its current results are recorded
+below.
 
-The Qwen4Exp real-artifact loading test now also passes against that Flash-Next file without
+The Qwen4Exp real-artifact loading test passes against that Flash-Next file without
 materializing weights. It verifies the 48 Main expert banks, the optional MTP bank, native
-expert geometry, and PLE-backed load planning; it also confirms that Orin rejects the artifact's
-multi-token NVFP4 prefill route. The required resident materialization is 75.37 GB without MTP
-and 78.06 GB with MTP, beyond this host's physical RAM. These checks establish artifact
-definition/binding compatibility and decode-operator arithmetic only; they do not establish
-weight materialization, Engine execution, or inference support. MTP has no end-to-end result.
+expert geometry, and PLE-backed load planning; it also confirms that the resident artifact
+would require 75.37 GB without MTP and 78.06 GB with MTP, beyond this host's physical RAM.
+That test covers binding and metadata only. The GPU-only expert schedule and later Engine
+execution evidence below supply the separate streamed-weight, text-inference, and short MTP
+benchmark checks.
 
 The disk-streaming foundation includes `FileBacking::read_range`, committed in the Orin
 source branch as `4106d05a`. It reads object subranges spanning continuation files with
