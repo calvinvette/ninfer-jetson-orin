@@ -170,7 +170,7 @@ These are bring-up checks, not matched replacements for the existing `pp512+tg64
 `pp2048+tg128` campaigns. The host currently exposes about 29 GiB physical RAM, so a
 12 GiB context reservation does not fit beside the 27B weights and required runtime
 resources; the smoke runs use a deliberately small 1 GiB cap. The plan's matched
-benchmark gate remains open.
+benchmark gate is closed by the short/long matrix below.
 
 The modern Engine has now also completed three measured repetitions on each pinned original
 artifact after the official V2-to-V3 migration. The measured request used one fixed generated
@@ -286,11 +286,24 @@ accumulating cross-shape projection/activation difference rather than a large re
 error. It still needs independent operator-oracle measurements at the real artifact's shapes;
 these temporary captures were removed after analysis.
 
+To test the identified single-token versus multi-column projection split, the 48x2560 GDN
+control projection now uses one tiled GEMV route for T=1 and T=2+, and the Q8 2560x6144 output
+projection uses one sliced route for T=1 and T=2+. New exact first-column tests pass for both
+operators; the Q8 linear oracle and complete GDN control suite also pass on SM87. Repeating the
+public ten-token greedy check with the real artifact still produces the original MTP-off sequence
+`1596 1144 310 5707 310 1156 328 5834 3158 8722` and MTP-1 sequence
+`1596 1144 310 5707 310 1156 25 328 5834 3158`. The route unification therefore does not
+resolve the end-to-end mismatch, which still begins at token seven. The corresponding runs took
+16.9/5.9 s (prefill/decode) with MTP off and 16.6/4.5 s with MTP-1; MTP-1 accepted four drafts
+with one fallback. Do not claim greedy MTP correctness or a throughput win from this short
+smoke. The next comparison must isolate later layer, attention, or head boundaries while holding
+the exact starting model state and token input fixed.
+
 The disk schedule runs eagerly: CUDA Graph capture is disabled for this route until stable
 cache contents and graph replay are supported. Numerical comparison of a real layer against
 an independent oracle, MTP acceptance/commit and state-restoration qualification, Vision,
-prefix reuse, graph capture, and matched performance benchmarks remain open. This is not a
-completed replacement for the existing original-model benchmark matrix.
+prefix reuse, and graph capture remain open. The matched original-model performance matrix is
+recorded below; it does not qualify Flash-Next MTP or the other feature gates.
 
 ### 1. Modern JP6 platform and original models
 
