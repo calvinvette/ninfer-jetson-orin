@@ -678,3 +678,27 @@ eager 8K, 16K, and 32K capacity gates pass for both KV formats under the 1.2
 GiB host-memory guard. This is the direct MTP comparison; the MoE-specific,
 text-only DFlash backend remains a separate experiment rather than a hidden
 substitute for an MTP data point.
+
+## Deferred follow-on work
+
+These are intentionally deferred until an Orin host has been upgraded to
+JetPack 7.2. They are separate from the completed CUDA 12.6/SM87 qualification
+and must not be folded into its reported measurements.
+
+1. Configure and build the port with the JetPack 7.2 CUDA 13.1 toolchain on
+   the upgraded host. Re-run the relevant correctness and real-artifact smoke
+   gates before interpreting performance results.
+2. Reproduce the selected CUDA 12.6 benchmark scenarios at the same fixed CPU,
+   GPU, and EMC clocks used for the current results. This is the
+   apples-to-apples CUDA 12.6 versus CUDA 13.1 comparison; retain artifact,
+   workload, KV format, MTP window, context reservation, CUDA-Graph setting,
+   repetition count, and prefix-cache policy.
+3. Then apply the highest stable JetPack 7.2 clock profile and repeat the same
+   scenarios. Report both the fixed-clock toolchain delta and the maximum-clock
+   result; do not conflate them.
+4. Create a separate branch for Qwen3.8-Flash-Next/Qwen4 investigation. Treat
+   it as a new target/runtime effort, not an artifact conversion: establish the
+   execution and memory model first, then implement the required target,
+   converter, artifact, numerical qualification, and benchmark plan. It is not
+   part of the resident single-Orin-GPU product path without an explicit
+   architecture decision for its much larger model footprint.
