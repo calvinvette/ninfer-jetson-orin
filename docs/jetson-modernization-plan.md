@@ -171,6 +171,26 @@ These are bring-up checks, not matched replacements for the existing `pp512+tg64
 resources; the smoke runs use a deliberately small 1 GiB cap. The plan's matched
 benchmark gate remains open.
 
+The modern Engine has now also completed three measured repetitions on each pinned original
+artifact after the official V2-to-V3 migration. The measured request used one fixed generated
+text message, greedy sampling, 64 output-token budget, INT8 KV, a 1 GiB context capacity,
+2,048 maximum context, CUDA Graphs enabled, prefix reuse disabled, one warmup, and one active
+request. MAXN/`jetson_clocks` readback was CPU 2,201.6 MHz, GPU 1,300.5 MHz, EMC 3,199 MHz
+with the override active.
+
+| Pinned model and modern Engine route | Prompt / committed output | Mean prefill / decode |
+|---|---:|---:|
+| Qwen3.8-27B groupwise-int, MTP off | 707 / 63 tokens | 206.64 / 7.30 tok/s |
+| Qwen3.6-35B-A3B groupwise-int, MTP-2 | 665 / 63 tokens | 1,192.76 / 53.60 tok/s; 39/46 draft tokens accepted (84.8%) |
+
+The source V2 files remain intact; migrated benchmark copies were written under `/tmp`. The
+benchmark API accepts text/messages rather than token IDs, so these runs use the same message
+text but do not reproduce the old curated 512-token corpus. They establish successful
+modern-Engine inference and a representative fixed-clock benchmark for both pinned original
+models. They do not replace the matched-corpus/short-and-long comparison gate above. Raw JSON
+reports are local under `/tmp/ninfer-jp6-qwen38-27b-chunk1024.json` and
+`/tmp/ninfer-jp6-qwen36-35b-mtp2.json`.
+
 The generic V3 reader parses the supplied Flash-Next artifact (1,319 objects and
 108,440,379,396 payload bytes). This proves container parsing only. The current resident
 materializer cannot fit its NVFP4 expert bank and NF4 PLE table in this host's physical
