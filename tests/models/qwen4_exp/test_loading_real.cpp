@@ -315,6 +315,17 @@ int main(int argc, char** argv) {
                     placement(load, host);
                     const auto weights   = load.materialization().device_capacity_bytes;
                     const auto available = host ? 16 * GiB - weights - 256 * 1024 * 1024 : 16 * GiB;
+#if NINFER_TARGET_JETSON_ORIN
+                    if (mtp) {
+                        bool rejected = false;
+                        try {
+                            (void)plan_for(profile, load.ple_table().geometry(), options,
+                                           available);
+                        } catch (const std::invalid_argument&) { rejected = true; }
+                        require(rejected, "Orin rejects the unqualified FP8 MTP expert route");
+                        continue;
+                    }
+#endif
                     selected = plan_for(profile, load.ple_table().geometry(), options, available);
                     require(selected.has_value(), "runtime plan must fit the supplied capacity");
                     require(selected->ple.max_positions == 4096,
@@ -345,10 +356,8 @@ int main(int argc, char** argv) {
                         auto multi             = options;
                         multi.max_concurrency  = 8;
                         multi.context_capacity = ContextCapacityPolicy::automatic();
-                        for (const auto format :
-                             {KvCacheStorage::BFloat16, KvCacheStorage::Int8Group64,
-                              KvCacheStorage::Fp8E4m3fnGroup128Ue8m0, KvCacheStorage::Nvfp4Group16,
-                              KvCacheStorage::Fp8KeyNvfp4Value}) {
+                        for (const auto format : {KvCacheStorage::BFloat16,
+                                                  KvCacheStorage::Int8Group64}) {
                             multi.kv_cache = format;
                             auto plan =
                                 plan_for(profile, load.ple_table().geometry(), multi, available);
@@ -360,6 +369,35 @@ int main(int argc, char** argv) {
                             require(plan->device_reservation_bytes() <= available,
                                     "execution exceeds Device budget");
                         }
+#if NINFER_TARGET_JETSON_ORIN
+                        for (const auto format : {KvCacheStorage::Fp8E4m3fnGroup128Ue8m0,
+                                                  KvCacheStorage::Nvfp4Group16,
+                                                  KvCacheStorage::Fp8KeyNvfp4Value}) {
+                            multi.kv_cache = format;
+                            bool rejected = false;
+                            try {
+                                (void)plan_for(profile, load.ple_table().geometry(), multi,
+                                               available);
+                            } catch (const std::invalid_argument&) { rejected = true; }
+                            require(rejected,
+                                    "Orin rejects paged KV formats without a qualified consumer");
+                        }
+#else
+                        for (const auto format : {KvCacheStorage::Fp8E4m3fnGroup128Ue8m0,
+                                                  KvCacheStorage::Nvfp4Group16,
+                                                  KvCacheStorage::Fp8KeyNvfp4Value}) {
+                            multi.kv_cache = format;
+                            auto plan =
+                                plan_for(profile, load.ple_table().geometry(), multi, available);
+                            require(plan &&
+                                        plan->capacity.device_bytes >=
+                                            plan->capacity.minimum_device_bytes &&
+                                        plan->ple.max_positions == 4096,
+                                    "mixed-batch automatic capacity");
+                            require(plan->device_reservation_bytes() <= available,
+                                    "execution exceeds Device budget");
+                        }
+#endif
                         require(!plan_for(profile, load.ple_table().geometry(), options, 1),
                                 "insufficient Device budget admitted");
                     }
