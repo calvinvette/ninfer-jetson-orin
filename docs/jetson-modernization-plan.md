@@ -197,8 +197,10 @@ tokenwise NVFP4 MoE Op. It fits a 5.27 GiB expert cache and plans a 16 GiB devic
 alongside resident weights; the resident model itself is about 70.2 GiB and is not
 materialized. On Jetson AGX Orin (SM87, JP6/CUDA 12.6), the focused expert-cache,
 artifact-backing, Qwen4Exp-loading, and block-scaled MoE tests pass. The real V3 artifact
-loads its metadata and executes one NVFP4 MoE layer; repeating the same route reuses cached
-experts (27,648,000 bytes uploaded once).
+loads its metadata and executes one NVFP4 MoE layer for two different hidden vectors; each
+repeated route reuses cached experts (55,296,000 bytes uploaded across the two distinct
+routes, with no repeat uploads). The changed route also exercises dynamic cache-slot
+replacement.
 
 The public Engine also completes a ten-token Flash-Next smoke run using the explicit artifact
 `~/models/Qwen3.8-Flash-Next-NInfer/qwen3_8_flash_next.ninfer`, prompt `hi`, greedy sampling,
