@@ -299,6 +299,19 @@ with one fallback. Do not claim greedy MTP correctness or a throughput win from 
 smoke. The next comparison must isolate later layer, attention, or head boundaries while holding
 the exact starting model state and token input fixed.
 
+A temporary commit trace hashed every layer's GDN convolution and recurrent state. At the initial
+prefill commit, MTP-off and MTP-1 matched (`4aa95da671a407ce`); after the first shared generated
+token 1596 they still matched (`91aa782b97cdc47b`). After MTP accepted tokens 1144 and 310 as a
+pair, the committed state hash was `a4b067f6e98b2051`, whereas serial decoding has distinct
+per-token states after 1144 (`5e54fccfb5670514`) and 310 (`b60a4505f6d953c1`). Thus, GDN state
+already diverges by the first two-token verify commit, before the later token-7 mismatch. This
+hash is a diagnostic comparison, not a numerical oracle, and does not identify whether the source
+is verify-time state evolution or accepted-prefix commit selection. The trace copied all GDN state
+to host at each commit and expanded this ten-token run to 3m06, so it was removed. Next, compare
+the per-token candidate and committed GDN state for this first accepted pair against serial
+execution from the identical pre-verify state, separating verify state evolution from commit
+selection before investigating later layer, attention, or head boundaries.
+
 The disk schedule runs eagerly: CUDA Graph capture is disabled for this route until stable
 cache contents and graph replay are supported. Numerical comparison of a real layer against
 an independent oracle, MTP acceptance/commit and state-restoration qualification, Vision,
