@@ -189,13 +189,27 @@ The disk-streaming foundation includes `FileBacking::read_range`, committed in t
 source branch as `4106d05a`. It reads object subranges spanning continuation files with
 aligned direct I/O and per-fragment host scratch; an exact cross-file subrange check passes
 in `ninfer_artifact_backing_test`. Commit `d83f2847` adds metadata-only expert-bank views,
-per-slot pinned staging, file-range cache fills, and Qwen4Exp disk-expert load planning. The
-synthetic cache test and real-artifact range/divisor checks pass. This is not yet a runnable
-Flash-Next path: the generic offload scheduler and CPU executor are currently compiled only
-for RTX5090, and enabling that whole target capability on Orin produces a link failure. A
-GPU-only file-backed scheduler is still required before bounded expert streaming can reach
-the public Engine. The NVFP4 Op wrapper also now decomposes multi-token execution into the
-qualified T=1 kernel route; operator/model correctness and inference remain to be verified.
+per-slot pinned staging, file-range cache fills, and Qwen4Exp disk-expert load planning.
+
+The GPU-only file-backed scheduler now routes on GPU, stages only selected NVFP4 experts from
+the file, keeps fixed hot experts and bounded per-bank slots, and executes the qualified
+tokenwise NVFP4 MoE Op. It fits a 5.27 GiB expert cache and plans a 16 GiB device budget
+alongside resident weights; the resident model itself is about 70.2 GiB and is not
+materialized. On Jetson AGX Orin (SM87, JP6/CUDA 12.6), the focused expert-cache,
+artifact-backing, Qwen4Exp-loading, and block-scaled MoE tests pass. The real V3 artifact
+loads its metadata and executes one NVFP4 MoE layer; repeating the same route reuses cached
+experts (27,648,000 bytes uploaded once).
+
+The public Engine also completes a ten-token Flash-Next smoke run using the explicit artifact
+`~/models/Qwen3.8-Flash-Next-NInfer/qwen3_8_flash_next.ninfer`, prompt `hi`, greedy sampling,
+prefill chunk 128, 512 MiB context reservation, and one active request. It reports 17.0 s
+prefill (3.1 tok/s), 5.9 s decode (1.5 tok/s), and 22.9 s total. The disk schedule runs
+eagerly: CUDA Graph capture is disabled for this route until stable cache contents and graph
+replay are supported. These results establish a bounded text execution bring-up path, not
+full model correctness or product qualification. MTP execution, numerical comparison of a
+real layer against an independent oracle, Vision, prefix reuse, graph capture, and matched
+performance benchmarks remain open. This is not a completed replacement for the existing
+original-model benchmark matrix.
 
 ### 1. Modern JP6 platform and original models
 
