@@ -10,20 +10,6 @@ namespace {
 }
 } // namespace
 
-namespace nvfp4 {
-void launch_input(const Tensor&, const CudaSwiGLUExperts&, const Storage&, CudaExecutionView, bool) {
-    unsupported();
-}
-void launch_experts(const Tensor&, const CudaSwiGLUExperts&, const ExpertRoutes&, const Plan&,
-                    const Storage&, CudaExecutionView) {
-    unsupported();
-}
-void launch_vector(const Tensor&, const CudaSwiGLUExperts&, const ExpertRoutes&, ExpertSubset,
-                   bool, MoeEpilogue, Tensor&, const Storage&, const Plan&, CudaExecutionView) {
-    unsupported();
-}
-} // namespace nvfp4
-
 namespace fp8 {
 void launch_input(const Tensor&, const CudaSwiGLUExperts&, const Storage&, CudaExecutionView, bool) {
     unsupported();
