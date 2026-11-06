@@ -237,6 +237,17 @@ the disk-backed main experts, but are not stable throughput claims or full MTP s
 qualification. The benchmark process was rebuilt after the first attempt exposed a stale
 binary still using resident-only planning.
 
+A deterministic public-Engine check with the same Flash-Next artifact, prompt `hi`, greedy
+sampling, seed 0, and a ten-token limit found that MTP-1 changes the emitted sequence. With
+CUDA Graphs enabled, MTP off emits
+`1596 1144 310 5707 310 1156 328 5834 3158 8722`; MTP-1 emits
+`1596 1144 310 5707 310 1156 25 328 5834 3158`. The mismatch begins at token seven,
+despite all four drafts being accepted in the earlier short benchmark. This is a correctness
+failure for greedy speculative equivalence, so MTP is not qualified for Flash-Next. A second
+attempt with CUDA Graphs disabled remained in a futex wait with the GPU idle after runtime
+initialization and was interrupted; the eager public path also needs investigation. Do not use
+the short MTP throughput result as a supported-path claim until both behaviors are resolved.
+
 The disk schedule runs eagerly: CUDA Graph capture is disabled for this route until stable
 cache contents and graph replay are supported. Numerical comparison of a real layer against
 an independent oracle, MTP acceptance/commit and state-restoration qualification, Vision,
