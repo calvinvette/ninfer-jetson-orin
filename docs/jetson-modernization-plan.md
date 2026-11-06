@@ -341,9 +341,12 @@ MTP-1, and CUDA Graphs disabled. It now emits the same sequence as MTP-off:
 `1596 1144 310 5707 310 1156 328 5834 3158 8722`. This resolves the previously observed
 token-7 divergence for the tested single-request SM87 route. The same token sequence was retained
 with draft windows 2 and 3: window 2 accepted 6 drafts with no pressure abort; window 3 accepted
-6 of 8 drafts over three rounds, also with no fallback or pressure abort. These runs exercise
-deeper verify extents but do not qualify batched end-to-end MTP. MTP qualification across
-acceptance extents, fallback boundaries, terminal commits, and state restoration remains open.
+6 of 8 drafts over three rounds, also with no fallback or pressure abort. With draft window 4,
+the eager run diverges from MTP-off at generated token 3 (`5707` instead of `310`); it accepted
+5 of 11 drafted tokens over three rounds and performed one fallback. Thus the wider Q8 Op route
+regression is insufficient to qualify the end-to-end verify path, and draft window 4 is a
+reproduced greedy-correctness failure. MTP qualification across acceptance extents, fallback
+boundaries, terminal commits, and state restoration remains open.
 
 The disk schedule runs eagerly: CUDA Graph capture is disabled for this route until stable
 cache contents and graph replay are supported. Numerical comparison of a real layer against
