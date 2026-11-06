@@ -85,6 +85,18 @@ void test_decoder_layout() {
                int8.mtp_kv->pages.payload_bytes() == 2ULL * (256 + 4 * 2) * 64 * 2,
            "INT8 Text/MTP record payload includes group scales");
 
+#if NINFER_TARGET_JETSON_ORIN
+    for (const auto storage : {ninfer::KvCacheStorage::Fp8E4m3fnGroup128Ue8m0,
+                               ninfer::KvCacheStorage::Nvfp4Group16,
+                               ninfer::KvCacheStorage::Fp8KeyNvfp4Value}) {
+        bool rejected = false;
+        try {
+            ninfer::LayoutBuilder builder;
+            (void)q35::plan_decoder_state(builder, decoder_spec(storage, true));
+        } catch (const std::invalid_argument&) { rejected = true; }
+        expect(rejected, "Orin rejects paged KV formats without a qualified consumer");
+    }
+#else
     q35::DecoderStateSpec fp8_spec =
         decoder_spec(ninfer::KvCacheStorage::Fp8E4m3fnGroup128Ue8m0, true);
     ninfer::LayoutBuilder fp8_builder;
@@ -142,6 +154,7 @@ void test_decoder_layout() {
             k8v4.mtp_kv &&
             k8v4.mtp_kv->pages.payload_bytes() == (k8_vector_bytes + v4_vector_bytes) * mtp_vectors,
         "K8V4 Text/MTP asymmetric page record payload bytes");
+#endif
 }
 
 void test_visual_embedding_windows() {
