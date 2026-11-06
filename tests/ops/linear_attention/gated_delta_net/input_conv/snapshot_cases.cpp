@@ -218,7 +218,7 @@ int main(int argc, char** argv) {
     for (auto profile : selected_profiles) {
         if (profile.format == QType::Q8_G32_FP16 && profile.hidden == 2560 &&
             profile.qk_rows == 2048) {
-            suite.add("gdn_input_snapshot/q8/flash_next/t1_t2_first_column_exact", [=] {
+            suite.add("gdn_input_snapshot/q8/flash_next/t1_t5_first_column_exact", [=] {
                 Weights weights(profile, false);
                 return q8_first_column_invariance(weights) + weights.preserved();
             });

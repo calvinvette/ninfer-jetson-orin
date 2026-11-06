@@ -1035,9 +1035,8 @@ int q8_first_column_invariance(Weights& weights) {
     if (weights.profile.format != QType::Q8_G32_FP16 || weights.profile.hidden != 2560 ||
         weights.profile.qk_rows != 2048)
         throw std::invalid_argument("Q8 first-column test requires the Flash-Next projection shape");
-    Q8RouteCapture single, pair;
+    Q8RouteCapture single;
     int failures = run_q8_case(weights.first, 1, 4, false, 0x51a7U, &single);
-    failures += run_q8_case(weights.first, 2, 4, false, 0x51a7U, &pair);
     const auto check = [&](const char* label, const std::vector<std::uint16_t>& a,
                            const std::vector<std::uint16_t>& b) {
         if (a == b) return 0;
@@ -1046,11 +1045,19 @@ int q8_first_column_invariance(Weights& weights) {
         std::cerr << label << ": first-column route mismatch at element " << index << '\n';
         return 1;
     };
-    failures += check("Q8 GDN first-column query", single.query, pair.query);
-    failures += check("Q8 GDN first-column key", single.key, pair.key);
-    failures += check("Q8 GDN first-column value", single.value, pair.value);
-    failures += check("Q8 GDN first-column z", single.z, pair.z);
-    failures += check("Q8 GDN first-column convolution state", single.first_state, pair.first_state);
+    for (int width = 2; width <= 5; ++width) {
+        Q8RouteCapture window;
+        failures += run_q8_case(weights.first, width, 4, false, 0x51a7U, &window);
+        const auto suffix = " T=" + std::to_string(width);
+        failures += check(("Q8 GDN first-column query" + suffix).c_str(), single.query,
+                          window.query);
+        failures += check(("Q8 GDN first-column key" + suffix).c_str(), single.key, window.key);
+        failures += check(("Q8 GDN first-column value" + suffix).c_str(), single.value,
+                          window.value);
+        failures += check(("Q8 GDN first-column z" + suffix).c_str(), single.z, window.z);
+        failures += check(("Q8 GDN first-column convolution state" + suffix).c_str(),
+                          single.first_state, window.first_state);
+    }
     return failures;
 }
 } // namespace ninfer::test::gdn_input_conv
