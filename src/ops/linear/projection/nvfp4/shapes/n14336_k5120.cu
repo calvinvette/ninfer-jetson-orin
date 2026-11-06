@@ -10,11 +10,14 @@ using Gemv =
 using C2      = Nvfp4A16SimtSchedule<8, 1, 2, 16, 2, 1, Nvfp4SimtActivationAccess::SharedPhase,
                                      Nvfp4ScaleAccess::Direct, Nvfp4CodeCache::Default, 1,
                                      Nvfp4SimtBlockOrder::RowsContiguous, 1>;
+#if !defined(NINFER_DISABLE_NVFP4_A4)
 using T32R64  = Nvfp4A4MmaSchedule<32, 64, 256, 2, 4, 2, 2>;
 using T32R128 = Nvfp4A4MmaSchedule<32, 128, 256, 2, 4, 2, 1>;
 using T64R128 = Nvfp4A4MmaSchedule<64, 128, 256, 4, 2, 2, 1>;
 using T128R128Pipelined = Nvfp4A4MmaSchedule<128, 128, 256, 4, 4, 2, 1>;
 using T128R128Resident  = Nvfp4A4MmaSchedule<128, 128, 256, 4, 2, 1, 2>;
+
+#endif
 
 Nvfp4Launch select_a16(int tokens) {
     if (tokens == 1) return nvfp4_linear_a16_gemv<Geometry, Gemv>;
@@ -35,6 +38,7 @@ void launch_a16(const Tensor& x, const Weight& w, Tensor& y, cudaStream_t stream
     select_a16(x.ne[1])(x, w, y, stream);
 }
 
+#if !defined(NINFER_DISABLE_NVFP4_A4)
 Nvfp4A4Route select_a4(std::int32_t tokens) {
     if (tokens >= 1024) return nvfp4_a4_tma_route<Nvfp4GeometryId::N14336K5120>();
     if (tokens >= 512)
@@ -49,8 +53,15 @@ Nvfp4A4Route select_a4(std::int32_t tokens) {
 }
 
 bool uses_a4(std::int32_t, std::int32_t max_tokens) { return max_tokens >= 4; }
+#else
+bool uses_a4(std::int32_t, std::int32_t) { return false; }
+#endif
 } // namespace
 
-const Nvfp4LinearShape kNvfp4N14336K5120{14336, 5120, launch_a16, launch_nvfp4_a4<select_a4>,
-                                         uses_a4};
+const Nvfp4LinearShape kNvfp4N14336K5120{14336, 5120, launch_a16,
+#if defined(NINFER_DISABLE_NVFP4_A4)
+                                         nullptr, uses_a4};
+#else
+                                         launch_nvfp4_a4<select_a4>, uses_a4};
+#endif
 } // namespace ninfer::ops::detail

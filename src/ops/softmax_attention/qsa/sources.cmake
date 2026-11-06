@@ -8,10 +8,15 @@ target_sources(ninfer_ops PRIVATE
   "${CMAKE_CURRENT_LIST_DIR}/sparse_gqa/launch.cu"
 )
 
+if(NINFER_TARGET STREQUAL "jetson_orin")
+  set(NINFER_QSA_BACKEND rtx5090)
+else()
+  set(NINFER_QSA_BACKEND ${NINFER_TARGET})
+endif()
 target_sources(ninfer_ops PRIVATE
-  "${CMAKE_CURRENT_LIST_DIR}/indexer/${NINFER_TARGET}/plan.cpp"
-  "${CMAKE_CURRENT_LIST_DIR}/sparse_gqa/${NINFER_TARGET}/plan.cpp"
-  "${CMAKE_CURRENT_LIST_DIR}/sparse_gqa/${NINFER_TARGET}/launch.cu"
+  "${CMAKE_CURRENT_LIST_DIR}/indexer/${NINFER_QSA_BACKEND}/plan.cpp"
+  "${CMAKE_CURRENT_LIST_DIR}/sparse_gqa/${NINFER_QSA_BACKEND}/plan.cpp"
+  "${CMAKE_CURRENT_LIST_DIR}/sparse_gqa/${NINFER_QSA_BACKEND}/launch.cu"
 )
 
 if(NINFER_TARGET STREQUAL "dgx_spark")
@@ -20,5 +25,5 @@ if(NINFER_TARGET STREQUAL "dgx_spark")
     "${CMAKE_CURRENT_LIST_DIR}/sparse_gqa/dgx_spark/grouped.cu")
 else()
   target_sources(ninfer_ops PRIVATE
-    "${CMAKE_CURRENT_LIST_DIR}/indexer/${NINFER_TARGET}/launch.cu")
+    "${CMAKE_CURRENT_LIST_DIR}/indexer/${NINFER_QSA_BACKEND}/launch.cu")
 endif()

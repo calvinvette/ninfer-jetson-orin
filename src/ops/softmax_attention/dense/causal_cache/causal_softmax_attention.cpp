@@ -208,20 +208,26 @@ std::size_t causal_softmax_attention_workspace_capacity_bytes(
         return detail::bf16_kv_workspace_bytes(q_heads, batch_size, min_width, max_width, envelope,
                                                multiprocessor_count);
 
+#if !NINFER_TARGET_JETSON_ORIN
     if (cache_storage == KvCacheStorage::Fp8E4m3fnGroup128Ue8m0)
         return detail::fp8_kv_workspace_bytes(q_heads, batch_size, min_width, max_width, envelope,
                                               multiprocessor_count);
+#endif
 
     if (cache_storage == KvCacheStorage::Int8Group64)
         return detail::int8_kv_workspace_bytes(q_heads, batch_size, min_width, max_width, envelope,
                                                multiprocessor_count);
 
+#if !NINFER_TARGET_JETSON_ORIN
     if (cache_storage == KvCacheStorage::Nvfp4Group16)
         return detail::nvfp4_kv_workspace_bytes(q_heads, batch_size, min_width, max_width, envelope,
                                                 multiprocessor_count);
 
     return detail::k8v4_kv_workspace_bytes(q_heads, batch_size, min_width, max_width, envelope,
                                            multiprocessor_count);
+#else
+    throw std::invalid_argument("unsupported Jetson Orin paged KV-cache storage");
+#endif
 }
 
 void causal_softmax_attention(const Tensor& q, const Tensor& k, const Tensor& v,
@@ -254,6 +260,7 @@ void causal_softmax_attention(const Tensor& q, const Tensor& k, const Tensor& v,
         return;
     }
 
+#if !NINFER_TARGET_JETSON_ORIN
     if (cache.storage == KvCacheStorage::Fp8E4m3fnGroup128Ue8m0) {
         detail::fp8_kv_append_attention(q, k, v, positions, valid_columns, kv_table_rows, scale,
                                         cache, envelope, workspace, out, execution);
@@ -274,6 +281,14 @@ void causal_softmax_attention(const Tensor& q, const Tensor& k, const Tensor& v,
 
     detail::k8v4_kv_append_attention(q, k, v, positions, valid_columns, kv_table_rows, scale, cache,
                                      envelope, workspace, out, execution);
+#else
+    if (cache.storage == KvCacheStorage::Int8Group64) {
+        detail::int8_kv_append_attention(q, k, v, positions, valid_columns, kv_table_rows, scale,
+                                         cache, envelope, workspace, out, execution);
+        return;
+    }
+    throw std::invalid_argument("unsupported Jetson Orin paged KV-cache storage");
+#endif
 }
 
 void causal_softmax_attention_cached(const Tensor& q, const Tensor& positions,
@@ -296,6 +311,7 @@ void causal_softmax_attention_cached(const Tensor& q, const Tensor& positions,
         return;
     }
 
+#if !NINFER_TARGET_JETSON_ORIN
     if (cache.storage == KvCacheStorage::Fp8E4m3fnGroup128Ue8m0) {
         detail::fp8_kv_cached_attention(q, positions, scale, cache, envelope, workspace, out,
                                         execution);
@@ -316,6 +332,14 @@ void causal_softmax_attention_cached(const Tensor& q, const Tensor& positions,
 
     detail::k8v4_kv_cached_attention(q, positions, scale, cache, envelope, workspace, out,
                                      execution);
+#else
+    if (cache.storage == KvCacheStorage::Int8Group64) {
+        detail::int8_kv_cached_attention(q, positions, scale, cache, envelope, workspace, out,
+                                         execution);
+        return;
+    }
+    throw std::invalid_argument("unsupported Jetson Orin paged KV-cache storage");
+#endif
 }
 
 } // namespace ninfer::ops

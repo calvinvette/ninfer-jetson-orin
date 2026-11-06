@@ -189,6 +189,14 @@ template <class Schedule, int Splits = 1, class Output, class Epilogue,
 void launch_bf16_a16_tma_mma(const Bf16A16Operands& p, Output output, Epilogue epilogue,
                              cudaStream_t stream) {
     static_assert(Splits >= 1 && Splits <= 32);
+#if defined(NINFER_TARGET_JETSON_ORIN)
+    using AmpereSchedule = Bf16A16MmaSchedule<
+        Schedule::kBlockRows, Schedule::kBlockTokens, Schedule::kBlockK, Schedule::kWarpRows,
+        Schedule::kWarpTokens, Schedule::kStages, Schedule::kMinBlocksPerSm,
+        Schedule::kWeightCache, Schedule::kActivationCache, Schedule::kFragmentPipeline,
+        Schedule::kRaster, Bf16MmaSwizzle::Xor64, Schedule::kRasterGroupRows>;
+    launch_bf16_mma_partitions<AmpereSchedule, Splits>(p, output, epilogue, stream);
+#else
     if constexpr (Splits > 1) {
         if (p.k % (Schedule::kBlockK * Splits))
             throw std::invalid_argument(
@@ -219,6 +227,7 @@ void launch_bf16_a16_tma_mma(const Bf16A16Operands& p, Output output, Epilogue e
         else
             launch.template operator()<false>();
     });
+#endif
 }
 
 } // namespace ninfer::ops::detail

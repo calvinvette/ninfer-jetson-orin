@@ -28,6 +28,10 @@ LinearAddLaunch select_a16(int tokens) {
 } // namespace
 
 Nvfp4LinearAddPlan select_nvfp4_add_n5120_k6144(LinearPolicy policy, std::int32_t tokens) {
+#if defined(NINFER_DISABLE_NVFP4_A4)
+    (void)policy;
+    return {select_a16(tokens)};
+#else
     if (!allows_a4(policy) || tokens < 17) return {select_a16(tokens)};
     if (tokens >= 1024)
         return {nullptr, launch_nvfp4_add_n5120_k6144_tma, Nvfp4ScaleLayout::Tiled256};
@@ -47,5 +51,6 @@ Nvfp4LinearAddPlan select_nvfp4_add_n5120_k6144(LinearPolicy policy, std::int32_
         return {nullptr,
                 launch_nvfp4_add_a4<Instance<Nvfp4A4MmaSchedule<128, 128, 256, 4, 2, 2, 1>>>};
     return {nullptr, launch_nvfp4_add_a4<Instance<Nvfp4A4MmaSchedule<128, 128, 256, 4, 2, 1, 2>>>};
+#endif
 }
 } // namespace ninfer::ops::detail

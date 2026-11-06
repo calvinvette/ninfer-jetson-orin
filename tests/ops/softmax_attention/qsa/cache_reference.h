@@ -13,6 +13,7 @@
 #include <limits>
 #include <stdexcept>
 #include <vector>
+#include <cuda_fp16.h>
 
 namespace ninfer::test::qsa::prepare {
 
@@ -66,10 +67,10 @@ inline void write_u16(std::vector<std::uint8_t>& bytes, std::size_t offset, std:
 }
 
 inline std::uint16_t fp16_encode(float x) {
-    return std::bit_cast<std::uint16_t>(static_cast<_Float16>(x));
+    return __half_as_ushort(__float2half_rn(x));
 }
 
-inline float fp16_decode(std::uint16_t x) { return float(std::bit_cast<_Float16>(x)); }
+inline float fp16_decode(std::uint16_t x) { return __half2float(__ushort_as_half(x)); }
 
 inline double positive_fp8(int code) {
     const int exponent = code >> 3, fraction = code & 7;

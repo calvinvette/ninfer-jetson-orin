@@ -10,14 +10,14 @@ using namespace ninfer::test::linear_weights;
 using namespace ninfer::test::linear;
 namespace linear_suite = ninfer::test::linear_suite;
 
-constexpr Invocation a16(std::int32_t t) { return {t}; }
+Invocation a16(std::int32_t t) { return {t}; }
 
-constexpr Invocation convenience(std::int32_t t) { return {t, CallForm::A16Convenience}; }
+Invocation convenience(std::int32_t t) { return {t, CallForm::A16Convenience}; }
 
 // Same public Op, replayed through a captured CUDA graph and verified twice against the FP64
 // oracle (the second replay negates the activation), so the route is checked in the mode the
 // engine actually runs it in. Used here for the routes this batch introduced or re-bounded.
-constexpr Invocation graph(std::int32_t t) {
+Invocation graph(std::int32_t t) {
     return {t, CallForm::Policy, ninfer::ops::LinearPolicy::A16Only, true};
 }
 

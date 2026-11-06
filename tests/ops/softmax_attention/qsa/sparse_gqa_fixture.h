@@ -8,6 +8,7 @@
 #include <bit>
 #include <memory>
 #include <numeric>
+#include <cuda_fp16.h>
 
 namespace ninfer::test::qsa::sparse {
 
@@ -21,9 +22,9 @@ inline std::uint32_t hash(std::uint32_t x) {
 
 inline float sample(std::uint32_t i) { return (int(hash(i) % 10001) - 5000) / 3000.0F; }
 
-inline std::uint16_t half(float x) { return std::bit_cast<std::uint16_t>(_Float16(x)); }
+inline std::uint16_t half(float x) { return __half_as_ushort(__float2half_rn(x)); }
 
-inline float unhalf(std::uint16_t x) { return float(std::bit_cast<_Float16>(x)); }
+inline float unhalf(std::uint16_t x) { return __half2float(__ushort_as_half(x)); }
 
 struct Plane {
     std::int64_t row, head, page;

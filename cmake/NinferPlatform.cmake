@@ -1,5 +1,5 @@
 set(NINFER_TARGET rtx5090 CACHE STRING "NInfer execution target")
-set_property(CACHE NINFER_TARGET PROPERTY STRINGS rtx5090 dgx_spark)
+set_property(CACHE NINFER_TARGET PROPERTY STRINGS rtx5090 dgx_spark jetson_orin)
 
 if(DEFINED NINFER_CONFIGURED_TARGET AND
    NOT NINFER_CONFIGURED_TARGET STREQUAL NINFER_TARGET)
@@ -10,6 +10,7 @@ endif()
 
 set(NINFER_TARGET_RTX5090 0)
 set(NINFER_TARGET_SPARK 0)
+set(NINFER_TARGET_JETSON_ORIN 0)
 if(NINFER_TARGET STREQUAL "rtx5090")
   set(NINFER_TARGET_RTX5090 1)
   set(NINFER_CUDA_ARCHITECTURE 120a)
@@ -18,8 +19,14 @@ elseif(NINFER_TARGET STREQUAL "dgx_spark")
   set(NINFER_TARGET_SPARK 1)
   set(NINFER_CUDA_ARCHITECTURE 121a)
   set(NINFER_PROCESSOR_PATTERN "^(aarch64|arm64|ARM64)$")
+elseif(NINFER_TARGET STREQUAL "jetson_orin")
+  set(NINFER_TARGET_JETSON_ORIN 1)
+  set(NINFER_CUDA_ARCHITECTURE 87)
+  set(NINFER_PROCESSOR_PATTERN "^(aarch64|arm64|ARM64)$")
+  add_compile_definitions(NINFER_TARGET_JETSON_ORIN=1)
+  add_compile_definitions(NINFER_DISABLE_NVFP4_A4=1)
 else()
-  message(FATAL_ERROR "Unknown NINFER_TARGET '${NINFER_TARGET}'")
+  message(FATAL_ERROR "Unknown NINFER_TARGET '${NINFER_TARGET}'; expected rtx5090, dgx_spark, or jetson_orin")
 endif()
 
 # CUDA compiler detection must see the selected architecture, not a host default.

@@ -1,6 +1,7 @@
 #pragma once
 
 #include "core/dtype.h"
+#include "core/platform.h"
 #include "ninfer/kv_cache_format.h"
 
 #include <cstddef>
@@ -87,6 +88,10 @@ struct PagedKVStorageLayout {
 
 [[nodiscard]] inline PagedKVStorageLayout paged_kv_storage_layout(KvCacheStorage storage,
                                                                   std::int32_t head_dim) {
+#if NINFER_TARGET_JETSON_ORIN
+    if (storage != KvCacheStorage::BFloat16 && storage != KvCacheStorage::Int8Group64)
+        throw std::invalid_argument("Jetson Orin supports BF16 or INT8-G64 paged KV cache");
+#endif
     const auto profile = kv_cache_profile_info(storage);
     if (head_dim <= 0 || (storage != KvCacheStorage::BFloat16 && head_dim != kD256KVCacheHeadDim))
         throw std::invalid_argument("unsupported paged KV-cache storage geometry");

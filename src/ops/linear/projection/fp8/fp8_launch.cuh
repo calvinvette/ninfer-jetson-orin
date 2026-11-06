@@ -36,20 +36,30 @@ void fp8_linear_a16_sliced_k(const Tensor& x, const Weight& w, Tensor& out, cuda
 template <class Geometry, class Schedule>
 void launch_fp8_a8(const Tensor& x, const Weight& w, Tensor& out, Fp8A8Workspace scratch,
                    cudaStream_t stream) {
+#if defined(NINFER_TARGET_JETSON_ORIN)
+    (void)x; (void)w; (void)out; (void)scratch; (void)stream;
+    throw std::logic_error("FP8 A8 MMA is unavailable on SM87");
+#else
     launch_fp8_a8_quantize(x, w, scratch, stream);
     launch_fp8_a8_mma<Fp8ScheduleInstance<Schedule, Geometry::kInputRows>>(
         fp8_a8_operands(w, scratch, x.ne[1]),
         LinearBf16Output{static_cast<__nv_bfloat16*>(out.data), w.n}, LinearIdentityEpilogue{},
         stream);
+#endif
 }
 
 template <class Geometry, class Schedule>
 void launch_fp8_a8_tma(const Tensor& x, const Weight& w, Tensor& out, Fp8A8Workspace scratch,
                        cudaStream_t stream) {
+#if defined(NINFER_TARGET_JETSON_ORIN)
+    (void)x; (void)w; (void)out; (void)scratch; (void)stream;
+    throw std::logic_error("FP8 A8 TMA MMA is unavailable on SM87");
+#else
     launch_fp8_a8_quantize(x, w, scratch, stream);
     launch_fp8_a8_tma_mma<Fp8ScheduleInstance<Schedule, Geometry::kInputRows>>(
         fp8_a8_operands(w, scratch, x.ne[1]),
         LinearBf16Output{static_cast<__nv_bfloat16*>(out.data), w.n}, LinearIdentityEpilogue{},
         stream, scratch.partials);
+#endif
 }
 } // namespace ninfer::ops::detail

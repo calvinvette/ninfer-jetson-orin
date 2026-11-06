@@ -25,6 +25,12 @@ Nvfp4LinearSwiGluRoute select_route(LinearPolicy policy, std::int32_t tokens) {
     if (!valid_linear_policy(policy)) {
         throw std::invalid_argument("nvfp4 linear_swiglu: invalid compute policy");
     }
+#if NINFER_TARGET_JETSON_ORIN
+    (void)policy;
+    if (tokens == 1) return Nvfp4LinearSwiGluRoute::DecodeFusedA16;
+    if (tokens <= 16) return Nvfp4LinearSwiGluRoute::SmallTFusedA16;
+    throw std::invalid_argument("nvfp4 linear_swiglu A16 is registered only through T=16");
+#else
     if (policy == LinearPolicy::A16Only || policy == LinearPolicy::AllowA8) {
         if (tokens == 1) { return Nvfp4LinearSwiGluRoute::DecodeFusedA16; }
         if (tokens <= 16) { return Nvfp4LinearSwiGluRoute::SmallTFusedA16; }
@@ -36,6 +42,7 @@ Nvfp4LinearSwiGluRoute select_route(LinearPolicy policy, std::int32_t tokens) {
     // own condition; the call site below forces the matching scale layout.
     if (tokens >= 256) { return Nvfp4LinearSwiGluRoute::TmaFusedA4; }
     return Nvfp4LinearSwiGluRoute::FusedA4;
+#endif
 }
 
 template <class Allocator>

@@ -10,7 +10,12 @@ target_sources(ninfer_ops PRIVATE
   "${CMAKE_CURRENT_LIST_DIR}/recurrent.cu"
 )
 
-target_sources(ninfer_ops PRIVATE "${CMAKE_CURRENT_LIST_DIR}/${NINFER_TARGET}/select.cpp")
+if(NINFER_TARGET STREQUAL "jetson_orin")
+  set(NINFER_KDA_BACKEND rtx5090)
+else()
+  set(NINFER_KDA_BACKEND ${NINFER_TARGET})
+endif()
+target_sources(ninfer_ops PRIVATE "${CMAKE_CURRENT_LIST_DIR}/${NINFER_KDA_BACKEND}/select.cpp")
 
 if(NINFER_TARGET STREQUAL "dgx_spark")
   target_sources(ninfer_ops_non_rdc PRIVATE "${CMAKE_CURRENT_LIST_DIR}/dgx_spark/input_conv.cu")

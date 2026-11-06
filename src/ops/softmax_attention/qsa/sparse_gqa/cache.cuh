@@ -50,12 +50,9 @@ __device__ __forceinline__ float sparse_gqa_decode(const std::uint8_t* data,
         return float(code) * common::ue8m0_to_float(scales[d / 128]);
     } else {
         static_assert(format == KvCacheVectorFormat::Nvfp4Group16Ue4m3);
-        __nv_fp4x2_e2m1 code;
-        code.__x           = data[d / 2];
-        const __half2 pair = static_cast<__half2>(code);
-        __nv_fp8_e4m3 scale;
-        scale.__x = scales[d / 16];
-        return __half2float(d % 2 ? __high2half(pair) : __low2half(pair)) * float(scale);
+        const float2 pair = common::decode_nvfp4_e2m1x2(data[d / 2]);
+        const float scale = common::decode_e4m3(scales[d / 16]);
+        return (d % 2 ? pair.y : pair.x) * scale;
     }
 }
 

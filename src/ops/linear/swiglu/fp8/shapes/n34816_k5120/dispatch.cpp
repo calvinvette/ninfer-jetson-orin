@@ -19,11 +19,16 @@ enum class Fp8LinearSwiGluRoute : std::uint8_t {
 
 Fp8LinearSwiGluRoute select_route(LinearPolicy policy, std::int32_t tokens) {
     if (tokens <= 0) { throw std::invalid_argument("fp8 linear_swiglu: T must be positive"); }
+#if NINFER_TARGET_JETSON_ORIN
+    (void)policy;
+    return Fp8LinearSwiGluRoute::A16;
+#else
     if (policy == LinearPolicy::A16Only) { return Fp8LinearSwiGluRoute::A16; }
     if (!allows_a8(policy)) {
         throw std::invalid_argument("fp8 linear_swiglu admits only A16 or A8");
     }
     return tokens >= 5 ? Fp8LinearSwiGluRoute::A8 : Fp8LinearSwiGluRoute::A16;
+#endif
 }
 
 void launch_a16(const Tensor& x, const Weight& weight, Tensor& out, cudaStream_t stream) {
@@ -40,11 +45,15 @@ std::size_t fp8_linear_swiglu_workspace_capacity_bytes(LinearPolicy policy, std:
     }
     (void)select_route(policy, min_tokens);
     (void)select_route(policy, max_tokens);
+#if NINFER_TARGET_JETSON_ORIN
+    return 0;
+#else
     const bool interval_uses_a8 = allows_a8(policy) && max_tokens >= 5;
     return interval_uses_a8 ? fp8_a8_workspace_capacity_bytes(
                                   max_tokens, Fp8N34816K5120::kInputRows,
                                   fp8_linear_swiglu_partial_capacity_bytes(max_tokens))
                             : 0;
+#endif
 }
 
 void fp8_linear_swiglu_dispatch(const Tensor& x, const Weight& weight, Tensor& out,

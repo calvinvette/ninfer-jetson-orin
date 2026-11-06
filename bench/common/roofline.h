@@ -50,6 +50,11 @@ inline constexpr Roofline kRoofline{
     .mxfp8_f32_tflops = 249.52,
     .nvfp4_f32_tflops = 499.02,
 };
+#elif NINFER_TARGET_JETSON_ORIN
+inline constexpr Roofline kRoofline{
+    .target     = "jetson_orin",
+    .memory_gbs = std::numeric_limits<double>::quiet_NaN(),
+};
 #endif
 
 // Console uses "-"; CSV callers pass "" so absent references stay empty fields.

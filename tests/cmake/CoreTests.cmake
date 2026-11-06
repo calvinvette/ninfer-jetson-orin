@@ -98,5 +98,8 @@ ninfer_add_test(ninfer_expert_cache_test
 set_tests_properties(ninfer_expert_cache_test PROPERTIES TIMEOUT 60)
 
 ninfer_test_interpose(ninfer_expert_cache_test
-  cudaEventRecord cudaMemcpyAsync cudaMemcpyBatchAsync cudaStreamSynchronize cudaStreamWaitEvent
+  cudaEventRecord cudaMemcpyAsync cudaStreamSynchronize cudaStreamWaitEvent
   cudaFree cudaFreeHost)
+if(CUDAToolkit_VERSION VERSION_GREATER_EQUAL "12.8")
+  ninfer_test_interpose(ninfer_expert_cache_test cudaMemcpyBatchAsync)
+endif()

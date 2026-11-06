@@ -4,16 +4,24 @@
 #include "ops/common/numeric/convert.cuh"
 #include "ops/common/quant/fp8.cuh"
 
+#if !defined(NINFER_DISABLE_NVFP4_A4)
 #include <cuda_fp4.h>
+#endif
 
 #include <cstdint>
 
 namespace ninfer::ops::common {
 
+__device__ __forceinline__ float decode_nvfp4_e2m1(std::uint8_t code) {
+    const std::uint32_t magnitude = code & 7U;
+    const std::uint32_t bits = magnitude < 2U
+        ? magnitude * 0x3f000000U
+        : ((126U + (magnitude >> 1)) << 23) | ((magnitude & 1U) << 22);
+    return __uint_as_float(bits | (static_cast<std::uint32_t>(code & 8U) << 28));
+}
+
 __device__ __forceinline__ float2 decode_nvfp4_e2m1x2(std::uint8_t storage) {
-    __nv_fp4x2_e2m1 value;
-    value.__x = storage;
-    return static_cast<float2>(value);
+    return make_float2(decode_nvfp4_e2m1(storage & 0x0fU), decode_nvfp4_e2m1(storage >> 4));
 }
 
 __device__ __forceinline__ unsigned nvfp4_pair_bf16_scaled(std::uint8_t code, unsigned scale_bits) {
@@ -60,6 +68,7 @@ static_assert(alignof(Nvfp4QuantizedK16) == 8);
 
 __device__ __forceinline__ void
 pack_nvfp4_e2m1x16(const float2 (&values)[8], std::uint32_t& codes_lo, std::uint32_t& codes_hi) {
+#if !defined(NINFER_DISABLE_NVFP4_A4)
     asm volatile("{\n"
                  ".reg .b8 b0;\n"
                  ".reg .b8 b1;\n"
@@ -85,6 +94,43 @@ pack_nvfp4_e2m1x16(const float2 (&values)[8], std::uint32_t& codes_lo, std::uint
                    "f"(values[2].x), "f"(values[2].y), "f"(values[3].x), "f"(values[3].y),
                    "f"(values[4].x), "f"(values[4].y), "f"(values[5].x), "f"(values[5].y),
                    "f"(values[6].x), "f"(values[6].y), "f"(values[7].x), "f"(values[7].y));
+#else
+    std::uint8_t codes[16];
+    constexpr float levels[8]{0.0F, 0.5F, 1.0F, 1.5F, 2.0F, 3.0F, 4.0F, 6.0F};
+#pragma unroll
+    for (int i = 0; i < 16; ++i) {
+        const float value = i % 2 == 0 ? values[i / 2].x : values[i / 2].y;
+        const float magnitude = fminf(fabsf(value), 6.0F);
+        int best = 0;
+        float error = magnitude;
+#pragma unroll
+        for (int candidate = 1; candidate < 8; ++candidate) {
+            const float distance = fabsf(magnitude - levels[candidate]);
+            if (distance < error ||
+                (distance == error && (candidate & 1) == 0 && (best & 1) != 0)) {
+                best = candidate;
+                error = distance;
+            }
+        }
+        codes[i] = static_cast<std::uint8_t>(best | ((__float_as_uint(value) >> 28) & 8U));
+    }
+    codes_lo = static_cast<std::uint32_t>(codes[0]) |
+               (static_cast<std::uint32_t>(codes[1]) << 4) |
+               (static_cast<std::uint32_t>(codes[2]) << 8) |
+               (static_cast<std::uint32_t>(codes[3]) << 12) |
+               (static_cast<std::uint32_t>(codes[4]) << 16) |
+               (static_cast<std::uint32_t>(codes[5]) << 20) |
+               (static_cast<std::uint32_t>(codes[6]) << 24) |
+               (static_cast<std::uint32_t>(codes[7]) << 28);
+    codes_hi = static_cast<std::uint32_t>(codes[8]) |
+               (static_cast<std::uint32_t>(codes[9]) << 4) |
+               (static_cast<std::uint32_t>(codes[10]) << 8) |
+               (static_cast<std::uint32_t>(codes[11]) << 12) |
+               (static_cast<std::uint32_t>(codes[12]) << 16) |
+               (static_cast<std::uint32_t>(codes[13]) << 20) |
+               (static_cast<std::uint32_t>(codes[14]) << 24) |
+               (static_cast<std::uint32_t>(codes[15]) << 28);
+#endif
 }
 
 // Calibrated activation profile, shared by BF16 inputs and FP32 MMA epilogues.
@@ -101,8 +147,27 @@ __device__ __forceinline__ float2 nvfp4_activation_values(float2 values, float d
 __device__ __forceinline__ std::uint8_t quantize_nvfp4_activation_pair(float2 values, float divisor,
                                                                        std::uint8_t scale) {
     if (scale == 0) { return 0; }
-    return __nv_cvt_float2_to_fp4x2(nvfp4_activation_values(values, divisor, decode_e4m3(scale)),
-                                    __NV_E2M1, cudaRoundNearest);
+    const float2 normalized = nvfp4_activation_values(values, divisor, decode_e4m3(scale));
+#if !defined(NINFER_DISABLE_NVFP4_A4)
+    return __nv_cvt_float2_to_fp4x2(normalized, __NV_E2M1, cudaRoundNearest);
+#else
+    constexpr float levels[8]{0.0F, 0.5F, 1.0F, 1.5F, 2.0F, 3.0F, 4.0F, 6.0F};
+    const auto quantize = [&](float value) {
+        const float magnitude = fminf(fabsf(value), 6.0F);
+        int best = 0;
+        float error = magnitude;
+        for (int candidate = 1; candidate < 8; ++candidate) {
+            const float distance = fabsf(magnitude - levels[candidate]);
+            if (distance < error ||
+                (distance == error && (candidate & 1) == 0 && (best & 1) != 0)) {
+                best = candidate;
+                error = distance;
+            }
+        }
+        return static_cast<std::uint8_t>(best | ((__float_as_uint(value) >> 28) & 8U));
+    };
+    return static_cast<std::uint8_t>(quantize(normalized.x) | (quantize(normalized.y) << 4));
+#endif
 }
 
 // BF16 input, group size 16, explicit tensor divisor. Codes use the rounded E4M3
@@ -253,7 +318,6 @@ __device__ __forceinline__ Nvfp4Group16 quantize_nvfp4_group16_f32(const float* 
     pack_nvfp4_e2m1x16(values, result.codes_lo, result.codes_hi);
     return result;
 }
-
 __device__ __forceinline__ int4 nvfp4_dequant_f16x8(const std::uint8_t* codes,
                                                     std::uint8_t scale_code) {
     // Every finite E2M1 value times a legal nonnegative E4M3 cache scale is exactly representable
@@ -268,9 +332,8 @@ __device__ __forceinline__ int4 nvfp4_dequant_f16x8(const std::uint8_t* codes,
     unsigned half_bits[4];
 #pragma unroll
     for (int pair = 0; pair < 4; ++pair) {
-        __nv_fp4x2_e2m1 encoded;
-        encoded.__x         = bytes[pair];
-        const __half2 value = __hmul2(static_cast<__half2>(encoded), scale2);
+        const float2 decoded = decode_nvfp4_e2m1x2(bytes[pair]);
+        const __half2 value = __hmul2(__floats2half2_rn(decoded.x, decoded.y), scale2);
         half_bits[pair]     = *reinterpret_cast<const unsigned*>(&value);
     }
     return make_int4(static_cast<int>(half_bits[0]), static_cast<int>(half_bits[1]),
@@ -291,9 +354,8 @@ __device__ __forceinline__ Nvfp4F16x16 nvfp4_dequant_f16x16(int2 packed, std::ui
     unsigned half_bits[8];
 #pragma unroll
     for (int pair = 0; pair < 8; ++pair) {
-        __nv_fp4x2_e2m1 encoded;
-        encoded.__x         = bytes[pair];
-        const __half2 value = __hmul2(static_cast<__half2>(encoded), scale2);
+        const float2 decoded = decode_nvfp4_e2m1x2(bytes[pair]);
+        const __half2 value  = __hmul2(__floats2half2_rn(decoded.x, decoded.y), scale2);
         half_bits[pair]     = *reinterpret_cast<const unsigned*>(&value);
     }
     return {

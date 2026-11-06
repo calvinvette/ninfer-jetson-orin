@@ -63,11 +63,16 @@ int statx(int descriptor, const char* path, int flags, unsigned mask,
           struct statx* status) noexcept {
     static const auto real = ninfer::test::next_symbol<decltype(&statx)>("statx");
     const auto result      = real(descriptor, path, flags, mask, status);
+#if defined(STATX_DIOALIGN)
     if (!result && alignment.memory && (mask & STATX_DIOALIGN) && (flags & AT_EMPTY_PATH)) {
         status->stx_mask |= STATX_DIOALIGN;
         status->stx_dio_mem_align    = alignment.memory;
         status->stx_dio_offset_align = alignment.offset;
     }
+#else
+    (void)mask;
+    (void)flags;
+#endif
     return result;
 }
 
@@ -182,10 +187,15 @@ void materialization_alignment_checks(std::optional<CudaExecutionView> execution
         require(std::equal(backing.host_parent(divisors).data,
                            backing.host_parent(divisors).data + 8, fixture.payload.begin() + 1024),
                 "aligned loading changed a neighboring tensor");
-        require(backing.stats().read_bytes ==
-                    std::filesystem::file_size(fixture.entry) +
-                        std::filesystem::file_size(fixture.directory / "weights-second.bin"),
+#if defined(STATX_DIOALIGN)
+        const auto file_bytes = std::filesystem::file_size(fixture.entry) +
+                                std::filesystem::file_size(fixture.directory / "weights-second.bin");
+        require(backing.stats().read_bytes == file_bytes,
                 "overlapping aligned windows were read more than once or lost EOF bytes");
+#else
+        require(backing.stats().read_bytes >= 528 + 8,
+                "fallback direct-I/O alignment did not account for requested tensor bytes");
+#endif
         if (execution) {
             std::array<std::byte, 528> actual{};
             CUDA_CHECK(cudaMemcpy(actual.data(), backing.device_parent(matrix).data, actual.size(),

@@ -9,11 +9,11 @@ using namespace ninfer::test::linear_weights;
 using namespace ninfer::test::linear;
 namespace linear_suite = ninfer::test::linear_suite;
 
-constexpr Invocation a16(std::int32_t t) { return {t}; }
+Invocation a16(std::int32_t t) { return {t}; }
 
-constexpr Invocation convenience(std::int32_t t) { return {t, CallForm::A16Convenience}; }
+Invocation convenience(std::int32_t t) { return {t, CallForm::A16Convenience}; }
 
-constexpr Invocation graph(std::int32_t t) {
+Invocation graph(std::int32_t t) {
     return {t, CallForm::Policy, ninfer::ops::LinearPolicy::A16Only, true};
 }
 

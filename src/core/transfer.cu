@@ -183,11 +183,25 @@ void CudaCopyBatch::submit(CudaExecutionView execution) const {
         return;
     }
     CudaDeviceScope scope(device_);
+#if CUDART_VERSION >= 12080
     cudaMemcpyAttributes attributes{};
     attributes.srcAccessOrder = cudaMemcpySrcAccessOrderStream;
     std::size_t first         = 0;
+#if CUDART_VERSION >= 13000
     CUDA_CHECK(cudaMemcpyBatchAsync(destinations_.data(), sources_.data(), sizes_.data(), count_,
                                     &attributes, &first, 1, execution.stream()));
+#else
+    std::size_t failed = 0;
+    CUDA_CHECK(cudaMemcpyBatchAsync(destinations_.data(), sources_.data(), sizes_.data(), count_,
+                                    &attributes, &first, 1, &failed, execution.stream()));
+#endif
+#else
+    // CUDA 12.6 predates cudaMemcpyBatchAsync. Keep the same ordered stream semantics;
+    // source and destination spans remain owned by this batch until stream completion.
+    for (std::size_t i = 0; i < count_; ++i) {
+        copy_bytes_async(destination_spans_[i], source_spans_[i], execution);
+    }
+#endif
 }
 
 CudaHostCopyBatch::CudaHostCopyBatch(Device device, std::size_t capacity)
@@ -215,11 +229,24 @@ void CudaHostCopyBatch::submit(CudaExecutionView execution) const {
     }
     if (!count_) { return; }
     CudaDeviceScope scope(device_);
+#if CUDART_VERSION >= 12080
     cudaMemcpyAttributes attributes{};
     attributes.srcAccessOrder = cudaMemcpySrcAccessOrderStream;
     std::size_t first         = 0;
+#if CUDART_VERSION >= 13000
     check_copy(cudaMemcpyBatchAsync(destinations_.data(), sources_.data(), sizes_.data(), count_,
                                     &attributes, &first, 1, execution.stream()));
+#else
+    std::size_t failed = 0;
+    check_copy(cudaMemcpyBatchAsync(destinations_.data(), sources_.data(), sizes_.data(), count_,
+                                    &attributes, &first, 1, &failed, execution.stream()));
+#endif
+#else
+    for (std::size_t i = 0; i < count_; ++i) {
+        check_copy(cudaMemcpyAsync(destinations_[i], sources_[i], sizes_[i], cudaMemcpyDefault,
+                                   execution.stream()));
+    }
+#endif
 }
 
 } // namespace ninfer

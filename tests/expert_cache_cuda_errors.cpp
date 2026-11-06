@@ -36,6 +36,10 @@ cudaError_t CUDARTAPI cudaMemcpyAsync(void* to, const void* from, std::size_t by
     static const auto real = ninfer::test::next_symbol<cudaError_t (*)(
         void*, const void*, std::size_t, cudaMemcpyKind, cudaStream_t)>("cudaMemcpyAsync");
     const auto result      = real(to, from, bytes, kind, stream);
+    if (trace.active && !trace.failed && trace.failure == Failure::IndexCopy && trace.copies == 1) {
+        trace.failed = true;
+        return cudaErrorInvalidValue;
+    }
     if (trace.active && result == cudaSuccess) {
         trace.pending = true;
         ++trace.copies;
@@ -43,6 +47,7 @@ cudaError_t CUDARTAPI cudaMemcpyAsync(void* to, const void* from, std::size_t by
     return result;
 }
 
+#if CUDART_VERSION >= 12080
 cudaError_t CUDARTAPI cudaMemcpyBatchAsync(void* const* to, const void* const* from,
                                            const std::size_t* bytes, std::size_t count,
                                            cudaMemcpyAttributes* attrs, std::size_t* indices,
@@ -61,6 +66,7 @@ cudaError_t CUDARTAPI cudaMemcpyBatchAsync(void* const* to, const void* const* f
     }
     return result;
 }
+#endif
 
 cudaError_t CUDARTAPI cudaStreamSynchronize(cudaStream_t stream) {
     static const auto real =

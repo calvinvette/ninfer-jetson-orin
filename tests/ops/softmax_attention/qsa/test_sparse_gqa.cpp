@@ -118,7 +118,7 @@ int gate_rounding(DeviceContext& device, KvCacheStorage storage = KvCacheStorage
     const int page = f.tables[f.selectors[0] * f.table_stride];
     for (int h = 0; h < f.kv_heads; ++h)
         for (int d = 0; d < 256; ++d)
-            f.values.host[f.values.offset(d, h, 0, page)] = half(1.00390625f);
+            f.values.host[f.values.offset(d, h, 0, page)] = ninfer::test::qsa::sparse::half(1.00390625f);
     f.upload();
     if (f.encoded_value) {
         auto& v = *f.encoded_value;
@@ -143,7 +143,7 @@ int gate_rounding(DeviceContext& device, KvCacheStorage storage = KvCacheStorage
                     if (v.format.encoding == cache_reference::Encoding::Fp8)
                         v.scales.host[sb + g] = 127;
                     else
-                        cache_reference::write_u16(v.scales.host, sb + 2 * g, half(1.00390625f));
+                        cache_reference::write_u16(v.scales.host, sb + 2 * g, ninfer::test::qsa::sparse::half(1.00390625f));
                 }
             }
         }

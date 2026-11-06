@@ -165,14 +165,23 @@ CudaExecutionView DeviceContext::transfer_view() const noexcept {
 
 CudaExecutionView DeviceContext::execution_view(cudaStream_t borrowed_stream) const {
     CudaDeviceScope scope(device());
-    int ordinal      = -1;
-    const auto error = cudaStreamGetDevice(borrowed_stream, &ordinal);
+    cudaError_t error = cudaSuccess;
+#if CUDART_VERSION >= 12080
+    int ordinal = -1;
+    error       = cudaStreamGetDevice(borrowed_stream, &ordinal);
     if (error != cudaSuccess) {
         throw std::runtime_error(cuda_error_message("cudaStreamGetDevice failed", error));
     }
     if (ordinal != device_.index()) {
         throw std::invalid_argument("stream belongs to another device");
     }
+#else
+    unsigned int flags = 0;
+    error              = cudaStreamGetFlags(borrowed_stream, &flags);
+    if (error != cudaSuccess) {
+        throw std::runtime_error(cuda_error_message("cudaStreamGetFlags failed", error));
+    }
+#endif
     return {device(), borrowed_stream, multiprocessor_count()};
 }
 

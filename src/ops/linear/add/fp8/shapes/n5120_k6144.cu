@@ -32,13 +32,19 @@ LinearAddLaunch select_a16(int tokens) {
     return launch_fp8_add_mma<Instance<Fp8A16MmaSchedule<64, 128, 64, 64, 16, 2, 2>>>;
 }
 
+#if !defined(NINFER_TARGET_JETSON_ORIN)
 using SmallTile = Fp8A8TmaMmaSchedule<32, 64, 128, 1, 2, 3, 2>;
 using MidTile   = Fp8A8TmaMmaSchedule<64, 128, 128, 2, 4, 3, 1>;
 using MidBulk   = Fp8A8TmaSplitKSchedule<Fp8A8TmaMmaSchedule<128, 128, 128, 2, 4, 3, 1>, 170, 4, 8>;
 using Bulk      = Fp8A8TmaSplitKSchedule<Fp8A8TmaMmaSchedule<128, 256, 128, 2, 4, 2, 1>, 170, 4, 8>;
+#endif
 } // namespace
 
 Fp8LinearAddPlan select_fp8_add_n5120_k6144(LinearPolicy policy, std::int32_t tokens) {
+#if defined(NINFER_TARGET_JETSON_ORIN)
+    (void)policy;
+    return {select_a16(tokens)};
+#else
     if (!allows_a8(policy) || tokens < 17) return {select_a16(tokens)};
     const std::size_t partial_bytes = tokens > 768   ? Bulk::kPartialBytes
                                       : tokens > 192 ? MidBulk::kPartialBytes
@@ -49,5 +55,6 @@ Fp8LinearAddPlan select_fp8_add_n5120_k6144(LinearPolicy policy, std::int32_t to
     if (tokens <= 192) return {nullptr, launch_fp8_add_a8<Instance<MidTile>>, partial_bytes};
     if (tokens <= 768) return {nullptr, launch_fp8_add_a8<Instance<MidBulk>>, partial_bytes};
     return {nullptr, launch_fp8_add_a8<Instance<Bulk>>, partial_bytes};
+#endif
 }
 } // namespace ninfer::ops::detail

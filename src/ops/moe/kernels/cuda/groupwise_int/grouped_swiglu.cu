@@ -61,7 +61,7 @@ void shared_gate_up(const Tensor& x, const ScaledSwiGLUTerm& shared, const Exper
                     const GroupedInfo* info, int columns, cudaStream_t stream) {
     using S          = SwiGLUH2048I512E256K8;
     auto* activation = static_cast<__nv_bfloat16*>(storage.shared_activation);
-    with_column_tile(columns, [&]<int N> {
+    with_column_tile(columns, [&]<int N>() {
         grouped_q8_gate_up<S, PackedExpertMatrix, false, N>
             <<<dim3(S::intermediate / 32, (x.ne[1] + N - 1) / N), N * 4, 0, stream>>>(
                 static_cast<const __nv_bfloat16*>(x.data), nullptr, nullptr, nullptr, nullptr,
@@ -77,7 +77,7 @@ void shared_down(const Tensor& x, const ScaledSwiGLUTerm& shared, Tensor& destin
     using S                = SwiGLUH2048I512E256K8;
     const auto* activation = static_cast<const __nv_bfloat16*>(storage.shared_activation);
     with_output(destination, epilogue, [&](auto output) {
-        with_column_tile(columns, [&]<int N> {
+        with_column_tile(columns, [&]<int N>() {
             grouped_q8_down<S, PackedExpertMatrix, decltype(output), false, N>
                 <<<dim3(S::hidden / 64, (x.ne[1] + N - 1) / N), N * 4, 0, stream>>>(
                     activation, activation + S::intermediate * x.ne[1], nullptr, nullptr, nullptr,
@@ -124,7 +124,7 @@ void launch_grouped_swiglu(const Tensor& x, const RoutedSwiGLUProfile& profile,
                                                       group.info, gate_up, activation);
             }
         } else {
-            with_column_tile(plan.columns, [&]<int N> {
+            with_column_tile(plan.columns, [&]<int N>() {
                 grouped_q8_gate_up<S, Access, true, N><<<gate_blocks, N * 4, 0, stream>>>(
                     input, group.tokens, group.offsets, group.job_experts, group.job_columns,
                     gate_up, activation, activation + S::intermediate * S::top_k * x.ne[1], x.ne[1],
@@ -154,7 +154,7 @@ void launch_grouped_swiglu(const Tensor& x, const RoutedSwiGLUProfile& profile,
             integer_down.template operator()<Q6DownMma>();
             break;
         default:
-            with_column_tile(plan.columns, [&]<int N> {
+            with_column_tile(plan.columns, [&]<int N>() {
                 grouped_q8_down<S, Access, FloatContribution, true, N>
                     <<<down_blocks, N * 4, 0, stream>>>(
                         activation, activation + S::intermediate * S::top_k * x.ne[1],

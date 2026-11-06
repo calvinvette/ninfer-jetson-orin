@@ -45,13 +45,21 @@ ReadOnlyFile::ReadOnlyFile(const std::filesystem::path& path, ReadMode mode) : p
             fail(path, "expected regular file", EINVAL);
         view_.bytes = static_cast<std::uint64_t>(status.st_size);
         if (mode == ReadMode::Direct) {
+            bool reported = false;
+#if defined(STATX_DIOALIGN)
             struct statx alignment {};
-
-            const bool reported = ::statx(view_.descriptor, "", AT_EMPTY_PATH | AT_STATX_DONT_SYNC,
-                                          STATX_DIOALIGN, &alignment) == 0 &&
-                                  (alignment.stx_mask & STATX_DIOALIGN);
-            view_.memory_alignment = reported ? alignment.stx_dio_mem_align : 4096;
-            view_.offset_alignment = reported ? alignment.stx_dio_offset_align : 4096;
+            reported = ::statx(view_.descriptor, "", AT_EMPTY_PATH | AT_STATX_DONT_SYNC,
+                               STATX_DIOALIGN, &alignment) == 0 &&
+                       (alignment.stx_mask & STATX_DIOALIGN);
+            if (reported) {
+                view_.memory_alignment = alignment.stx_dio_mem_align;
+                view_.offset_alignment = alignment.stx_dio_offset_align;
+            }
+#endif
+            if (!reported) {
+                view_.memory_alignment = 4096;
+                view_.offset_alignment = 4096;
+            }
             if (!std::has_single_bit(view_.memory_alignment) ||
                 !std::has_single_bit(view_.offset_alignment))
                 fail(path, "unsupported direct I/O alignment", EOPNOTSUPP);

@@ -2,6 +2,14 @@
 
 namespace ninfer::ops::detail::linear_split::nvfp4_n14336_k5120 {
 namespace {
+#if defined(NINFER_TARGET_JETSON_ORIN)
+bool quantized(LinearPolicy, int) { return false; }
+std::size_t capacity(LinearPolicy, std::int32_t, std::int32_t) { return 0; }
+void launch(const Tensor& x, Weights weights, std::span<const Tensor> outputs, MemoryArena*,
+            cudaStream_t stream) {
+    launch_a16(x, weights.first, outputs, stream);
+}
+#else
 bool quantized(LinearPolicy policy, int columns) { return allows_a4(policy) && columns >= 4; }
 
 std::size_t capacity(LinearPolicy policy, std::int32_t, std::int32_t last) {
@@ -17,6 +25,7 @@ void launch(const Tensor& x, Weights weights, std::span<const Tensor> outputs,
     const auto scratch = allocate_nvfp4_a4_workspace(*workspace, x.ne[1], 5120);
     launch_a4(x, weights.first, outputs, scratch, stream);
 }
+#endif
 } // namespace
 } // namespace ninfer::ops::detail::linear_split::nvfp4_n14336_k5120
 

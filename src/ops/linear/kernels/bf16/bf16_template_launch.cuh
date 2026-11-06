@@ -9,6 +9,13 @@
 #include "ops/linear/kernels/bf16/bf16_a16_simt.cuh"
 #include "ops/linear/kernels/bf16/bf16_a16_mma.cuh"
 #include "ops/linear/kernels/bf16/bf16_a16_sliced_k_mma.cuh"
+
+namespace ninfer::ops::detail {
+template <class Schedule, int Splits, class Output, class Epilogue>
+void launch_bf16_mma_partitions(const Bf16A16Operands& p, Output output, Epilogue epilogue,
+                                cudaStream_t stream);
+} // namespace ninfer::ops::detail
+
 #include "ops/linear/kernels/bf16/bf16_a16_tma_mma.cuh"
 
 namespace ninfer::ops::detail {
