@@ -132,19 +132,21 @@ that a discrete-GPU host/device cache policy is efficient on shared LPDDR.
 
 The first JP6 implementation pass is on local branch `feat/jetson-orin-sm87-jp6` in
 `~/workspace/ninfer`, based on the planned `a754fcf3` source revision. Commits
-`a8f27562`, `6376058d`, `b72ba228`, `3209e283`, and `0962c076` add CUDA 12.6/SM87 build compatibility,
-explicit unsupported routes, target runtime admission, a predicated BF16 fallback for row/K
-tails, Orin-specific expectations for compressed KV formats without qualified consumers, and a
-decode-only NVFP4 vector route. The
+`a8f27562`, `6376058d`, `b72ba228`, `3209e283`, `0962c076`, and `f7ad8ac6` add CUDA
+12.6/SM87 build compatibility, explicit unsupported routes, target
+runtime admission, a predicated BF16 fallback for row/K tails, Orin-specific expectations for
+compressed KV formats without qualified consumers, and decode-only NVFP4/block-FP8 vector
+routes. The
 full build succeeds on Jetson AGX Orin (aarch64, SM87, CUDA 12.6). The push to the
 configured `Neroued/ninfer` remote was rejected because the authenticated account has
 read-only access; the commits remain local.
 
 The NVFP4 route reuses the exact E2M1/E4M3 unpack and FP32 vector contractions without
-instantiating Blackwell MXFP4 MMA. The complete block-scaled MoE T=1 CUDA Graph oracle case
-passes on the Orin, and the runtime-mechanisms CTest passes serially. This qualifies the
-decode shape only; the multi-token path intentionally remains unavailable on SM87 pending a
-separate prefill implementation and real-shape numerical qualification.
+instantiating Blackwell MXFP4 MMA. The block-FP8 route decodes its stored E4M3 codes and BF16
+scales directly and uses FP32 vector contractions. Their complete-MoE CUDA Graph oracle cases
+pass on the Orin for NVFP4 T=1 and block-FP8 T=1/2, including routed subsets and both output
+epilogues. The block-scaled CTest now runs those supported cases on Orin; the artifact reader,
+backing, materialization, and runtime-mechanisms focused tests also pass.
 
 Focused artifact reader, backing, and materialization tests pass serially. The BF16
 projection oracle passes 197 cases for the previously failing `324x10240` shape; the
@@ -176,10 +178,12 @@ memory, and no bounded disk-backed expert execution path has been implemented. T
 no Flash-Next inference or performance result yet.
 
 The Qwen4Exp real-artifact loading test now also passes against that Flash-Next file without
-materializing weights. It verifies V3 model-definition binding, native expert geometry,
-runtime/workspace planning, PLE geometry, and explicit Orin rejection of the unqualified
-block-FP8 MTP and compressed KV routes. This is stronger than container parsing but still
-does not establish weight materialization, model execution, or inference support.
+materializing weights. It verifies the 48 Main expert banks, the optional MTP bank, native
+expert geometry, and PLE-backed load planning; it also confirms that Orin rejects the artifact's
+multi-token NVFP4 prefill route. The required resident materialization is 75.37 GB without MTP
+and 78.06 GB with MTP, beyond this host's physical RAM. These checks establish artifact
+definition/binding compatibility and decode-operator arithmetic only; they do not establish
+weight materialization, Engine execution, or inference support. MTP has no end-to-end result.
 
 ### 1. Modern JP6 platform and original models
 
