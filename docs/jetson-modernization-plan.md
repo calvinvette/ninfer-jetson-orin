@@ -258,6 +258,15 @@ difference or establish state corruption. Keep the sampler's tie rule unchanged.
 needs a target-forward/state comparison at this boundary and a defined way to preserve greedy
 equivalence when verify and single-token paths disagree.
 
+A temporary capture of the main model's post-HC hidden vector for input token 1156 found only
+62/2,560 BF16 elements identical between the single-token and two-column verify paths (mean
+absolute element difference 0.132; maximum 1.75). This places the discrepancy before the output
+head, at or before the final hidden representation. It is a cross-route diagnostic, not an
+independent numerical oracle: the two executions also have different recurrent-state histories.
+The next correctness investigation must compare the relevant target state and intermediate
+boundaries against the model's mathematical semantics before attributing the difference to a
+specific kernel or changing MTP scheduling.
+
 The disk schedule runs eagerly: CUDA Graph capture is disabled for this route until stable
 cache contents and graph replay are supported. Numerical comparison of a real layer against
 an independent oracle, MTP acceptance/commit and state-restoration qualification, Vision,
