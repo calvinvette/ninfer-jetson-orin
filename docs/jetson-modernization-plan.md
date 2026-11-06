@@ -353,14 +353,16 @@ before state commit: for input token 1144, serial decode ranks token 310 at 22.3
 5707 at 21.875, while verify column 1 ranks 5707 at 22.25 above 310 at 22.125. At layer 0,
 the captured GDN input and control values match bit-for-bit for this token, and the raw Q/K/V
 projection record matches the serial path's newest stored convolution input. The post-convolution
-Q/K/V values differ slightly, so the current evidence does not isolate whether the cause is the
-convolution source state or the multi-column convolution route. A separate capture of the selected
-convolution source buffers for serial token 1596 and verify column 0 found they differ, despite
-both executions being expected to read the selected source state. The capture's selector and
-buffer lineage have not been validated well enough to interpret that comparison. An initial
-hypothesis about BF16 history rounding is therefore unsubstantiated; no production change was made.
-Resolve the source-state selection and compare the convolution route against its independent
-mathematical oracle before attributing or fixing the T=5 failure. Temporary trace code was removed.
+Q/K/V values differ slightly. A corrected selector trace for the first MTP verify shows both
+serial decode before token 1596 and verify before its anchor column select record offset 0; their
+complete BF16 convolution source tensors match exactly (30,720/30,720 elements). An earlier
+comparison that appeared to find different sources had compared serial state after token 1596
+against verify state before its anchor token, so it did not compare equivalent state. The source
+selector is not implicated by the corrected capture. The remaining evidence points to a small
+difference in the multi-column convolution result after applying the verify columns, but an
+independent mathematical-oracle comparison is still needed before attributing the T=5 failure or
+changing production code. The initial BF16-history-rounding hypothesis remains unsubstantiated;
+no production change was made. Temporary trace code was removed.
 
 The disk schedule runs eagerly: CUDA Graph capture is disabled for this route until stable
 cache contents and graph replay are supported. Numerical comparison of a real layer against
