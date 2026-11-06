@@ -204,6 +204,13 @@ void q8_a16_conformance(Suite& suite) {
                   make_q8_g32_fp16_weight,
                   {shape.n, shape.k, shape.seed, Comparison::Sampled, true, calls});
     }
+#if NINFER_TARGET_JETSON_ORIN
+    const std::array route_calls{Invocation{1}, Invocation{2}};
+    ShapeCase route_case{2560, 6144, 313U, Comparison::Full, true, route_calls};
+    route_case.verify_first_column_invariance = true;
+    add_shape(suite, ninfer::QType::Q8_G32_FP16, ActivationRecipe::TokenBlocks,
+              make_q8_g32_fp16_weight, route_case);
+#endif
 #if NINFER_TARGET_SPARK
     const std::array stress_calls{Invocation{1}, Invocation{6}, Invocation{41}, Invocation{128},
                                   Invocation{1024}};

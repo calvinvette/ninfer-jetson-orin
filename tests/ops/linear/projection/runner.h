@@ -59,6 +59,9 @@ struct ShapeCase {
     std::int32_t parent_rows = 0;
     // Exercise borrowing scratch from a caller arena that already owns live bytes.
     std::size_t workspace_prefix = 0;
+    // For tokenwise and multi-column calls over the same input prefix, compare column zero
+    // exactly. This protects greedy decode consistency across execution extents.
+    bool verify_first_column_invariance = false;
 };
 
 void cpu_linear_gemm_fp64(const float* weight, const float* activation, double* output,

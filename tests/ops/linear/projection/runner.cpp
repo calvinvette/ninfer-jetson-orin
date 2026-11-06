@@ -289,6 +289,7 @@ static int run_shape(std::string_view label, ActivationRecipe recipe, WeightGene
     }
 
     int failures = 0;
+    std::vector<double> one_column_result;
     for (const Invocation& invocation : shape.invocations) {
         const auto& case_label = invocation.id;
         GuardedOutput output(checked_elements(shape.n, invocation.t, "guarded output"));
@@ -361,6 +362,21 @@ static int run_shape(std::string_view label, ActivationRecipe recipe, WeightGene
                 OutputRead actual = read_output(output.data(), shape.n, invocation.t, oracle_rows,
                                                 columns, case_label);
                 failures += actual.failures;
+
+                if (shape.verify_first_column_invariance) {
+                    if (invocation.t == 1) {
+                        one_column_result = actual.selected;
+                    } else if (invocation.t == 2) {
+                        if (one_column_result.size() != static_cast<std::size_t>(shape.n) ||
+                            actual.selected.size() < static_cast<std::size_t>(shape.n) ||
+                            !std::equal(one_column_result.begin(), one_column_result.end(),
+                                        actual.selected.begin())) {
+                            std::cerr << case_label
+                                      << ": T=1 output differs from the first column at T=2\n";
+                            ++failures;
+                        }
+                    }
+                }
 
                 if (shape.comparison == Comparison::Full) {
                     std::span<const double> reference(

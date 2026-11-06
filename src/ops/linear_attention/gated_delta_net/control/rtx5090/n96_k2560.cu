@@ -12,7 +12,11 @@ constexpr Plan mma(int tile, int split, RowMode rows = RowMode::Paired) {
 }
 
 constexpr std::array kN96K2560{
+#if NINFER_TARGET_JETSON_ORIN
+    Route{1, 1, {Kernel::TiledGemv, 4}},
+#else
     Route{1, 1, {Kernel::Gemv}},
+#endif
     Route{2, 8, {Kernel::TiledGemv, 4}},
     Route{9, 192, mma(64, 8, RowMode::Merged)},
     Route{193, 448, mma(64, 8)},

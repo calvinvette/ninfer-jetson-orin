@@ -6,15 +6,19 @@
 
 namespace ninfer::ops::detail {
 namespace {
-using Gemv    = Q8A16GemvSchedule<4, 1, 2, 6144, 4>;
+#if !NINFER_TARGET_JETSON_ORIN
+using Gemv = Q8A16GemvSchedule<4, 1, 2, 6144, 4>;
+#endif
 using Grouped = Q8A16GroupedSlicedKMmaSchedule<32, 4, 2, 1, 1, 6144, Cache::cg, Cache::ca, true>;
 using Mma     = Q8A16MmaSchedule<32, 32, 128, 16, 16, 2, 3>;
 
+#if !NINFER_TARGET_JETSON_ORIN
 void gemv(const Tensor& x, const Weight& weight, Tensor& out, cudaStream_t stream) {
     launch_q8_a16_gemv<Gemv>(q8_linear_operands(x, weight),
                              LinearBf16Output{static_cast<__nv_bfloat16*>(out.data), out.ne[0]},
                              LinearIdentityEpilogue{}, stream);
 }
+#endif
 
 void grouped(const Tensor& x, const Weight& weight, Tensor& out, cudaStream_t stream) {
     launch_q8_a16_grouped_sliced_k_mma<Grouped>(
@@ -31,7 +35,9 @@ void mma(const Tensor& x, const Weight& weight, Tensor& out, cudaStream_t stream
 } // namespace
 
 Q8Launch select_q8_n2560_k6144(std::int32_t tokens) {
+#if !NINFER_TARGET_JETSON_ORIN
     if (tokens == 1) return gemv;
+#endif
     if (tokens <= 32) return launch_q8_a16_sliced_r16_t16_w8_s2;
     if (tokens <= 50) return launch_q8_a16_sliced_r16_t32_w4_s2;
     if (tokens <= 64) return grouped;
