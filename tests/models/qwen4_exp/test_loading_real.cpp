@@ -267,6 +267,50 @@ int main(int argc, char** argv) {
             require(!host || prototype != nullptr, "target does not provide expert offload");
             return q4::plan_execution(profile, geometry, options, device, available, prototype);
         };
+#if NINFER_TARGET_JETSON_ORIN
+        if (materialize)
+            throw std::invalid_argument("Flash-Next resident materialization exceeds Orin RAM");
+        for (const bool mtp : {false, true}) {
+            EngineOptions options;
+            options.use_cuda_graph  = false;
+            options.max_context     = 4096;
+            options.prefill_chunk   = 128;
+            options.context_capacity =
+                ContextCapacityPolicy::explicit_capacity(512ULL << 20);
+            options.context_cache.host_capacity_bytes = 0;
+            if (mtp) {
+                options.speculative = {.backend = SpeculativeBackend::Mtp, .draft_tokens = 5};
+            }
+            artifact::Reader reader(argv[1]);
+            auto definition = q4::read_definition(reader, models::load_options(options));
+            auto load = q4::resolve_load(reader, definition, device.device());
+            auto profile = q4::execution::describe_model(*definition);
+            if (definition->expert_banks().size() != (mtp ? 49 : 48) ||
+                profile->text.layers.size() != 48 || profile->mtp.has_value() != mtp) {
+                throw std::runtime_error(
+                    "Flash-Next definition binding differs: banks=" +
+                    std::to_string(definition->expert_banks().size()) + " layers=" +
+                    std::to_string(profile->text.layers.size()) + " mtp=" +
+                    std::to_string(profile->mtp.has_value()));
+            }
+            placement(load, false);
+            bool rejected = false;
+            std::string reason;
+            try {
+                (void)plan_for(profile, load.ple_table().geometry(), options, 16 * GiB);
+            } catch (const std::invalid_argument& error) {
+                rejected = true;
+                reason = error.what();
+            }
+            require(rejected && reason.find("SM87 NVFP4 MoE") != std::string::npos,
+                    "Orin must reject unqualified Flash-Next NVFP4 prefill");
+            std::cout << "mtp=" << mtp << " weights="
+                      << load.materialization().device_capacity_bytes
+                      << " prefill=unsupported on SM87\n";
+        }
+        std::cout << "PASS V3 metadata binding; no materialization or inference\n";
+        return 0;
+#endif
         std::unique_ptr<q4::ModelShard> model;
         std::shared_ptr<const q4::execution::ModelProfile> profile;
         std::optional<q4::ExecutionPlan> selected;

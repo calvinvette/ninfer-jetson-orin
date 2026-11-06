@@ -1,1 +1,2 @@
-# No SM87 kernel implementation is registered for this encoding yet.
+target_sources(ninfer_ops PRIVATE
+  "${CMAKE_CURRENT_LIST_DIR}/launch.cu")

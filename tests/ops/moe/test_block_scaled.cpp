@@ -644,7 +644,6 @@ int main(int argc, char** argv) {
     using namespace ninfer::test::moe_block_scaled;
     OpSuite suite;
     for (bool fp8 : {false, true}) {
-        add_shared320_cases(suite, fp8);
         const std::string format = fp8 ? "fp8" : "nvfp4";
         std::vector<OpCase> catalogue;
         std::vector<std::function<int(Fixture&, CudaExecutionView)>> runners;
@@ -654,8 +653,6 @@ int main(int argc, char** argv) {
             catalogue.push_back({"moe/" + format + "/" + id, std::move(tags)});
             runners.push_back(run);
         };
-        special("affine", affine_cases);
-        if (!fp8) special("route", route_cases, {{"execution", "graph"}});
         const auto add = [&](int m, ops::ExpertSubsetKind subset, bool shared, bool complete,
                              DType dtype, ops::MoeEpilogue epilogue, bool graph) {
             const auto id = std::string(complete ? "complete" : "routed") + "/t" +
@@ -671,6 +668,33 @@ int main(int argc, char** argv) {
         };
         using ops::ExpertSubsetKind;
         using ops::MoeEpilogue;
+#if NINFER_TARGET_JETSON_ORIN
+        const auto add_decode = [&](int tokens, ExpertSubsetKind subset, MoeEpilogue epilogue) {
+            add(tokens, subset, true, true, DType::BF16, epilogue, true);
+        };
+        if (!fp8) {
+            add_decode(1, ExpertSubsetKind::All, MoeEpilogue::Write);
+            add_decode(1, ExpertSubsetKind::MaskOnes, MoeEpilogue::Write);
+            add_decode(1, ExpertSubsetKind::MaskZeros, MoeEpilogue::AddResidual);
+        } else {
+            for (const int tokens : {1, 2}) {
+                add_decode(tokens, ExpertSubsetKind::All, MoeEpilogue::Write);
+                add_decode(tokens, ExpertSubsetKind::MaskOnes, MoeEpilogue::Write);
+                add_decode(tokens, ExpertSubsetKind::MaskZeros, MoeEpilogue::AddResidual);
+            }
+        }
+        suite.add(std::move(catalogue), [=](auto selected) {
+            DeviceContext device;
+            Fixture fixture(fp8);
+            int failures = 0;
+            for (auto i : selected) failures += runners[i](fixture, device.execution_view());
+            return failures;
+        });
+        continue;
+#else
+        add_shared320_cases(suite, fp8);
+        special("affine", affine_cases);
+        if (!fp8) special("route", route_cases, {{"execution", "graph"}});
         for (int m : {1,   2,   3,   7,    8,    9,    15,   16,   17,   18,   31,   32,   33,
                       34,  63,  64,  65,   66,   127,  128,  129,  130,  255,  256,  257,  258,
                       511, 512, 513, 1023, 1024, 1025, 3071, 3072, 3073, 3583, 3584, 3585, 4097}) {
@@ -723,6 +747,7 @@ int main(int argc, char** argv) {
             for (auto i : selected) failures += runners[i](fixture, device.execution_view());
             return failures;
         });
+#endif
     }
     return suite.main(argc, argv);
 }

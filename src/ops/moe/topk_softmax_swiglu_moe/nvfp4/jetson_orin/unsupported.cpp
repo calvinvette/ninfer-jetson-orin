@@ -10,6 +10,5 @@ namespace {
 } // namespace
 
 const ShapePolicy& nvfp4_h2560_i320_e512_k10() { unsupported(); }
-const ShapePolicy& fp8_h2560_i640_e512_k10() { unsupported(); }
 const ShapePolicy& fp8_h2560_i320_e512_k10() { unsupported(); }
 } // namespace ninfer::ops::detail::moe_complete
