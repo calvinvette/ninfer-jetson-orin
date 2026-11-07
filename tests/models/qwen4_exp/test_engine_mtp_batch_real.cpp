@@ -34,7 +34,7 @@ Run run(const std::string& artifact, bool mtp) {
     options.artifact_path      = artifact;
     options.max_context        = 1024;
     options.prefill_chunk      = 128;
-    options.max_concurrency    = 2;
+    options.max_concurrency    = 3;
     options.kv_cache           = KvCacheStorage::Int8Group64;
     options.context_capacity   = ContextCapacityPolicy::explicit_capacity(1ULL << 30);
     options.context_cache.enabled = false;
@@ -44,7 +44,8 @@ Run run(const std::string& artifact, bool mtp) {
 
     Engine engine(std::move(options));
     std::vector<GenerationHandle> handles;
-    for (auto text : {"The capital of France is", "The number after 2 is"}) {
+    for (auto text : {"The capital of France is", "The number after 2 is",
+                      "The largest ocean on Earth is"}) {
         RequestOptions request;
         request.execution.requested_output_tokens = 8;
         request.execution.sampling.temperature     = 0.0F;
@@ -148,8 +149,8 @@ int main() {
         if (selected_prompt && *selected_prompt) return 0;
         const auto reference = run(artifact, false);
         const auto mtp       = run(artifact, true);
-        require(reference.requests.size() == 2 && mtp.requests.size() == 2,
-                "two-request cohort did not complete");
+        require(reference.requests.size() == 3 && mtp.requests.size() == 3,
+                "three-request cohort did not complete");
         std::uint64_t batched_decode_steps = 0;
         for (std::size_t i = 0; i < reference.requests.size(); ++i) {
             const auto& expected = reference.requests[i];
@@ -160,16 +161,16 @@ int main() {
             require(actual.stats.speculative.backend == SpeculativeBackend::Mtp &&
                         actual.stats.speculative.drafted_tokens > 0,
                     "MTP request did not execute draft work");
-            if (actual.stats.decode_by_batch.size() > 1)
-                batched_decode_steps += actual.stats.decode_by_batch[1].total.count;
+            if (actual.stats.decode_by_batch.size() > 2)
+                batched_decode_steps += actual.stats.decode_by_batch[2].total.count;
             std::cout << "row=" << i << " ids=";
             for (const auto token : actual.generated_token_ids) std::cout << token << ' ';
             std::cout << "drafted=" << actual.stats.speculative.drafted_tokens
                       << " accepted=" << actual.stats.speculative.accepted_tokens << '\n';
         }
         require(batched_decode_steps > 0,
-                "requests did not exercise a two-row decode batch");
-        std::cout << "PASS exact MTP parity for a two-request real Flash-Next cohort\n";
+                "requests did not exercise a three-row decode batch");
+        std::cout << "PASS exact MTP parity for a three-request real Flash-Next cohort\n";
         return 0;
     } catch (const std::exception& error) {
         std::cerr << "FAIL: " << error.what() << '\n';

@@ -27,6 +27,7 @@ Plan select_decode(int tokens, int, ExpertSubsetKind) {
 const ShapePolicy& fp8_h2560_i640_e512_k10() {
     static constexpr int boundaries[]{3};
     static const ShapePolicy policy{.select = select_decode, .allocation_boundaries = boundaries,
+                                    .decode_slice_tokens = 2,
                                     .masked_slice_tokens = 2};
     return policy;
 }

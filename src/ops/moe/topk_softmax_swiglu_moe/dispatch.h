@@ -4,6 +4,7 @@
 #include "ops/moe/kernels/cuda/routing/launch.h"
 #include "ops/moe/kernels/cuda/block_scaled/launch.h"
 
+#include <algorithm>
 #include <span>
 
 namespace ninfer::ops::detail::moe_complete {
@@ -21,12 +22,13 @@ struct Plan {
 struct ShapePolicy {
     Plan (*select)(int tokens, int shared_intermediate, ExpertSubsetKind subset);
     std::span<const int> allocation_boundaries;
+    int decode_slice_tokens = 4096;
     int masked_slice_tokens = 4096;
 
     int slice_tokens(ExpertSubsetKind subset) const {
         return subset == ExpertSubsetKind::MaskOnes || subset == ExpertSubsetKind::MaskZeros
-                   ? masked_slice_tokens
-                   : 4096;
+                   ? std::min(decode_slice_tokens, masked_slice_tokens)
+                   : decode_slice_tokens;
     }
 };
 
