@@ -620,7 +620,9 @@ artifact-backed loader also executed one streamed NVFP4 MoE layer and passed its
 FP64 oracle (relative L2 `3.32e-7`, maximum absolute error `3.73e-9`); it verified both MTP-off
 and MTP-enabled metadata plans. This does not close the longer-horizon MTP, PLE state, Vision,
 prefix-reuse, or graph-capture gates. Pushing the rebased source branch to `Neroued/ninfer` was
-rejected with HTTP 403 for the authenticated `calvinvette` account; the commit remains local.
+rejected with HTTP 403 for the authenticated `calvinvette` account. The subsequent real-weight PLE
+oracle and accepted-prefix qualification commits (`9752ee05`, `b31b6bab`, `342ae3a4`) are also
+local on `feat/jetson-orin-sm87-jp6-sync` because that repository still rejects the push.
 
 ### 1. Modern JP6 platform and original models
 
