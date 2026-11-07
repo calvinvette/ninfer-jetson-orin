@@ -220,8 +220,10 @@ materialized. On Jetson AGX Orin (SM87, JP6/CUDA 12.6), the focused expert-cache
 artifact-backing, Qwen4Exp-loading, and block-scaled MoE tests pass. The real V3 artifact
 loads its metadata and executes one NVFP4 MoE layer for two different hidden vectors; each
 repeated route reuses cached experts (55,296,000 bytes uploaded across the two distinct
-routes, with no repeat uploads). The changed route also exercises dynamic cache-slot
-replacement.
+routes, with no repeat uploads). The real-artifact regression now returns to the first route
+after the second route replaced its dynamic slots: uploads increase to 82,944,000 bytes for the
+eviction/refill, then remain unchanged on the next identical request. This directly covers
+bounded-cache miss, hit, eviction, and refill behavior on the supplied V3 artifact.
 
 The public Engine also completes Flash-Next runs using the explicit artifact
 `~/models/Qwen3.8-Flash-Next-NInfer/qwen3_8_flash_next.ninfer`, prompt `hi`, greedy sampling,
