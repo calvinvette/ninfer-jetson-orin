@@ -242,6 +242,16 @@ boundary difference comes from batch-shape arithmetic or batched state handling.
 established only through three rows at the previously tested eight-token horizon; longer cohort
 decoding remains unqualified pending that attribution.
 
+A token- and position-filtered layer-boundary capture on the three-row, 15-token reproduction
+compared sequence 2 at frontier 71 (input 14862) in the physical two-row decode batch. The
+post-combine BF16 residual is bitwise identical after layer 0. The first difference appears after
+layer 1: 640 of 15,360 channels differ, relative L2 0.00101, maximum absolute difference
+0.00024414. The drift then grows across subsequent layers. Artifact configuration identifies layer
+1 as GDN and places PLE immediately before it, so this narrows the source to the PLE/GDN/associated
+layer computation boundary but does not distinguish PLE injection from GDN recurrent execution.
+The public Engine reproduction still fails at output token 14. Temporary instrumentation was
+removed and the JP6 build completed successfully after the capture.
+
 A real-artifact image-conditioned MTP comparison also passed on the public Engine with Graphs
 enabled: one resized 224x224 image, 83 prompt tokens, greedy output horizon 8, and draft window 4.
 Serial and MTP generated token IDs matched exactly; MTP drafted 8 tokens, accepted 3, and took one
