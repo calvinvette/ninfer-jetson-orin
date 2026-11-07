@@ -715,6 +715,19 @@ The responsible operator or state transition remains unlocated. Broader Vision a
 behavior and graph capture remain open. The matched original-model performance matrix is recorded
 below and does not substitute for Flash-Next measurements.
 
+The real-artifact PLE comparison for the implicated pair `[248044, 248045]` is exact: the
+candidate-column embedding from the two-token verify preparation equals serial one-token
+preparation after consuming its anchor and updating the two-token PLE history. This is now covered
+by `ninfer_ple_disk_prepare_pair_test` on a deterministic disk-backed fixture; the same comparison
+also passed directly against `qwen3_8_flash_next.ninfer`. A temporary state trace compared each
+GDN source state at serial step entry with the verifier source at the same frontier in the MTP-1
+`Hello` run. Compact GDN state layers 0–2 matched at every sampled frontier. Layer 3 first differed
+at position 64 in both convolution and recurrent state; at position 67 its convolution state
+matched again while recurrent state still differed through the final traced frontier (83). This
+locates the earliest observed discrepancy to the compact GDN layer-3 state timeline, after the
+verified PLE embedding boundary. It does not distinguish GDN projection/recurrence from replay
+recording, state commit, or a prior state transition, so the cause and correctness fix remain open.
+
 The standalone expert-cache benchmark was run on the real artifact's first MoE layer
 (`text/layers/0/moe/experts`, 512 experts). It staged 1.416 GB of source weights in 0.396 s,
 registered 1.416 GB of host pages in 101 ms, and measured a 36.6 GB/s registered-H2D roofline.
