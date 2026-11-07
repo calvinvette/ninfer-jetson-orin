@@ -394,6 +394,17 @@ accepted, no fallback). This closes the reproduced token-7 mismatch for these ca
 qualify fallback behavior, other acceptance extents, terminal commits, multi-request batches,
 Vision, or state restoration generally.
 
+The HC selector also needs a token-width qualification beyond the `hi` case. With the committed
+T=1 GEMV / T=2..48 SIMT route, the public Flash-Next prompt `Hello` still diverges under eager
+MTP-4 at generated token 3 (`310` instead of the MTP-off `5707`); the six-token run accepted
+three drafts over two rounds without fallback. A diagnostic that routed T=1 through SIMT too
+made the first MTP verify residuals bit-identical through layers 0..3, but the first residual
+difference remained at layer 4, a GDN layer. That diagnostic also changed the MTP-off sequence
+and is not retained as a fix. Internal GDN captures from that experiment disagreed about their
+input snapshots, so they do not establish a narrower cause. The `Hello` result leaves a second
+greedy-correctness failure open and shows that the `hi` HC qualification does not generalize;
+MTP correctness remains unqualified.
+
 The disk schedule runs eagerly: CUDA Graph capture is disabled for this route until stable
 cache contents and graph replay are supported. Numerical comparison of a real layer against
 an independent oracle, MTP acceptance/commit and state-restoration qualification, Vision,
