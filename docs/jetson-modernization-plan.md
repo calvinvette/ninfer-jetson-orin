@@ -213,13 +213,14 @@ one fallback). Graph-enabled MTP-4 also matched serial output for `hi` through 6
 drafted, 47 accepted, one fallback) and 128 tokens (123 drafted, 96 accepted, no fallback). A
 Graph-enabled two-request, two-row MTP cohort matched serial generation exactly; the requests
 reported 9/4 and 5/5 drafted/accepted tokens, and the test observed a two-row decode step. The
-cohort test now exercises three concurrent requests: all three matched serial token IDs, observed a
-three-row decode batch, and reported 9/4, 5/5, and 5/5 drafted/accepted tokens. To make this
+cohort test now exercises three concurrent requests: all three matched serial token IDs,
+observed a three-row decode batch, and reported 9/4, 5/5, and 5/5 drafted/accepted tokens. To make this
 supported batch shape work on Orin, the Qwen4Exp MoE shape policy now slices ordinary decode input
 at the qualified per-format kernel width (two rows for block-FP8 and one for NVFP4), as it already
-did for masked MTP subsets. The Graph-enabled real-artifact CTest passed, including the 64-token text
-parity case, in 427.8 s; NVMe timeouts caused long waits. The real-artifact test runner accepts
-`NINFER_TEST_CUDA_GRAPH=1` to run these parity cases with the production Graph route. A prior
+did for masked MTP subsets. The Graph-enabled real-artifact CTest passed, including the 64-token
+text parity case, in 427.8 s; NVMe timeouts caused long waits. An eight-request attempt did not qualify:
+the 10-minute CTest run timed out amid further NVMe I/O timeouts. The real-artifact test runner
+accepts `NINFER_TEST_CUDA_GRAPH=1` to run these parity cases with the production Graph route. A prior
 64-token attempt was inconclusive after direct-I/O stalled; a subsequent rerun completed and
 supersedes that result.
 
@@ -295,8 +296,8 @@ schedule/oracle run.
 ### Remaining gates
 
 - Extend MTP state qualification to longer Vision/video horizons and cohorts larger than three. Text
-  Graph/MTP has exact serial parity through 128 output tokens, fallback cases, and a two-request
-  decode cohorts through three requests; image-conditioned runs cover 8 and 32 tokens, and
+  Graph/MTP has exact serial parity through 128 output tokens, fallback cases, and exact cohort
+  parity through three requests; image-conditioned runs cover 8 and 32 tokens, and
   video-conditioned runs cover 4, 32, and 35 generated tokens (the last run ended on the stop token
   with a 64-token cap).
 - Repeat the public mixed-media/ExpertCache breakdown under stable storage conditions. The current
@@ -304,8 +305,10 @@ schedule/oracle run.
   encoder-throughput qualification covers artifact weights at up to 64 patches.
 - Distinguish SSD/controller cache state for physical cold/warm storage measurements; `O_DIRECT`
   isolates requests from the host page cache but does not flush or measure device caches.
-- Extend Engine Graph qualification beyond the one-token smoke request, including mixed media and
-  MTP state acceptance/commit behavior.
+- Graph execution beyond the one-token smoke is now verified with text MTP through 128 tokens,
+  image MTP through 32 tokens, video MTP through 35 generated tokens, a three-request MTP cohort,
+  and a file-backed mixed-media Decode step. These are correctness/smoke checks; stable end-to-end
+  Graph performance remains unmeasured under the current storage conditions.
 - Re-run CUDA 12.6 regression after changes and qualify JP7/CUDA 13 when that environment becomes
   available.
 - Submit source changes upstream when a repository with push access is available. The local source

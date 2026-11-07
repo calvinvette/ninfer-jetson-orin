@@ -714,10 +714,11 @@ output through 32 tokens, and video-conditioned output through 32 tokens and a 6
 ended at 35 tokens. The video 32-token case matched exactly (41 drafts, 20 accepted, 11 rounds, no
 fallback); the 35-token run also matched exactly (44 drafts, 23 accepted, 11 rounds, no fallback).
 The three-row cohort matched all request token IDs exactly (draft/accept counts 9/4, 5/5, and 5/5)
-and exercised a three-row decode batch. Supporting this cohort required slicing Orin FP8 and NVFP4
-MoE inputs at their qualified per-kernel row limits. These are parity results rather than
-performance claims. These checks extend qualification; they do not close longer media horizons,
-cohorts larger than three,
+and exercised a three-row decode batch. An eight-request cohort attempt timed out after ten minutes
+amid NVMe I/O timeouts and remains unqualified. Supporting the verified three-row cohort required
+slicing Orin FP8 and NVFP4 MoE inputs at their qualified per-kernel row limits. These are parity
+results rather than performance claims. These checks extend qualification; they do not close longer
+media horizons, larger cohorts,
 stable cold/warm storage measurements, or physical SSD/controller cache
 characterization. CUDA 12.6 remains the required toolchain; JP7/CUDA 13
 qualification awaits that environment. Scope and run details are recorded in
