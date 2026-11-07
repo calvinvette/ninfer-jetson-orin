@@ -162,10 +162,15 @@ int main() {
         DeviceContext device;
         image(device, false);
         image(device, true);
+#if NINFER_TARGET_JETSON_ORIN
+        const std::array formats{KvCacheStorage::BFloat16, KvCacheStorage::Int8Group64};
+        const std::array<std::size_t, 2> bytes{135168, 71680};
+#else
         const std::array formats{KvCacheStorage::BFloat16, KvCacheStorage::Int8Group64,
                                  KvCacheStorage::Fp8E4m3fnGroup128Ue8m0,
                                  KvCacheStorage::Nvfp4Group16, KvCacheStorage::Fp8KeyNvfp4Value};
         const std::array<std::size_t, 5> bytes{135168, 71680, 70144, 40960, 55552};
+#endif
         for (std::size_t i = 0; i < formats.size(); ++i) {
             cache(device, formats[i], 12, bytes[i]);
             cache(device, formats[i], 1, bytes[i]);
