@@ -250,11 +250,14 @@ changing arithmetic, ordinary batched PLE projection differed from MTP's per-col
 and the post-PLE residual differed in 20 of 10,240. A temporary experiment made ordinary decode
 use MTP's per-column projection: projection and gate then matched bitwise, but the post-PLE
 residual still differed in 5 values (relative L2 2.62e-5, maximum absolute difference 6.10e-5),
-and GDN output differed in 377 of 2,560 values (relative L2 0.000918). The generated-token
-mismatch remained at output token 14. This shows the projection arithmetic contributes to drift,
-but does not explain or resolve the cohort parity failure; the remaining difference enters at PLE
-convolution or its input state. The temporary arithmetic change and all diagnostic instrumentation
-were removed, and the JP6 build completed successfully.
+and GDN output differed in 377 of 2,560 values (relative L2 0.000918). A separate capture of the
+nine-column PLE source history at the same anchor found 548 of 92,160 BF16 values different
+(relative L2 0.000446, maximum absolute difference 0.0078125). With the temporary per-column
+projection change, source-history differences fell to 201 values (relative L2 0.000195), but
+remained nonzero and the generated-token mismatch remained at output token 14. Thus projection
+arithmetic contributes to accumulated state drift, while PLE state or convolution behavior still
+differs before the failing anchor. No production change is retained; temporary instrumentation and
+the arithmetic experiment were removed, and the JP6 build completed successfully.
 
 A real-artifact image-conditioned MTP comparison also passed on the public Engine with Graphs
 enabled: one resized 224x224 image, 83 prompt tokens, greedy output horizon 8, and draft window 4.
