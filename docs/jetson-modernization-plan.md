@@ -773,6 +773,21 @@ registered transfers, not cold-storage latency. The artifact uses roughly 2.8 GB
 banks at this layer, demonstrating that an individual layer bank is practical to stage under
 the available memory budget.
 
+A public-Engine cache-cold/cache-warm pair was measured on the complete Flash-Next artifact with
+`Hello`, greedy sampling, 8 output-token budget, MTP off, INT8 KV, 512 MiB Device context,
+1,024-token maximum context, 128-token prefill chunks, eager execution, prefix reuse disabled,
+zero warmups, and two repetitions in the same Engine. Each repetition processed 53 prompt and 7
+committed decode tokens. The first, with an empty expert cache, uploaded 23.81 GB of expert
+payload, spent 22.20 s in expert-cache planning and 151 ms submitting transfers, and measured
+2.46 prefill / 1.64 decode tok/s over 25.86 s. The second reused retained cache entries, uploaded
+21.90 GB, spent 16.66 s planning and 136 ms submitting, and measured 3.40 / 1.74 tok/s over
+19.60 s. A second pair reproduced these measurements closely under tegrastats sampling. The
+Orin remained in MAXN with CPU/GPU/EMC at 2.2016/1.3005/3.199 GHz; GPU temperature peaked at
+48.3 C. These are ExpertCache-cold and ExpertCache-warm runs, not proof of a cold physical drive:
+expert payload is read with O_DIRECT, and the benchmark reports payload-transfer bytes rather
+than aligned physical device bytes. Both repetitions still staged substantial weight data, so a
+warm request does not make the expert bank resident.
+
 The Orin feature branch was rebased from `a754fcf3` onto the fetched `Neroued/ninfer` `dev`
 revision `62674bae` in an isolated worktree. This exposed upstream API drift in matrix-scale
 metadata, newer Blackwell BF16 pair schedules, and MXFP8/SwiGLU source registration. The rebase
