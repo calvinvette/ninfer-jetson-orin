@@ -483,9 +483,10 @@ establish a continuation/state defect: earlier traces found batch-shape-dependen
 before commit, and the accepted-prefix selection matched the serial path in the first traced
 round. Earlier trace evidence covered only the first paired columns. An initial attempt to compare
 the recurrent and Z buffers used incorrect dtype interpretation, so those apparent state deltas
-are invalid and no state diagnosis follows from them. The exact verify-logit and committed
-state comparison at the thirteenth-token boundary remains open. The multi-request short test remains
-passing; long-horizon MTP state and verify correctness remain open before MTP qualification.
+are invalid and no state diagnosis follows from them. A later full-logit capture characterizes the
+thirteenth-token greedy boundary below; the committed-state comparison remains open. The
+multi-request short test remains passing; long-horizon MTP state and verify correctness remain open
+before MTP qualification.
 
 The artifact-backed `ninfer_qwen4_exp_mtp_batch_real_test` was explicitly run with
 `NINFER_TEST_ARTIFACT` set to the Flash-Next artifact and passed in 175.34 s. Both requests had
@@ -512,8 +513,7 @@ layer 1's normalized input differs in 13 BF16 words and its HC mix output suppli
 in 26 words (maximum absolute difference 0.0078125, mean 6.91e-6). The GDN output differs in 791
 BF16 words (maximum absolute difference 0.001953125). This is consistent with batch-shape
 rounding in the PLE projection and does not establish an Op correctness failure. Real-artifact PLE
-gate/conv oracle qualification, verify-logit comparison, and committed-state comparison remain
-open.
+gate/conv oracle qualification and committed-state comparison remain open.
 
 The existing SM87 `ninfer_gated_residual_test` passed in 315.69 s. It checks HC Mix against its
 independent mathematical oracle and includes exact serial-column parity for a five-column fixture;
@@ -523,6 +523,14 @@ remains open.
 The BF16 linear projection oracle case for the exact PLE geometry (N=12,800, K=2,560, M=8) passed
 in 1.25 s. A separate FP64 calculation over the actual artifact input/weights/output passed for
 both M=1 and M=5 as described above.
+
+A matching 16-token rerun captured the BF16 target logits at the first divergent continuation. For
+the shared input token 13 at position 64, MTP-off has an exact top-logit tie: token IDs 12650 and
+14235 are both 20.625. The MTP verify pass has token 14235 at 20.625 and token 12650 at 20.375,
+so its greedy choice changes at this boundary. This explains the emitted-token mismatch as a
+tie-sensitive numerical difference in the batched target forward; it is not evidence of an
+accept/commit defect. The long-horizon route remains unqualified, and the accepted-state comparison
+and a full-route numerical criterion remain open.
 
 The same artifact and prompt were then measured at MAXN with fixed CPU/GPU/EMC clocks of
 2,201.6/1,300.5/3,199 MHz, INT8 KV, a 512 MiB context reservation, 1,024 maximum context, 128
