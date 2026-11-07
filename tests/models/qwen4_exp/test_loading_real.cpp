@@ -384,9 +384,18 @@ int main(int argc, char** argv) {
                         "repeated file-backed route did not reuse its expert cache entries");
                 run_layer(alternate);
                 const auto alternate_upload = schedule->uploaded_bytes();
+                require(alternate_upload > first_upload,
+                        "alternate real route did not miss in the bounded expert cache");
                 run_layer(alternate);
                 require(schedule->uploaded_bytes() == alternate_upload,
                         "repeated alternate route did not reuse its expert cache entries");
+                run_layer(input);
+                const auto refilled_upload = schedule->uploaded_bytes();
+                require(refilled_upload > alternate_upload,
+                        "returning to the original real route did not refill evicted experts");
+                run_layer(input);
+                require(schedule->uploaded_bytes() == refilled_upload,
+                        "refilled real route did not remain resident for its next use");
                 std::vector<std::uint16_t> values(hidden_size);
                 output_buffer.copy_to_host(values.data(), output_buffer.size());
                 require(std::any_of(values.begin(), values.end(), [](auto value) {
