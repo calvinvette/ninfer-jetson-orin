@@ -408,11 +408,14 @@ MTP correctness remains unqualified.
 A follow-up trace in the active Qwen4Exp executor compared the same anchor token (1596) in serial
 decode and the first MTP verify column. At layer 4, the HC mixer input already had different
 per-column activation hashes, and the GDN output and subsequent residual also differed. This
-places the discrepancy before layer 4's GDN and does not identify GDN as its cause. A trial that
-used the serial GEMV reduction for every short block-HC window (one GEMV launch per column)
-passed the HC oracle cases at M=5, 48, and 49, but left the `Hello` MTP-4 output and acceptance
-unchanged. That route and all trace instrumentation were reverted; no performance result was
-collected for the trial.
+places the discrepancy before layer 4's GDN and does not identify GDN as its cause. A one-launch
+batched GEMV now preserves the serial per-column reduction for block-HC widths 2..48. Its M=5
+output and FP32 injections match five independent serial GEMV invocations bit-for-bit; focused
+M=5, M=48, and M=49 HC cases pass. On the `Hello` MTP-4 trace, layer-0 target-token injections and
+residual now match serial decode, but the generated sequence still diverges. A later QSA
+local-output mismatch was observed, but the temporary trace did not align that output with the
+same QSA invocation across serial and verify, so its cause remains unresolved. Debug tracing was
+removed before commit. No end-to-end performance claim has been measured for the batched route.
 
 The disk schedule runs eagerly: CUDA Graph capture is disabled for this route until stable
 cache contents and graph replay are supported. Numerical comparison of a real layer against
