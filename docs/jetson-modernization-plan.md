@@ -719,22 +719,29 @@ The real-artifact PLE comparison for the implicated pair `[248044, 248045]` is e
 candidate-column embedding from the two-token verify preparation equals serial one-token
 preparation after consuming its anchor and updating the two-token PLE history. This is now covered
 by `ninfer_ple_disk_prepare_pair_test` on a deterministic disk-backed fixture; the same comparison
-also passed directly against `qwen3_8_flash_next.ninfer`. A later layerwise trace found that, for
+also passed directly against `qwen3_8_flash_next.ninfer`. A layerwise trace found that, for
 position 63 in the MTP-1 `Hello` comparison, QSA layer 3 receives bit-identical normalized input
 and projection tensors. Its active selected block IDs and counts also match. The sampled active
 main-cache page matched byte-for-byte, while the cross-run sparse-attention output differed in 495
-of 12,288 bytes. The subsequent QSA output differed in 953 of 5,120 bytes. A same-call diagnostic
-then reran the verify column as T=1 against the exact same query, gate, cache, positions, selection,
-and metadata; all 6,144 BF16 attention-output values matched the T=2 result. Thus batch shape by
-itself does not explain the QSA difference. The cross-run cache inspection covered only one
-sampled page, so it does not establish that all referenced pages, table metadata, and valid-column
-metadata match. A separate state trace found compact GDN layers 0–2 matched at every
-sampled frontier and compact GDN layer 3 first differed at position 64 in convolution and
-recurrent state; this is downstream of the observed layer-3 QSA output divergence. A temporary
-experiment that ran verify columns through the single-column QSA route did not restore parity and
-has been removed. Current evidence points to a cross-run difference in effective cache/state or
-metadata consumed by QSA; it does not yet identify which value first differs. No cause or
-correctness fix is claimed.
+of 12,288 bytes. A same-call diagnostic reran that verify column as T=1 against the exact same
+query, gate, cache, positions, selection, and metadata; all 6,144 BF16 attention-output values
+matched the T=2 result. The plan trace identified the cause: serial position 63 had a 64-token
+visibility envelope and selected the short-context SIMT route, while its T=2 verify call included
+position 64, raised the shared envelope to 65, and selected MMA with three splits. The operator
+therefore used different arithmetic routes for the same query. QSA now keeps the MMA arithmetic
+route for short contexts as well, removing that per-call SIMT/MMA discontinuity. A focused
+serial-versus-window QSA regression with the same logical cache passes exactly for BF16 and
+INT8-G64; oracle cases at history 64 and 65 pass for both formats. The real Flash-Next `Hello`
+MTP regression now matches all 33 generated tokens for both draft windows 1 and 4 (17/15 and
+34/23 drafted/accepted, respectively; no fallback). This closes the reproduced `Hello` mismatch.
+Other prompts, acceptance/state-restoration boundaries, fallback, Vision, and multi-request MTP
+remain unqualified. This route change has not yet received an isolated or end-to-end performance
+comparison.
+
+A separate state trace found compact GDN layers 0–2 matched at every sampled frontier, while
+compact GDN layer 3 first differed at position 64 in convolution and recurrent state. That state
+divergence follows the earlier QSA output discrepancy and is consistent with downstream state
+propagation; it does not independently qualify GDN state restoration or MTP commits.
 
 The standalone expert-cache benchmark was run on the real artifact's first MoE layer
 (`text/layers/0/moe/experts`, 512 experts). It staged 1.416 GB of source weights in 0.396 s,
