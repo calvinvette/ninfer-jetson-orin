@@ -560,10 +560,11 @@ GPU temperature peaked at 53.6 C, GPU frequency sampled 1,275–1,300 MHz, and E
 The MTP-2 aggregate is dominated by two large timing stalls despite fixed clocks, cool
 temperatures, unchanged 22.65 GB upload counts, and ample host memory. The available evidence
 does not identify whether these stalls come from file-backed expert service or another host-side
-wait, so MTP-2 performance remains inconclusive. MTP-3 and MTP-4 are slower than MTP-off for this
-short request despite draft acceptance; the upload counters establish transfer volume but do not
-isolate sustained drive bandwidth. Do not select a speculative window from these short-run numbers
-alone.
+wait, so MTP-2 performance remains inconclusive. A later single MTP-2 run without warmup completed
+normally (18.0 s to first token, 5.0 s generation, 25.07 GB expert uploads), confirming the
+stall is intermittent at this depth. MTP-3 and MTP-4 are slower than MTP-off for this short request
+despite draft acceptance; the upload counters establish transfer volume but do not isolate
+sustained drive bandwidth. Do not select a speculative window from these short-run numbers alone.
 
 The public Engine also completed an image-grounded Vision request from
 `examples/cli/messages/image_chart.json` with the same artifact, INT8 KV, 512 MiB context, and
