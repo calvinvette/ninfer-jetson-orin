@@ -410,6 +410,13 @@ This qualifies the reproduced short `Hello` case only. General MTP acceptance/co
 restoration, other acceptance extents, multi-request batches, Vision, and fallback remain
 unqualified. The initial parity runs did not include an end-to-end performance measurement.
 
+The public benchmark also exercised prefix reuse on the disk-backed artifact with prefix reuse
+enabled, one warmup, and one measured repetition for the same `hi` request. The measured request
+computed 7 of 53 prompt tokens, reusing the other 46. A nonzero Host Context cache reservation is
+rejected on this Jetson target; the successful run used its supported 0 B Host capacity and the
+512 MiB Device context. This verifies the single-request text reuse route, not media-prefix reuse
+or broader cache eviction and multi-request behavior.
+
 A current real-artifact rerun of the formerly failing `hi`, ten-token, MTP-4 case now matches the
 MTP-off token IDs exactly: `1596 1144 310 5707 310 1156 328 5834 3158 8722`. With CUDA Graphs
 disabled, MTP-4 completed three rounds, accepted six drafts, and had no fallback. This closes that
@@ -440,9 +447,9 @@ a single-image smoke, not qualification of video, multiple images, or Vision per
 
 The disk schedule runs eagerly: CUDA Graph capture is disabled for this route until stable
 cache contents and graph replay are supported. Numerical comparison of a real layer against
-an independent oracle, MTP acceptance/commit and state-restoration qualification, Vision,
-prefix reuse, and graph capture remain open. The matched original-model performance matrix is
-recorded below; it does not qualify Flash-Next MTP or the other feature gates.
+an independent oracle, MTP acceptance/commit and state-restoration qualification, broader Vision
+and prefix-reuse behavior, and graph capture remain open. The matched original-model performance
+matrix is recorded below; it does not qualify Flash-Next MTP or the other feature gates.
 
 ### 1. Modern JP6 platform and original models
 
