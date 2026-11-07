@@ -215,6 +215,12 @@ decode step. The real-artifact test runner now accepts `NINFER_TEST_CUDA_GRAPH=1
 existing parity cases with the production Graph route. A 64-token Graph/MTP case remains
 inconclusive because the worker stalled in direct-I/O wait before returning results.
 
+A real-artifact image-conditioned MTP comparison also passed on the public Engine with Graphs
+enabled: one resized 224x224 image, 83 prompt tokens, greedy output horizon 8, and draft window 4.
+Serial and MTP generated token IDs matched exactly; MTP drafted 8 tokens, accepted 3, and took one
+fallback across three rounds. The Vision stream was 35.4 ms. This qualifies one image-conditioned
+accept/commit path; video-conditioned MTP and longer Vision/MTP horizons remain open.
+
 The public Engine completes a single-image request, a mixed image/video fixture (1,615 prompt
 tokens, output `NIFER-9`), text prefix reuse, and repeated image prefix reuse. The mixed-media
 request took 413.1 s and exercised six Vision stream intervals totaling 1.20 s. Five focused CUDA
@@ -271,8 +277,9 @@ schedule/oracle run.
 
 ### Remaining gates
 
-- Extend MTP state qualification to Vision and cohorts larger than two. Text Graph/MTP now has exact
-  serial parity at 8 and 32 output tokens, fallback cases, and a two-request decode cohort.
+- Extend MTP state qualification to video and cohorts larger than two. Text Graph/MTP now has exact
+  serial parity at 8 and 32 output tokens, fallback cases, a two-request decode cohort, and one
+  image-conditioned eight-token run.
 - Repeat the public mixed-media/ExpertCache breakdown under stable storage conditions. The current
   mixed-media Graph report is one diagnostic sample with NVMe timeouts; Vision numerical and
   encoder-throughput qualification covers artifact weights at up to 64 patches.
