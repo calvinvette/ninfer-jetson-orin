@@ -203,7 +203,12 @@ remained in direct artifact reads and were stopped before producing token result
 attempts the kernel logged repeated NVMe I/O timeouts on `nvme0n1`; SMART reported 0 media errors,
 51 C, and 90 error-log entries. These runs are inconclusive, not parity failures. Further long-
 horizon artifact tests need a stable storage run; the previous parity evidence remains valid for
-its recorded prompts and horizons.
+its recorded prompts and horizons. A new Graph-enabled serial/MTP comparison on `hi` at 64 output
+tokens with a four-token draft window also stalled before producing token output. The worker was in
+`pread`/direct-I/O wait for about 100 seconds when interrupted; the kernel logged another `nvme0n1`
+timeout at 13:50 UTC. The real-artifact test runner now accepts `NINFER_TEST_CUDA_GRAPH=1` to run
+the existing parity cases with the production Graph route, but acceptance/commit parity in that
+mode remains unqualified until the storage path completes the workload.
 
 The public Engine completes a single-image request, a mixed image/video fixture (1,615 prompt
 tokens, output `NIFER-9`), text prefix reuse, and repeated image prefix reuse. The mixed-media
