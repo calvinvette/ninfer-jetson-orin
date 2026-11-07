@@ -740,10 +740,12 @@ MTP-1 completed 33 drafts/29 accepts with one fallback, and MTP-4 completed 62/4
 fallback. The default `hi`/64-token MTP-4 case also passes after the route change (58 drafts, 47
 accepted, one fallback), and both requests in the two-row Flash-Next MTP cohort exactly match
 their non-speculative token IDs. This covers two prompts, both short and longer outputs, a
-fallback, and a concurrent decode batch. Other prompts and acceptance/state-restoration
-boundaries remain unqualified; Vision remains separately unqualified for numerical parity. A
-matched public-Engine benchmark compared the old and Orin route policies on the same warm-cache
-Flash-Next artifact, `Hello` request, greedy 33-token budget, MTP-1, INT8 KV,
+fallback, and a concurrent decode batch. The 128-token `hi`/MTP-4 run also matches serial exactly
+(123 drafts, 96 accepted, no fallback), resolving the previously recorded token-13 continuation
+mismatch through this output horizon. Other prompts, horizons above 128, and acceptance/state-
+restoration boundaries remain unqualified; Vision remains separately unqualified for numerical
+parity. A matched public-Engine benchmark compared the old and Orin route policies on the same
+warm-cache Flash-Next artifact, `Hello` request, greedy 33-token budget, MTP-1, INT8 KV,
 512 MiB Device context, 1,024-token maximum context, prefill chunk 128, CUDA Graphs and prefix
 reuse disabled, one warmup, and three repetitions. Both processed 159 measured prompt tokens,
 committed 84 decode tokens, accepted 39/45 drafts, and had no fallback. At MAXN fixed clocks
