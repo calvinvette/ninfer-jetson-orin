@@ -735,8 +735,10 @@ serial-versus-window QSA regression with the same logical cache passes exactly f
 INT8-G64; oracle cases at history 64 and 65 pass for both formats. The real Flash-Next `Hello`
 MTP regression now matches all 33 generated tokens for both draft windows 1 and 4 (17/15 and
 34/23 drafted/accepted, respectively; no fallback). This closes the reproduced `Hello` mismatch.
-Other prompts, acceptance/state-restoration boundaries, fallback, Vision, and multi-request MTP
-remain unqualified. A matched public-Engine benchmark compared the old and Orin route policies on
+The same real-artifact comparison also matches all 64 generated tokens at draft windows 1 and 4;
+MTP-1 completed 33 drafts/29 accepts with one fallback, and MTP-4 completed 62/47 with no
+fallback. This covers a longer output, but other prompts, additional acceptance/state-restoration
+boundaries, Vision, and multi-request MTP remain unqualified. A matched public-Engine benchmark compared the old and Orin route policies on
 the same warm-cache Flash-Next artifact, `Hello` request, greedy 33-token budget, MTP-1, INT8 KV,
 512 MiB Device context, 1,024-token maximum context, prefill chunk 128, CUDA Graphs and prefix
 reuse disabled, one warmup, and three repetitions. Both processed 159 measured prompt tokens,
