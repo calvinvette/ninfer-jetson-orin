@@ -308,8 +308,10 @@ schedule/oracle run.
 - Storage diagnosis: the 4 TB Seagate FireCuda 530 (`SU6SM001`) reports no critical warning,
   100% spare, 0 media errors, and 44 C after the latest run. PCIe is 16 GT/s ×4 with ASPM disabled.
   A temporary APST-disable run still logged NVMe I/O timeouts; APST and its original PS3/PS4
-  transition table have been restored. This rules out APST as a sufficient explanation but does
-  not identify the timeout source.
+  transition table have been restored. In that run the 64-token text parity case passed, then one
+  three-request cohort submission expired while waiting for admission after an NVMe timeout. APST
+  alone therefore does not explain the storage stalls, and the cohort result remains qualified by
+  its earlier successful run rather than this repeat. The timeout source is still unidentified.
 - Graph execution beyond the one-token smoke is now verified with text MTP through 128 tokens,
   image MTP through 32 tokens, video MTP through 35 generated tokens, a three-request MTP cohort,
   and a file-backed mixed-media Decode step. These are correctness/smoke checks; stable end-to-end
