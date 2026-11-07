@@ -405,6 +405,15 @@ input snapshots, so they do not establish a narrower cause. The `Hello` result l
 greedy-correctness failure open and shows that the `hi` HC qualification does not generalize;
 MTP correctness remains unqualified.
 
+A follow-up trace in the active Qwen4Exp executor compared the same anchor token (1596) in serial
+decode and the first MTP verify column. At layer 4, the HC mixer input already had different
+per-column activation hashes, and the GDN output and subsequent residual also differed. This
+places the discrepancy before layer 4's GDN and does not identify GDN as its cause. A trial that
+used the serial GEMV reduction for every short block-HC window (one GEMV launch per column)
+passed the HC oracle cases at M=5, 48, and 49, but left the `Hello` MTP-4 output and acceptance
+unchanged. That route and all trace instrumentation were reverted; no performance result was
+collected for the trial.
+
 The disk schedule runs eagerly: CUDA Graph capture is disabled for this route until stable
 cache contents and graph replay are supported. Numerical comparison of a real layer against
 an independent oracle, MTP acceptance/commit and state-restoration qualification, Vision,
