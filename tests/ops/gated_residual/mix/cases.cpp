@@ -3,6 +3,7 @@
 #include "core/decode_graph.h"
 
 namespace {
+using namespace ninfer::test;
 using namespace ninfer;
 using namespace ninfer::test::hc::mix;
 
@@ -32,6 +33,43 @@ int run(Weights& weights, std::span<const float> catalog, std::span<const Column
         failed += verify(f, next_ref, label + " changed input") + f.check(label + " changed input");
     }
     return failed;
+}
+
+int serial_column_parity() {
+    Weights weights(Kind::Block, Pattern::Dense);
+    const auto catalog = input_catalog(Pattern::Dense);
+    const auto ref     = reference(weights, catalog);
+    const auto cuda    = cuda_environment().context.execution_view();
+    Fixture batched(weights, 5), serial(weights, 1);
+    batched.upload(catalog, cuda.stream());
+    batched.invoke(cuda);
+    cuda_synchronize(cuda.stream());
+    int failed = verify(batched, ref, "block-mix serial-column parity M=5");
+    const auto batch_output = from_device<std::uint16_t>(batched.x.data, std::size_t(kWidth) * 5);
+    const auto batch_injection = from_device<float>(batched.j.data, std::size_t(kStreams) * 5);
+    for (int column = 0; column < 5; ++column) {
+        const auto input = std::span{catalog}.subspan(std::size_t(column) * kTotal, kTotal);
+        serial.upload(input, cuda.stream());
+        serial.invoke(cuda);
+        cuda_synchronize(cuda.stream());
+        failed += verify(serial, std::span{&ref[column], 1},
+                         "block-mix serial-column oracle column=" + std::to_string(column));
+        const auto serial_output = from_device<std::uint16_t>(serial.x.data, kWidth);
+        const auto serial_injection = from_device<float>(serial.j.data, kStreams);
+        const std::vector<std::uint16_t> expected_output(
+            batch_output.begin() + std::size_t(column) * kWidth,
+            batch_output.begin() + std::size_t(column + 1) * kWidth);
+        const std::vector<float> expected_injection(
+            batch_injection.begin() + std::size_t(column) * kStreams,
+            batch_injection.begin() + std::size_t(column + 1) * kStreams);
+        failed += verify_exact(("block-mix serial output column=" + std::to_string(column)).c_str(),
+                               serial_output, expected_output);
+        failed += verify_exact(
+            ("block-mix serial injection column=" + std::to_string(column)).c_str(),
+            serial_injection, expected_injection);
+        failed += serial.check("block-mix serial-column parity");
+    }
+    return failed + batched.check("block-mix batched serial-column parity");
 }
 
 } // namespace
@@ -94,5 +132,6 @@ void add_mix_cases(OpSuite& suite) {
             });
         }
     }
+    suite.add("block-mix/serial-column-parity/m5", [] { return serial_column_parity(); });
 }
 } // namespace ninfer::test::hc

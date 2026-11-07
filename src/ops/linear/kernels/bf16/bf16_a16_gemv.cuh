@@ -210,13 +210,15 @@ __launch_bounds__(Schedule::kThreads, Schedule::kMinBlocksPerSm) void bf16_a16_g
     const __nv_bfloat16* __restrict__ x, const __nv_bfloat16* __restrict__ weight, Output output,
     Epilogue epilogue, int input_rows) {
     const int K = Schedule::kStaticK ? Schedule::kStaticK : input_rows;
+    const int token = static_cast<int>(blockIdx.y);
+    const __nv_bfloat16* token_x = x + static_cast<std::int64_t>(token) * K;
 
     __shared__ Bf16GemvSharedStorage<Schedule> shared;
-    const __nv_bfloat16* activation = x;
+    const __nv_bfloat16* activation = token_x;
     if constexpr (Schedule::kActivationAccess == Bf16ActivationAccess::Shared) {
         extern __shared__ __align__(16) unsigned char activation_raw[];
         auto* destination  = reinterpret_cast<Bf16GemvPack<8>*>(activation_raw);
-        const auto* source = reinterpret_cast<const Bf16GemvPack<8>*>(x);
+        const auto* source = reinterpret_cast<const Bf16GemvPack<8>*>(token_x);
         for (int pack = threadIdx.x; pack < K / 8; pack += Schedule::kThreads)
             destination[pack] = source[pack];
         __syncthreads();
@@ -232,7 +234,8 @@ __launch_bounds__(Schedule::kThreads, Schedule::kMinBlocksPerSm) void bf16_a16_g
     const auto destination = linear_output_tile<Schedule::kBlockRows>(output, cta_row0);
     float accumulators[Schedule::kRowsPerWarp][Schedule::kAccumulatorChains] = {};
 
-    compute_bf16_gemv_rows<Schedule>(activation, weight, row0, warp_in_row, lane, accumulators, K);
+    compute_bf16_gemv_rows<Schedule>(activation, weight, row0, warp_in_row, lane, accumulators,
+                                     K);
 
     float warp_totals[Schedule::kRowsPerWarp];
 #pragma unroll
@@ -250,7 +253,7 @@ __launch_bounds__(Schedule::kThreads, Schedule::kMinBlocksPerSm) void bf16_a16_g
 #pragma unroll
             for (int local_row = 0; local_row < Schedule::kRowsPerWarp; ++local_row) {
                 const float values[]{warp_totals[local_row]};
-                linear_finish_row(destination, epilogue, row0 + local_row, 0, values, 1);
+                linear_finish_row(destination, epilogue, row0 + local_row, token, values, 1);
             }
         }
     } else {
@@ -270,7 +273,7 @@ __launch_bounds__(Schedule::kThreads, Schedule::kMinBlocksPerSm) void bf16_a16_g
                 const float total   = common::warp_reduce_sum(partial);
                 if (lane == 0) {
                     const float values[]{total};
-                    linear_finish_row(destination, epilogue, row0 + local_row, 0, values, 1);
+                    linear_finish_row(destination, epilogue, row0 + local_row, token, values, 1);
                 }
             }
         }

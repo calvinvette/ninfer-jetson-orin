@@ -15,7 +15,7 @@ constexpr std::array block_routes{
     // FP32 injections feed the BF16 Hyper-Connection residual update. Keep short
     // speculative windows on the non-split-K projection route so its per-column
     // reduction does not change when one request is verified as a token window.
-    Route{2, 48, {Down::Simt, Up::Folded16x16}},
+    Route{2, 48, {Down::Gemv, Up::Folded16x16}},
     Route{49, kLast, {Down::Split8x32, Up::Folded32x32}},
 };
 constexpr std::array final_routes{

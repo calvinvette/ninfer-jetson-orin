@@ -30,6 +30,23 @@ using DownSimt = Bf16ScheduleInstance<
                         Bf16WeightCache::Default, Bf16PhaseOrder::Sequential, 1, 4, 1, 2, 2>,
     kResidualWidth>;
 
+template <class Schedule, class Output>
+void launch_batched_gemv(const Bf16A16Operands& p, Output output, cudaStream_t stream) {
+    static_assert(Schedule::kActivationAccess == Bf16ActivationAccess::Direct);
+    validate_bf16_operands<Schedule>(p);
+    constexpr int kValuesPerTile = bf16_predicated_k<Schedule>
+                                       ? (Schedule::kValuesPerLane < 8
+                                              ? 8
+                                              : Schedule::kValuesPerLane)
+                                       : Schedule::kWarpsPerRow * 32 * Schedule::kValuesPerLane;
+    if (p.rows % Schedule::kBlockRows || p.k % kValuesPerTile)
+        throw std::invalid_argument("BF16 batched GEMV requires complete row/K tiles");
+    constexpr auto kernel = bf16_a16_gemv_kernel<Schedule, Output, LinearIdentityEpilogue>;
+    kernel<<<dim3(p.rows / Schedule::kBlockRows, p.tokens), Schedule::kThreads, 0, stream>>>(
+        p.x, p.weight, output, LinearIdentityEpilogue{}, p.k);
+    CUDA_CHECK(cudaGetLastError());
+}
+
 template <Kind Form>
 void down(Operands o, Down schedule, Scratch scratch, cudaStream_t stream) {
     const Bf16A16Operands p{static_cast<const __nv_bfloat16*>(o.normalized),
@@ -41,7 +58,10 @@ void down(Operands o, Down schedule, Scratch scratch, cudaStream_t stream) {
                                        scratch.partials.bytes};
     switch (schedule) {
     case Down::Gemv:
-        launch_bf16_a16_gemv<DownGemv>(p, output, identity, stream);
+        if (p.tokens == 1)
+            launch_bf16_a16_gemv<DownGemv>(p, output, identity, stream);
+        else
+            launch_batched_gemv<DownGemv>(p, output, stream);
         break;
     case Down::Simt:
         launch_bf16_a16_simt<DownSimt>(p, output, identity, stream);
