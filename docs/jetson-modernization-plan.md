@@ -722,15 +722,18 @@ by `ninfer_ple_disk_prepare_pair_test` on a deterministic disk-backed fixture; t
 also passed directly against `qwen3_8_flash_next.ninfer`. A later layerwise trace found that, for
 position 63 in the MTP-1 `Hello` comparison, QSA layer 3 receives bit-identical normalized input
 and projection tensors. Its active selected block IDs and counts also match. The sampled active
-main-cache page matched byte-for-byte, while the sparse-attention output differed in 495 of 12,288
-bytes. The subsequent QSA output differed in 953 of 5,120 bytes. The cache inspection covered
-only that sampled page, so it does not establish that all referenced pages, table metadata, and
-valid-column metadata match. A separate state trace found compact GDN layers 0–2 matched at every
+main-cache page matched byte-for-byte, while the cross-run sparse-attention output differed in 495
+of 12,288 bytes. The subsequent QSA output differed in 953 of 5,120 bytes. A same-call diagnostic
+then reran the verify column as T=1 against the exact same query, gate, cache, positions, selection,
+and metadata; all 6,144 BF16 attention-output values matched the T=2 result. Thus batch shape by
+itself does not explain the QSA difference. The cross-run cache inspection covered only one
+sampled page, so it does not establish that all referenced pages, table metadata, and valid-column
+metadata match. A separate state trace found compact GDN layers 0–2 matched at every
 sampled frontier and compact GDN layer 3 first differed at position 64 in convolution and
 recurrent state; this is downstream of the observed layer-3 QSA output divergence. A temporary
 experiment that ran verify columns through the single-column QSA route did not restore parity and
-has been removed. The current evidence localizes an early discrepancy to QSA sparse attention,
-but does not yet distinguish its cache addressing/metadata from its arithmetic route. No cause or
+has been removed. Current evidence points to a cross-run difference in effective cache/state or
+metadata consumed by QSA; it does not yet identify which value first differs. No cause or
 correctness fix is claimed.
 
 The standalone expert-cache benchmark was run on the real artifact's first MoE layer
