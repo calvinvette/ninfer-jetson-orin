@@ -788,6 +788,14 @@ expert payload is read with O_DIRECT, and the benchmark reports payload-transfer
 than aligned physical device bytes. Both repetitions still staged substantial weight data, so a
 warm request does not make the expert bank resident.
 
+The public Engine also completed `examples/cli/messages/mixed_image_video.json` on the same
+artifact with Vision enabled, a 2 GiB Vision budget, 2 GiB Device context, INT8 KV, 1,024-token
+prefill chunks, eager execution, and an eight-token output budget. The 1,615-token mixed image/video
+prompt generated `NIFER-9` and stopped on the model stop token; end-to-end time was 413.1 s. The
+six Vision stream intervals totaled 1.20 s (200 ms mean). This exercises mixed image/video prompt
+construction and inference through the public Engine. It is a functionality smoke, not a Vision
+numerical-oracle, long-video, multi-request, or Vision-throughput qualification.
+
 The Orin feature branch was rebased from `a754fcf3` onto the fetched `Neroued/ninfer` `dev`
 revision `62674bae` in an isolated worktree. This exposed upstream API drift in matrix-scale
 metadata, newer Blackwell BF16 pair schedules, and MXFP8/SwiGLU source registration. The rebase
