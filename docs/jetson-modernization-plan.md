@@ -567,6 +567,15 @@ This route makes the PLE projection arithmetic serial-shaped, but does not resto
 equivalence; it shifts the failure earlier. I reverted the experiment. The PLE batch-shape delta
 is therefore not a sufficient fix, and MTP remains unqualified for long-horizon generation.
 
+I traced that temporary route's first generated mismatch at position 59 through the target
+forward. Its post-PLE residual matched the serial path, as did the layer 7 pre-mix normalization,
+QSA input, and QSA injection for token 328. The first difference was layer 7 QSA output: 782 of
+2,560 BF16 values differed for that token. Differences then propagated through the attention
+residual, normalization, and MoE input. This localizes the remaining discrepancy in that experiment
+to the QSA forward (or its use of state), rather than PLE history or earlier layers. The trace was
+diagnostic, used synchronized device-to-host captures, and has been removed; it does not establish
+which QSA operation causes the drift or qualify the route.
+
 The artifact was measured at MAXN with CPU/GPU/EMC pinned to 2,201.6/1,300.5/3,199 MHz, INT8 KV,
 a 512 MiB context reservation, 1,024 maximum context, 128-token prefill chunks, CUDA Graphs and
 prefix reuse disabled, one `hi` request, greedy seed 0, and nine output tokens (eight decode
