@@ -204,12 +204,15 @@ tokens, output `NIFER-9`), text prefix reuse, and repeated image prefix reuse. T
 request took 413.1 s and exercised six Vision stream intervals totaling 1.20 s. Five focused CUDA
 oracle suites pass on Orin for Vision constituent Ops, including packed BF16 attention at
 head-dimension 72 / 16 heads, 2D RoPE with the same geometry, 1152-wide position interpolation,
-1152-wide layer normalization, and GELU. A composed encoder test also passes an independent FP64
+1152-wide layer normalization, and GELU. A composed encoder test passes an independent FP64
 reference through all 27 Vision layers at artifact geometry (hidden 1152, intermediate 4304, patch
-width 1536, merger width 4608, output width 2560), with two separate four-patch image segments. It
-uses one deterministic synthetic BF16 block repeated across the layers; relative L2 is 0.00963 and
-maximum absolute error is 0.02344. The artifact's distinct learned Vision weights have not been
-compared to an oracle, and Vision throughput is not qualified. File-backed expert execution still
+width 1536, merger width 4608, output width 2560), with two separate four-patch image segments.
+With one deterministic synthetic BF16 block repeated across layers, relative L2 is 0.00963 and
+maximum absolute error is 0.02344. The same oracle also loads the artifact's distinct learned BF16
+Vision weights and passes the full 27-layer encoder for one four-patch feature: relative L2 is
+0.03122 and maximum absolute error is 0.00586. The test compares the final represented BF16 output
+with the independent FP64 computation and uses relative-L2 <= 0.04 and max-absolute <= 0.01
+acceptance criteria. Vision throughput is not qualified. File-backed expert execution still
 disables CUDA Graph capture because its host-side expert selection/cache updates lack a supported
 captured-address update path. Graph replay for this route remains open.
 
@@ -217,9 +220,8 @@ captured-address update path. Graph replay for this route remains open.
 
 - Qualify broader MTP acceptance/commit and state restoration across prompts, output horizons,
   fallback boundaries, Vision, and larger concurrent cohorts.
-- Compare the composed Qwen Vision encoder with the artifact's distinct learned weights against an
-  independent numerical oracle, and measure the mixed-media path separately from expert-storage
-  latency.
+- Measure the mixed-media path separately from expert-storage latency; Vision numerical oracle
+  qualification now covers all distinct artifact Vision weights at one four-patch feature.
 - Distinguish SSD/controller cache state for physical cold/warm storage measurements; `O_DIRECT`
   isolates requests from the host page cache but does not flush or measure device caches.
 - Implement or otherwise qualify a stable CUDA Graph update route for file-backed expert staging,
