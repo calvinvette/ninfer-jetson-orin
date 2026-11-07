@@ -543,16 +543,27 @@ tie-sensitive numerical difference in the batched target forward; it is not evid
 accept/commit defect. The long-horizon route remains unqualified, and the accepted-state comparison
 and a full-route numerical criterion remain open.
 
-The same artifact and prompt were then measured at MAXN with fixed CPU/GPU/EMC clocks of
-2,201.6/1,300.5/3,199 MHz, INT8 KV, a 512 MiB context reservation, 1,024 maximum context, 128
-prefill chunk, CUDA Graphs and prefix reuse disabled, one request, and nine output tokens (eight
-decode tokens). One warmup and three measured repetitions gave MTP-off means of 3.62 prefill /
-1.62 decode tok/s. MTP-4 gave 3.55 / 1.23 tok/s, accepting 5/7 drafts each repetition without
-fallback. The first MTP-4 request in a fresh process measured 2.47 / 1.30 tok/s, 21.48 s to first
-token, and 26.48 GB of expert uploads; warmed repetitions measured 24.07 GB of uploads each.
-Weights used 9.42 GiB and the bounded main-expert cache was 5.27 GiB. This gives a reproducible
-short-run storage benchmark, not a throughput win: MTP-4 was slower than MTP-off for this prompt
-and workload, and the upload counters do not isolate sustained drive bandwidth.
+The artifact was measured at MAXN with CPU/GPU/EMC pinned to 2,201.6/1,300.5/3,199 MHz, INT8 KV,
+a 512 MiB context reservation, 1,024 maximum context, 128-token prefill chunks, CUDA Graphs and
+prefix reuse disabled, one `hi` request, greedy seed 0, and nine output tokens (eight decode
+tokens). Each run used one warmup and three measured repetitions. `tegrastats` sampled the runs;
+GPU temperature peaked at 53.6 C, GPU frequency sampled 1,275–1,300 MHz, and EMC stayed at
+3,199 MHz. The MTP-off repetitions were stable at 3.43–3.48 prefill / 1.60–1.63 decode tok/s.
+
+| Backend | Aggregate prefill/decode tok/s | Draft acceptance | Expert uploads per repetition | Timing behavior |
+| --- | ---: | ---: | ---: | --- |
+| MTP off | 3.44 / 1.62 | — | 22.54 GB | Stable TTFT: 15.2–15.5 s |
+| MTP-2 | 1.29 / 0.23 | 5/5 | 22.65 GB | Two of three runs stalled: TTFT 37.6/70.7 s and generation 95.4 s; final run 3.44 / 1.58 tok/s. An earlier run's two warmed repetitions were 3.57–3.58 / 1.62–1.66 tok/s. |
+| MTP-3 | 3.44 / 1.35 | 5/7 | 23.36 GB | Stable TTFT: 15.2–15.7 s; generation 5.9–6.0 s |
+| MTP-4 | 2.90 / 1.28 | 5/7 | 24.07 GB | Two runs 3.62–3.64 / 1.25–1.33 tok/s; one TTFT outlier at 25.7 s |
+
+The MTP-2 aggregate is dominated by two large timing stalls despite fixed clocks, cool
+temperatures, unchanged 22.65 GB upload counts, and ample host memory. The available evidence
+does not identify whether these stalls come from file-backed expert service or another host-side
+wait, so MTP-2 performance remains inconclusive. MTP-3 and MTP-4 are slower than MTP-off for this
+short request despite draft acceptance; the upload counters establish transfer volume but do not
+isolate sustained drive bandwidth. Do not select a speculative window from these short-run numbers
+alone.
 
 The public Engine also completed an image-grounded Vision request from
 `examples/cli/messages/image_chart.json` with the same artifact, INT8 KV, 512 MiB context, and
