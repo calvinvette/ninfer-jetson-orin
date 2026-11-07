@@ -577,6 +577,19 @@ prefill, so it is not retained. The original intermittent MTP-2 stalls remain un
 MTP-4 remain slower than MTP-off for this short request despite draft acceptance. Do not select a
 speculative window from these short-run numbers alone.
 
+I also measured one no-warmup MTP-2 request immediately after `sync` and
+`vm.drop_caches=3`, then repeated it without clearing host caches. On the
+FireCuda 530 NVMe, cold/warm wall times were 23.13/22.82 s, cache planning was
+18.96/19.22 s, submit time was 0.145 s in both runs, and each request uploaded
+25.07 GB of expert data. The whole-device NVMe read counter advanced by
+35.55/35.29 GB during the respective benchmark processes. The counter includes
+all device reads during process startup and inference, not only expert ranges;
+the extra traffic is consistent with loading the 9.42 GiB resident model. The
+expert backing uses direct I/O, so dropping or warming the Linux page cache did
+not materially change this run. This closes the cold/warm storage measurement
+for this short request, not sustained-drive characterization or cache behavior
+across longer prompts and multiple requests.
+
 The public Engine also completed an image-grounded Vision request from
 `examples/cli/messages/image_chart.json` with the same artifact, INT8 KV, 512 MiB context, and
 CUDA Graphs disabled. The fixture asks for the chart title, red-circle count, and square/triangle
