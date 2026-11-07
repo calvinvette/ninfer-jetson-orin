@@ -197,7 +197,13 @@ forest at sunrise” matched exactly with MTP-4 (38 drafted, 21 accepted, no fal
 the previously reproduced token-13 and token-32 mismatches for the tested cases. A separate
 64-token arithmetic explanation prompt matched with MTP-2 (81 drafted, 21 accepted, one fallback).
 The `hi` prompt also matched through 256 output tokens with MTP-4 (236 drafted, 195 accepted,
-no fallback). Other prompts and horizons above 256 remain unqualified.
+no fallback). Other prompts and horizons above 256 remain unqualified. A follow-up on a new prompt
+with a five-token draft window did not complete: 512-token and then 128-token serial/MTP comparisons
+remained in direct artifact reads and were stopped before producing token results. During both
+attempts the kernel logged repeated NVMe I/O timeouts on `nvme0n1`; SMART reported 0 media errors,
+51 C, and 90 error-log entries. These runs are inconclusive, not parity failures. Further long-
+horizon artifact tests need a stable storage run; the previous parity evidence remains valid for
+its recorded prompts and horizons.
 
 The public Engine completes a single-image request, a mixed image/video fixture (1,615 prompt
 tokens, output `NIFER-9`), text prefix reuse, and repeated image prefix reuse. The mixed-media
