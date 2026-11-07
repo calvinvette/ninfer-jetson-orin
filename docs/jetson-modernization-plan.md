@@ -512,14 +512,19 @@ finite gross-error bound). The PLE gate and convolution then produce small downs
 layer 1's normalized input differs in 13 BF16 words and its HC mix output supplied to GDN differs
 in 26 words (maximum absolute difference 0.0078125, mean 6.91e-6). The GDN output differs in 791
 BF16 words (maximum absolute difference 0.001953125). This is consistent with batch-shape
-rounding in the PLE projection and does not establish an Op correctness failure. Real-artifact PLE
-gate/conv oracle qualification and committed-state comparison remain open.
+rounding in the PLE projection and does not establish an Op correctness failure. The real
+Flash-Next artifact's BF16 PLE gate norms and convolution kernel, together with layer 1's BF16
+attention-HC norm, now pass the gate and convolution Ops' independent FP64 fixture oracles at
+T=3, B=1. This qualifies the real-artifact weight bindings and Op arithmetic; it does not close
+the committed-state comparison or explain the observed full-route state divergence.
 
 The existing SM87 `ninfer_gated_residual_test` passed in 315.69 s. It checks HC Mix against its
 independent mathematical oracle and includes exact serial-column parity for a five-column fixture;
 the fixture weights do not replace real-artifact weight qualification.
-The SM87 `ninfer_ple_test` also passed in 50.81 s; real-artifact PLE state/record qualification
-remains open.
+The SM87 `ninfer_ple_test` also passed in 50.81 s. The real-artifact streaming loading test now
+reports `PASS Flash-Next real PLE gate FP64 oracle` and
+`PASS Flash-Next real PLE convolution FP64 oracle`; its separate real NVFP4 MoE oracle still passes.
+PLE committed-state and record-window behavior in a model execution remain open.
 The BF16 linear projection oracle case for the exact PLE geometry (N=12,800, K=2,560, M=8) passed
 in 1.25 s. A separate FP64 calculation over the actual artifact input/weights/output passed for
 both M=1 and M=5 as described above.
