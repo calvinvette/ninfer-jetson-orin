@@ -736,8 +736,15 @@ INT8-G64; oracle cases at history 64 and 65 pass for both formats. The real Flas
 MTP regression now matches all 33 generated tokens for both draft windows 1 and 4 (17/15 and
 34/23 drafted/accepted, respectively; no fallback). This closes the reproduced `Hello` mismatch.
 Other prompts, acceptance/state-restoration boundaries, fallback, Vision, and multi-request MTP
-remain unqualified. This route change has not yet received an isolated or end-to-end performance
-comparison.
+remain unqualified. A matched public-Engine benchmark compared the old and Orin route policies on
+the same warm-cache Flash-Next artifact, `Hello` request, greedy 33-token budget, MTP-1, INT8 KV,
+512 MiB Device context, 1,024-token maximum context, prefill chunk 128, CUDA Graphs and prefix
+reuse disabled, one warmup, and three repetitions. Both processed 159 measured prompt tokens,
+committed 84 decode tokens, accepted 39/45 drafts, and had no fallback. At MAXN fixed clocks
+(CPU 2.2016 GHz, GPU 1.3005 GHz, EMC 3.199 GHz; GPU temperature peaked near 48 C), the old
+policy averaged 3.546 prefill / 1.830 decode tok/s and the Orin policy 3.489 / 1.811 tok/s. The
+about 1.6% prefill and 1.0% decode differences are within three-run variation; this comparison
+shows no material performance change and does not establish a speedup.
 
 A separate state trace found compact GDN layers 0–2 matched at every sampled frontier, while
 compact GDN layer 3 first differed at position 64 in convolution and recurrent state. That state
