@@ -489,6 +489,15 @@ deltas are invalid and no state diagnosis follows from them. The exact verify-lo
 state comparison at the thirteenth-token boundary remains open. The multi-request short test remains
 passing; long-horizon MTP state and verify correctness remain open before MTP qualification.
 
+A later layer-tagged trace used explicit stream synchronization before device-to-host copies. It
+shows GDN state index 0 bit-identical through all captured stages for the first five serial/verify
+columns. GDN state index 1 inputs match for positions 53 and 54; the first observed activation
+difference is its input for token 310 at position 55 (26 of 2,560 BF16 words, maximum absolute
+difference 0.0078125). The corresponding state-1 output difference is downstream of that input.
+Earlier unsynchronized GDN/QSA diagnostic copies are discarded. A broader text-boundary capture
+did not establish a reliable layer-0-to-layer-1 handoff comparison, so the source transition and
+the verify-logit/committed-state boundary remain open; this trace does not identify a root cause.
+
 The same artifact and prompt were then measured at MAXN with fixed CPU/GPU/EMC clocks of
 2,201.6/1,300.5/3,199 MHz, INT8 KV, a 512 MiB context reservation, 1,024 maximum context, 128
 prefill chunk, CUDA Graphs and prefix reuse disabled, one request, and nine output tokens (eight
