@@ -478,10 +478,12 @@ output budget found a later continuation mismatch. MTP-off emits
 divergence is the thirteenth emitted token, after three MTP-4 rounds each accepted three drafts;
 the run reports 15 drafted, 11 accepted (`3,3,3,2` by position), and no fallback. MTP-2 also
 diverges at that same token, reporting 11 drafted, eight accepted (`4,4` by position), and one
-fallback. Both used the same real Flash-Next artifact on SM87/JP6 CUDA 12.6. This points to a
-continuation/state error after repeated accepted commits, not one draft-window-specific verify
-shape. The multi-request short test remains passing; long-horizon MTP state and verify correctness
-remain open and must be fixed before qualifying MTP.
+fallback. Both used the same real Flash-Next artifact on SM87/JP6 CUDA 12.6. This does not yet
+establish a continuation/state defect: earlier traces found batch-shape-dependent target logits
+before commit, and the accepted-prefix selection matched the serial path in the first traced
+round. Compare the target verify logits and committed state against serial decode at this exact
+thirteenth-token boundary before attributing the cause. The multi-request short test remains
+passing; long-horizon MTP state and verify correctness remain open before MTP qualification.
 
 The same artifact and prompt were then measured at MAXN with fixed CPU/GPU/EMC clocks of
 2,201.6/1,300.5/3,199 MHz, INT8 KV, a 512 MiB context reservation, 1,024 maximum context, 128
