@@ -525,6 +525,15 @@ T=1, 3, and 5 (B=1), covering serial and MTP verify widths. This qualifies the r
 weight bindings and Op arithmetic; it does not close the full-route committed-state comparison or
 explain the observed state divergence.
 
+The same real-artifact check now qualifies the first main QSA layer's `query_gate` and
+`kv_index` projections. It copies each registered weight's actual encoded planes and compares
+sampled output rows at T=1 and T=5 with an independent FP64 linear oracle over decoded artifact
+weights and BF16 inputs. Both pass the A16 criterion: query/gate relative L2 0.00164887 (maximum
+absolute error 0.000451797), and KV/index relative L2 0.00165873 (maximum absolute error
+0.000820175). Every first-column BF16 projection value matches between T=1 and T=5 for these
+fixtures. This closes the representative artifact-bound QSA input-projection arithmetic check;
+the full QSA state/attention path and general MTP state-restoration gates remain separate.
+
 The existing SM87 `ninfer_gated_residual_test` passed in 315.69 s. It checks HC Mix against its
 independent mathematical oracle and includes exact serial-column parity for a five-column fixture;
 the fixture weights do not replace real-artifact weight qualification.
@@ -687,8 +696,9 @@ The SM87 NVFP4 projection suite passed (`ninfer_linear_projection_nvfp4_test`). 
 MoE suite also passed (`ninfer_moe_block_scaled_test`), including its complete NVFP4 routes at
 H=2,560, I=640, E=512, top-k=10. That suite checks the route against an independent FP64 oracle
 over decoded NVFP4 weights. This qualifies representative NVFP4 projection and expert arithmetic
-on SM87; it does not replace a comparison of a real Flash-Next layer and its artifact-bound
-metadata against an independent oracle. General MTP acceptance/commit and state-restoration
+on SM87. Together with the real-artifact PLE and QSA projection checks recorded above, the input
+projections and state Ops have representative artifact-bound oracle coverage; complete model-route
+and state qualification remains open. General MTP acceptance/commit and state-restoration
 qualification across prompts and verify extents remains open; the recorded real-artifact checks
 cover one exact 64-token greedy request and the two-request cohort. Broader Vision and prefix-reuse
 behavior and graph capture remain open. The matched original-model performance matrix is recorded
