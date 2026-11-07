@@ -565,10 +565,17 @@ reported 17.28–22.50 s in planning and 0.133–0.134 s in submission per repet
 uploaded each time. In this file-backed route, planning includes `read_range` direct I/O into pinned
 staging, while submission queues the staged device transfers. This identifies synchronous expert
 reads as a major cache-service cost, although these measurements alone do not prove they cause the
-intermittent generation stalls. Moving file reads off the inference caller is the next performance
-candidate; it needs a controlled end-to-end comparison that preserves route/cache publication and
-buffer lifetime semantics. MTP-3 and MTP-4 remain slower than MTP-off for this short request despite
-draft acceptance. Do not select a speculative window from these short-run numbers alone.
+intermittent generation stalls.
+
+I tested moving range reads to a bounded worker pool on the same artifact and workload, preserving
+the cache's rule that entries publish only after upload completion. Four concurrent readers produced
+TTFTs of 6.59, 36.39, and 36.33 s; one reader produced 14.67, 27.33, and 42.56 s. Their cache read
+times varied from 5.96 to 44.76 s. I removed this implementation after the matched synchronous
+control completed three stable repetitions: 19.87, 20.37, and 20.16 s total, with 14.69–15.26 s
+TTFT. The asynchronous approach has no repeatable end-to-end gain and can substantially regress
+prefill, so it is not retained. The original intermittent MTP-2 stalls remain unexplained. MTP-3 and
+MTP-4 remain slower than MTP-off for this short request despite draft acceptance. Do not select a
+speculative window from these short-run numbers alone.
 
 The public Engine also completed an image-grounded Vision request from
 `examples/cli/messages/image_chart.json` with the same artifact, INT8 KV, 512 MiB context, and
