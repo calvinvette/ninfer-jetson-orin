@@ -481,8 +481,11 @@ diverges at that same token, reporting 11 drafted, eight accepted (`4,4` by posi
 fallback. Both used the same real Flash-Next artifact on SM87/JP6 CUDA 12.6. This does not yet
 establish a continuation/state defect: earlier traces found batch-shape-dependent target logits
 before commit, and the accepted-prefix selection matched the serial path in the first traced
-round. Compare the target verify logits and committed state against serial decode at this exact
-thirteenth-token boundary before attributing the cause. The multi-request short test remains
+round. A focused first-round layer-1 GDN trace found matching control outputs, Q/K/V projections,
+normalized values, and projected outputs for the paired serial/verify columns. An initial attempt
+to compare the recurrent and Z buffers used incorrect dtype interpretation, so those apparent state
+deltas are invalid and no state diagnosis follows from them. The exact verify-logit and committed
+state comparison at the thirteenth-token boundary remains open. The multi-request short test remains
 passing; long-horizon MTP state and verify correctness remain open before MTP qualification.
 
 The same artifact and prompt were then measured at MAXN with fixed CPU/GPU/EMC clocks of
