@@ -431,6 +431,13 @@ Weights used 9.42 GiB and the bounded main-expert cache was 5.27 GiB. This gives
 short-run storage benchmark, not a throughput win: MTP-4 was slower than MTP-off for this prompt
 and workload, and the upload counters do not isolate sustained drive bandwidth.
 
+The public Engine also completed an image-grounded Vision request from
+`examples/cli/messages/image_chart.json` with the same artifact, INT8 KV, 512 MiB context, and
+CUDA Graphs disabled. The fixture asks for the chart title, red-circle count, and square/triangle
+position. The model returned `NIFER VISION 731；3；左侧`, matching the image. It processed 428
+prompt tokens and generated 14 tokens before the stop token; Vision prefill took 92.4 s. This is
+a single-image smoke, not qualification of video, multiple images, or Vision performance.
+
 The disk schedule runs eagerly: CUDA Graph capture is disabled for this route until stable
 cache contents and graph replay are supported. Numerical comparison of a real layer against
 an independent oracle, MTP acceptance/commit and state-restoration qualification, Vision,
