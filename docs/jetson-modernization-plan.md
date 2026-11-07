@@ -259,6 +259,17 @@ arithmetic contributes to accumulated state drift, while PLE state or convolutio
 differs before the failing anchor. No production change is retained; temporary instrumentation and
 the arithmetic experiment were removed, and the JP6 build completed successfully.
 
+A short-horizon three-request run then aligned an earlier anchor at position 65 (sequence 2,
+input token 1324): ordinary decode used physical row 1 / column 0 and MTP verification used row 1 /
+column 1. The ten-token cohort passed exact token parity. At this anchor, stem embedding, stem
+residual, and GDN input matched bitwise, while GDN layer-0 output first differed in 17 of 2,560
+BF16 values (relative L2 0.000196, maximum absolute difference 0.000977). Later mixer, MoE, and
+PLE inputs also differed. This localizes an early batch-versus-verify arithmetic difference to
+within or at the GDN layer-0 boundary for this anchor; it does not establish that this is the cause
+of the later position-71 mismatch. A second temporary attempt to capture GDN sub-stages did not
+produce those captures, so control projection, recurrent update, normalization, and output
+projection remain unlocalized. No code change was retained, and the source worktree is clean.
+
 A real-artifact image-conditioned MTP comparison also passed on the public Engine with Graphs
 enabled: one resized 224x224 image, 83 prompt tokens, greedy output horizon 8, and draft window 4.
 Serial and MTP generated token IDs matched exactly; MTP drafted 8 tokens, accepted 3, and took one
