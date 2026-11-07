@@ -209,11 +209,13 @@ the worker was interrupted after about 100 seconds. A shorter Graph-enabled `hi`
 with eight output tokens and draft window four: serial and MTP token IDs matched exactly, with five
 drafts, four accepted tokens, and one fallback. A second Graph-enabled case on “A small robot
 explores a forest at sunrise” matched through 32 output tokens with MTP-4 (40 drafted, 20 accepted,
-one fallback). A Graph-enabled two-request, two-row MTP cohort also matched serial generation
-exactly; the requests reported 9/4 and 5/5 drafted/accepted tokens, and the test observed a two-row
-decode step. The real-artifact test runner now accepts `NINFER_TEST_CUDA_GRAPH=1` to run the
-existing parity cases with the production Graph route. A 64-token Graph/MTP case remains
-inconclusive because the worker stalled in direct-I/O wait before returning results.
+one fallback). Graph-enabled MTP-4 also matched serial output for `hi` through 64 tokens (58
+drafted, 47 accepted, one fallback) and 128 tokens (123 drafted, 96 accepted, no fallback). A
+Graph-enabled two-request, two-row MTP cohort matched serial generation exactly; the requests
+reported 9/4 and 5/5 drafted/accepted tokens, and the test observed a two-row decode step. The
+real-artifact test runner accepts `NINFER_TEST_CUDA_GRAPH=1` to run these parity cases with the
+production Graph route. A prior 64-token attempt was inconclusive after direct-I/O stalled; a
+subsequent rerun completed and supersedes that result.
 
 A real-artifact image-conditioned MTP comparison also passed on the public Engine with Graphs
 enabled: one resized 224x224 image, 83 prompt tokens, greedy output horizon 8, and draft window 4.
@@ -281,8 +283,8 @@ schedule/oracle run.
 ### Remaining gates
 
 - Extend MTP state qualification to longer Vision/video horizons and cohorts larger than two. Text
-  Graph/MTP has exact serial parity at 8 and 32 output tokens, fallback cases, a two-request decode
-  cohort, and short image/video-conditioned runs.
+  Graph/MTP has exact serial parity through 128 output tokens, fallback cases, and a two-request
+  decode cohort; image/video-conditioned runs currently cover short horizons.
 - Repeat the public mixed-media/ExpertCache breakdown under stable storage conditions. The current
   mixed-media Graph report is one diagnostic sample with NVMe timeouts; Vision numerical and
   encoder-throughput qualification covers artifact weights at up to 64 patches.
