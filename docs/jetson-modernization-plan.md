@@ -466,7 +466,17 @@ The public Engine also completed an image-grounded Vision request from
 CUDA Graphs disabled. The fixture asks for the chart title, red-circle count, and square/triangle
 position. The model returned `NIFER VISION 731；3；左侧`, matching the image. It processed 428
 prompt tokens and generated 14 tokens before the stop token; Vision prefill took 92.4 s. This is
-a single-image smoke, not qualification of video, multiple images, or Vision performance.
+a single-image correctness smoke, not a Vision performance qualification.
+
+Two more public CLI checks used the same artifact and eager INT8-KV route, with 2 GiB each for
+Device context and the Vision budget, and a 4,096-token request limit. The documented
+`video_temporal` fixture returned `红色圆圈；3；是；9`, matching the moving red circle, green
+3, visible blue square, and final 9. It processed 1,191 prompt tokens and stopped after 12
+generated tokens; prefill took 4m32s. The `multi_image_compare` fixture returned `2；3；星形`,
+matching the two and three red circles and the new yellow star. It processed 531 prompt tokens
+and stopped after seven generated tokens; prefill took 1m54s. These establish bounded video and
+two-image inference smokes, not full input-limit, multi-request Vision, or performance
+qualification.
 
 The disk schedule runs eagerly: CUDA Graph capture is disabled for this route until stable
 cache contents and graph replay are supported. Numerical comparison of a real layer against
