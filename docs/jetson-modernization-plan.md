@@ -549,6 +549,14 @@ tie-sensitive numerical difference in the batched target forward; it is not evid
 accept/commit defect. The long-horizon route remains unqualified, and the accepted-state comparison
 and a full-route numerical criterion remain open.
 
+To isolate the observed PLE projection batch-shape difference without changing prefill, I
+temporarily made only the MTP verify path issue one single-column BF16 projection per token. The
+16-token MTP-off sequence stayed unchanged, but MTP-4 then diverged at token 9 and emitted
+`1596 1144 310 5707 310 1156 328 5834 14235 1534 4145 40719 13 198 248069 271`.
+This route makes the PLE projection arithmetic serial-shaped, but does not restore greedy
+equivalence; it shifts the failure earlier. I reverted the experiment. The PLE batch-shape delta
+is therefore not a sufficient fix, and MTP remains unqualified for long-horizon generation.
+
 The artifact was measured at MAXN with CPU/GPU/EMC pinned to 2,201.6/1,300.5/3,199 MHz, INT8 KV,
 a 512 MiB context reservation, 1,024 maximum context, 128-token prefill chunks, CUDA Graphs and
 prefix reuse disabled, one `hi` request, greedy seed 0, and nine output tokens (eight decode
