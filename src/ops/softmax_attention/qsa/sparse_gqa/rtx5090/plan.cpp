@@ -17,11 +17,11 @@ SparseGqaPlan select_sparse_gqa_plan(KvCacheStorage, int tokens, int batch, int 
         std::max<std::int64_t>(1, (std::int64_t(sms) * 3 / 4 + queries - 1) / queries);
     int splits = 1;
     while (splits < target && splits < 32) splits *= 2;
-    const bool simt = visible <= 64;
-    if (simt) splits = std::max(1, splits / 12);
     const int tiles = std::max(1, (int(std::min(visible, 2051u)) + 31) / 32);
-    return {32, std::min(splits, tiles), simt ? SparseGqaInstance::Simt : SparseGqaInstance::Mma,
-            true};
+    // Keep short-context arithmetic on MMA too. A speculative window can raise the shared
+    // visibility envelope by one token, so a per-call SIMT/MMA threshold changes the result for
+    // an otherwise identical query at that boundary.
+    return {32, std::min(splits, tiles), SparseGqaInstance::Mma, true};
 }
 
 SparseGqaLaunchPlan select_sparse_gqa_launch(const ConstPagedKVBatchLayerView& cache,

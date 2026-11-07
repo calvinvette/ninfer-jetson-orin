@@ -109,6 +109,48 @@ int run(DeviceContext& device, int t, int b, int history, bool padded = false, i
     return failures;
 }
 
+int serial_window_parity(DeviceContext& device, KvCacheStorage storage) {
+    Fixture serial(1, 1, 64, false, storage);
+    Fixture window(2, 1, 65, false, storage);
+    serial.reset();
+    window.reset();
+    const auto share_prefix_cache = [](Fixture& f) {
+        for (int page = 0; page < f.table_width; ++page)
+            f.tables[f.table_stride + page] = 1;
+        for (int token = 0; token < 64; ++token)
+            for (int head = 0; head < f.kv_heads; ++head)
+                for (int d = 0; d < 256; ++d) {
+                    const auto seed = std::uint32_t((head * 64 + token) * 256 + d);
+                    f.keys.host[f.keys.offset(d, head, token, 1)] = f32_to_bf16(sample(seed + 701));
+                    f.values.host[f.values.offset(d, head, token, 1)] =
+                        ninfer::test::qsa::sparse::half(sample(seed + 1311));
+                }
+        f.upload();
+    };
+    share_prefix_cache(serial);
+    share_prefix_cache(window);
+
+    const auto launch = [&](Fixture& f) {
+        const auto bytes = ops::qsa_sparse_gqa_workspace_capacity_bytes(
+            storage, f.q_heads, f.kv_heads, f.T, f.T, f.B, f.envelope,
+            device.execution_view().multiprocessor_count());
+        GuardedDeviceBuffer scratch(std::max<std::size_t>(bytes, 256));
+        MemoryArena arena(scratch.span().subspan(0, std::max<std::size_t>(bytes, 256)));
+        f.launch(arena, device.execution_view());
+        device.synchronize();
+        return from_device<std::uint16_t>(f.out.data(), f.qhost.size());
+    };
+    const auto expected = launch(serial);
+    const auto actual = launch(window);
+    const std::size_t column_size = 256 * serial.q_heads;
+    const auto mismatch = std::mismatch(expected.begin(), expected.begin() + column_size,
+                                        actual.begin());
+    if (mismatch.first == expected.begin() + column_size) return 0;
+    std::cerr << "serial-window QSA parity differs at BF16 element "
+              << std::distance(expected.begin(), mismatch.first) << '\n';
+    return 1;
+}
+
 int gate_rounding(DeviceContext& device, KvCacheStorage storage = KvCacheStorage::BFloat16,
                   int tokens = 1, std::uint32_t bound = 1, int query_heads = 24) {
     Fixture f(tokens, 1, 1, false, storage, false, query_heads);
@@ -438,6 +480,10 @@ void add_cases(OpSuite& suite, KvCacheStorage storage) {
         suite.add(prefix + "/" + id, [=] { return run(cuda_environment().context); },
                         {{"format", kv_cache_storage_name(storage)}, {"execution", execution}});
     };
+    if (storage == KvCacheStorage::BFloat16 || storage == KvCacheStorage::Int8Group64)
+        special("serial_window_parity", [=](auto& device) {
+            return serial_window_parity(device, storage);
+        });
     special("contract", [=](auto& device) {
         return storage == KvCacheStorage::BFloat16 ? validation(device)
                                                    : quantized_validation(device, storage);
