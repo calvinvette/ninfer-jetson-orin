@@ -576,6 +576,26 @@ to the QSA forward (or its use of state), rather than PLE history or earlier lay
 diagnostic, used synchronized device-to-host captures, and has been removed; it does not establish
 which QSA operation causes the drift or qualify the route.
 
+I then compared the same first verify column after making both projection stages serial-shaped:
+the PLE projection, and QSA's query/gate plus KV/index projections, each run one column at a time
+only for `VerifyRecords`. The serial and verify QSA query, gate, index query, sparse-attention
+output, and final QSA output were bit-identical for token 328 at position 59. Serializing only the
+QSA projections while leaving the PLE projection batched still diverged at token 13; the earlier
+PLE-only experiment diverged at token 9. With both stages serialized, the real-artifact eager
+MTP-4 run for `hi`, greedy seed 0, matched MTP-off exactly for all 32 requested output tokens. It
+also passed the existing two-request exact-parity cohort test. The source change is limited to the
+verify path. This qualifies the reproduced 32-token route, while other prompts, verify extents,
+CUDA Graph execution, and longer horizons remain open.
+
+At MAXN with CPU/GPU/EMC pinned to 2,201.6/1,300.5/3,199 MHz, I measured the exact workload with
+one warmup and three repetitions: INT8 KV, 1 GiB context reservation, 1,024 maximum context,
+128-token prefill chunks, eager execution, prefix reuse disabled, and one `hi` request capped at
+32 outputs. The serial-shaped MTP-4 candidate accepted 24 of 28 drafts over seven rounds and
+measured 1.824, 1.827, and 1.704 decode tok/s (median 1.824). The MTP-off control measured 0.349,
+1.532, and 1.592 tok/s (median 1.532); its first repetition was an outlier. The median is about
+19% higher with MTP for this workload, but the control variance and single prompt do not establish
+a general performance result.
+
 The artifact was measured at MAXN with CPU/GPU/EMC pinned to 2,201.6/1,300.5/3,199 MHz, INT8 KV,
 a 512 MiB context reservation, 1,024 maximum context, 128-token prefill chunks, CUDA Graphs and
 prefix reuse disabled, one `hi` request, greedy seed 0, and nine output tokens (eight decode
