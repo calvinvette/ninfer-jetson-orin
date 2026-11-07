@@ -42,7 +42,6 @@ Startup::plan(DeviceContext& device, const EngineOptions& options, WeightPlaceme
     const auto& schedule = host ? offload_ : disk ? disk_offload_ : offload_;
     if ((host || disk) && !schedule) return {};
     auto effective_options = options;
-    if (disk) effective_options.use_cuda_graph = false;
     auto planned = plan_execution(profile, table_->geometry(), effective_options, device, available,
                                   host || disk ? schedule : nullptr, true,
                                   available_host_bytes);
@@ -98,8 +97,6 @@ std::unique_ptr<RankProgram> create_rank_program(const execution::Parameters& p,
 GraphPreparationPlan Startup::graph_plan(const EngineOptions& options,
                                          const ExecutionPreparation& preparation) const {
     auto effective_options = options;
-    if (preparation.experts && preparation.experts->description().cache_pinned_bytes)
-        effective_options.use_cuda_graph = false;
     return describe_graph_preparation(effective_options, preparation.experts.get());
 }
 
@@ -107,8 +104,6 @@ Startup::Calibration Startup::calibrate(const execution::Parameters& parameters,
                                         DeviceContext& device, const EngineOptions& options,
                                         const ExecutionPreparation& preparation) const {
     auto effective_options = options;
-    if (preparation.experts && preparation.experts->description().cache_pinned_bytes)
-        effective_options.use_cuda_graph = false;
     return calibrate_graphs(parameters, device, effective_options, preparation.experts);
 }
 

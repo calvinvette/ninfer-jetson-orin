@@ -103,3 +103,8 @@ Resident decode 捕获连续设备主体，QSA 在图内更新本地 attention �
 状态采用保留各自依赖边界。Offload 保留 CPU expert 所需交接，Prefill、Replay 与 Vision encoder
 使用 eager。图目录和节点选择属于 [Program](../../src/models/qwen4_exp/program/)，
 不在文档维护 executable 数量或逐 shape 的分派表。
+
+文件型 NVFP4 experts 的 decode Graph 将 GPU router 与 expert compute 分成两个捕获段。Router
+段完成后把 expert IDs 交给 Host 调度，以更新有界缓存并准备文件范围；缓存就绪后，Compute 段
+在稳定的缓存视图上运行。该同步交接保留文件读取和缓存更新的所有权，同时让每段连续 GPU 工作
+保持可捕获。

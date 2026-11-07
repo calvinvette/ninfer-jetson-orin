@@ -1,6 +1,7 @@
 #include "models/common/moe/file_schedule.h"
 
 #include "core/buffer.h"
+#include "core/decode_graph.h"
 #include "core/platform.h"
 #include "core/transfer.h"
 #include "models/common/moe/execution.h"
@@ -43,6 +44,8 @@ std::vector<ExpertPlacement> placements_for(std::span<const ExpertKey> keys,
 }
 
 class FilePlan;
+class FileLayerDefinition;
+class FileLayerExecutable;
 
 class FileSchedule final : public Schedule {
 public:
@@ -66,6 +69,9 @@ public:
     const ScheduleDescription& description() const noexcept override { return description_; }
 
 private:
+    friend class FileLayerDefinition;
+    friend class FileLayerExecutable;
+
     struct Pending {
         ExpertBankId bank;
         const Tensor* hidden;
@@ -77,6 +83,8 @@ private:
     void end_activity() noexcept override;
     void begin_preparation() override;
     void end_preparation() noexcept override;
+    void route_only(ExpertBankId, const Tensor&, MemoryArena&, CudaExecutionView);
+    void prepare_from_route(ExpertBankId, std::int32_t, CudaExecutionView);
     void route_and_prepare(ExpertBankId, const Tensor&, MemoryArena&);
     bool advance();
 
@@ -102,7 +110,116 @@ private:
     std::optional<Pending> pending_;
     ExpertBankId active_bank_{};
     bool preparation_ = false;
+    bool graph_active_ = false;
 };
+
+class FileLayerDefinition final : public LayerGraphDefinition {
+public:
+    FileLayerDefinition(FileSchedule& owner, ExpertBankId bank, std::int32_t tokens)
+        : owner(owner), bank(bank), tokens(tokens) {}
+
+    std::unique_ptr<LayerGraphExecutable> instantiate() const override;
+
+    FileSchedule& owner;
+    ExpertBankId bank;
+    std::int32_t tokens;
+    DecodeGraphDefinition route, compute;
+};
+
+class FileLayerExecutable final : public LayerGraphExecutable {
+public:
+    explicit FileLayerExecutable(const FileLayerDefinition& source)
+        : owner_(source.owner), bank_(source.bank), tokens_(source.tokens),
+          execution_(source.owner.cuda_) {
+        route_.instantiate(source.route);
+        compute_.instantiate(source.compute);
+    }
+
+    void update(const LayerGraphDefinition& source) override {
+        const auto& definition = dynamic_cast<const FileLayerDefinition&>(source);
+        if (&definition.owner != &owner_ || definition.bank != bank_)
+            throw std::logic_error("file-backed Graph update changed its schedule or bank");
+        route_.update(definition.route);
+        compute_.update(definition.compute);
+        tokens_ = definition.tokens;
+    }
+
+    void upload(cudaStream_t stream) override {
+        route_.upload(stream);
+        compute_.upload(stream);
+    }
+
+    bool start(Tensor&, CudaExecutionView cuda,
+               std::function<void()> after_gpu_submit) override {
+        if (pending_ || owner_.graph_active_ || owner_.pending_)
+            throw std::logic_error("file-backed Graph layer is already active");
+        if (owner_.tokens_ != tokens_)
+            throw std::logic_error("file-backed Graph route width differs from its activity");
+        execution_ = cuda;
+        after_gpu_submit_ = std::move(after_gpu_submit);
+        route_.launch(cuda.stream());
+        owner_.prepare_from_route(bank_, tokens_, cuda);
+        owner_.graph_active_ = true;
+        pending_ = true;
+        return poll();
+    }
+
+    bool poll() override {
+        if (!pending_) return true;
+        try {
+            const auto progress = owner_.cache_.progress();
+            if (!progress.required_published) return false;
+            if (!use_) use_ = owner_.cache_.acquire(owner_.required_, execution_);
+            if (!use_) return false;
+            compute_.launch(execution_.stream());
+            owner_.cache_.release(*use_, execution_);
+            use_.reset();
+            owner_.required_.clear();
+            owner_.graph_active_ = false;
+            pending_ = false;
+            if (after_gpu_submit_) after_gpu_submit_();
+            after_gpu_submit_ = {};
+            return true;
+        } catch (...) {
+            if (use_) {
+                try { owner_.cache_.release(*use_, execution_); } catch (...) {}
+                use_.reset();
+            }
+            owner_.graph_active_ = false;
+            pending_ = false;
+            owner_.required_.clear();
+            after_gpu_submit_ = {};
+            throw;
+        }
+    }
+
+    void cancel() override {
+        if (use_) {
+            owner_.cache_.release(*use_, execution_);
+            use_.reset();
+        }
+        if (pending_) {
+            owner_.graph_active_ = false;
+            owner_.required_.clear();
+        }
+        pending_ = false;
+        after_gpu_submit_ = {};
+    }
+
+private:
+    FileSchedule& owner_;
+    ExpertBankId bank_;
+    std::int32_t tokens_;
+    DecodeGraphExecutable route_, compute_;
+    CudaExecutionView execution_;
+    std::optional<ExpertCacheUse> use_;
+    std::function<void()> after_gpu_submit_;
+    bool pending_ = false;
+};
+
+std::unique_ptr<LayerGraphExecutable> FileLayerDefinition::instantiate() const {
+    return std::make_unique<FileLayerExecutable>(*this);
+}
 
 class FilePlan final : public Plan {
 public:
@@ -230,6 +347,12 @@ FileSchedule::~FileSchedule() {
 
 void FileSchedule::route_and_prepare(ExpertBankId bank, const Tensor& hidden,
                                      MemoryArena& workspace) {
+    route_only(bank, hidden, workspace, cuda_);
+    prepare_from_route(bank, hidden.ne[1], cuda_);
+}
+
+void FileSchedule::route_only(ExpertBankId bank, const Tensor& hidden,
+                              MemoryArena& workspace, CudaExecutionView cuda) {
     if (hidden.ne[1] > route_tokens_)
         throw std::invalid_argument("file-backed MoE route exceeds its planned token capacity");
     const auto found = std::find_if(parameters_.begin(), parameters_.end(),
@@ -250,11 +373,17 @@ void FileSchedule::route_and_prepare(ExpertBankId bank, const Tensor& hidden,
         const auto bytes = ops::topk_softmax_route_workspace_capacity_bytes(route, columns, columns);
         MemoryArena scratch(workspace.alloc_bytes(bytes));
         ops::ExpertRoutes routes{ids, coefficients};
-        ops::topk_softmax_route(hidden, route, p.control, routes, shared, scratch, cuda_);
+        ops::topk_softmax_route(hidden, route, p.control, routes, shared, scratch, cuda);
     }
+}
+
+void FileSchedule::prepare_from_route(ExpertBankId bank, std::int32_t columns,
+                                      CudaExecutionView cuda) {
+    const auto id_bytes = std::size_t(top_k_) * columns * sizeof(std::int32_t);
+    Tensor ids(route_ids_.span().subspan(0, id_bytes), DType::I32, {top_k_, columns});
     copy_bytes_async(host_route_ids_.span().subspan(0, id_bytes),
-                     MemorySpan{ids.data, ids.bytes(), ids.device}, cuda_);
-    CUDA_CHECK(cudaStreamSynchronize(cuda_.stream()));
+                     MemorySpan{ids.data, ids.bytes(), ids.device}, cuda);
+    CUDA_CHECK(cudaStreamSynchronize(cuda.stream()));
     const auto* ids_host = static_cast<const std::int32_t*>(host_route_ids_.data());
     required_ = routed_keys(bank, {ids_host, std::size_t(top_k_) * columns}, top_k_, columns);
     if (required_.empty()) throw std::logic_error("GPU router selected no experts");
@@ -352,11 +481,36 @@ void FileSchedule::cancel() {
 }
 
 std::shared_ptr<const LayerGraphDefinition>
-FileSchedule::capture_layer(ExpertBankId, CudaExecutionView, std::int32_t,
-                            const std::function<void()>&, const GpuBody&,
-                            const std::function<void()>&,
-                            const std::shared_ptr<const LayerGraphDefinition>&) {
-    throw std::logic_error("file-backed expert schedule does not capture CUDA Graphs");
+FileSchedule::capture_layer(ExpertBankId bank, CudaExecutionView cuda, std::int32_t tokens,
+                            const std::function<void()>& mixer, const GpuBody& body,
+                            const std::function<void()>& feature,
+                            const std::shared_ptr<const LayerGraphDefinition>& shared) {
+    if (shared) {
+        const auto& previous = dynamic_cast<const FileLayerDefinition&>(*shared);
+        if (&previous.owner != this || previous.bank != bank)
+            throw std::logic_error("file-backed Graph sharing changed its schedule or bank");
+    }
+    const auto found = std::find_if(parameters_.begin(), parameters_.end(),
+                                    [&](const auto* p) { return p->bank == bank; });
+    if (found == parameters_.end()) throw std::invalid_argument("MoE layer is outside file schedule");
+    const auto* parameters = *found;
+    auto definition = std::make_shared<FileLayerDefinition>(*this, bank, tokens);
+    definition->route.capture(cuda.stream(), [&] {
+        mixer();
+        body([&](const Tensor& hidden, Tensor&, MemoryArena& workspace,
+                 const ops::MoeExecutionHints&) {
+            route_only(bank, hidden, workspace, cuda);
+        });
+    });
+    definition->compute.capture(cuda.stream(), [&] {
+        body([&](const Tensor& hidden, Tensor& output, MemoryArena& workspace,
+                 const ops::MoeExecutionHints& hints) {
+            ::ninfer::models::moe::execute(hidden, *parameters, cache_.view(bank),
+                                           ops::MoeEpilogue::Write, output, workspace, cuda, hints);
+        });
+        if (feature) feature();
+    });
+    return definition;
 }
 
 void FileSchedule::restore_cache_after_preparation() { synchronize(); }

@@ -810,6 +810,23 @@ int main(int argc, char** argv) {
                 run_layer(input);
                 require(schedule->uploaded_bytes() == refilled_upload,
                         "refilled real route did not remain resident for its next use");
+                auto graph_definition = schedule->capture_layer(
+                    bank, device.execution_view(), 1, [] {},
+                    [&](const models::moe::GpuCall& call) {
+                        call(hidden, output, workspace, {});
+                    },
+                    [] {}, {});
+                auto graph = graph_definition->instantiate();
+                graph->upload(device.execution_view().stream());
+                hidden_buffer.copy_from_host(alternate.data(), hidden_buffer.size());
+                bool graph_complete = graph->start(output, device.execution_view());
+                while (!graph_complete) {
+                    graph_complete = graph->poll();
+                    std::this_thread::yield();
+                }
+                schedule->synchronize();
+                require(schedule->uploaded_bytes() > refilled_upload,
+                        "file-backed Graph route did not stage its changed expert set");
                 std::vector<std::uint16_t> values(hidden_size);
                 output_buffer.copy_to_host(values.data(), output_buffer.size());
                 require(std::any_of(values.begin(), values.end(), [](auto value) {
@@ -820,7 +837,7 @@ int main(int argc, char** argv) {
                 const auto& source = disk_sources.at(bank.index);
                 const auto expected = real_nvfp4_moe_oracle(
                     parameters.text.layers.front().moe, source, source.gate_up_read,
-                    source.down_read, input);
+                    source.down_read, alternate);
                 std::vector<double> actual(values.size());
                 std::transform(values.begin(), values.end(), actual.begin(), [](auto value) {
                     return static_cast<double>(test::quantized_weight::detail::bf16_to_f32(value));
@@ -830,7 +847,7 @@ int main(int argc, char** argv) {
                     actual.data(), expected.data(), static_cast<std::int64_t>(actual.size()));
                 require(test::reduction_passes(stats, static_cast<std::int64_t>(actual.size()),
                                                criterion),
-                        "real file-backed NVFP4 MoE output differs from decoded-weight FP64 oracle");
+                        "real file-backed NVFP4 Graph MoE output differs from decoded-weight FP64 oracle");
                 std::cout << "real NVFP4 oracle rel_l2=" << stats.relative_l2
                           << " max_abs=" << stats.maximum_absolute_error << '\n';
                 std::cout << "PASS one real file-backed NVFP4 MoE layer; uploaded="
