@@ -91,16 +91,16 @@ ExpertBankSource file_source(const ExpertBankSource& original) {
     ExpertBankSource out;
     const auto bind = [&](const WeightBankView& matrix,
                           std::shared_ptr<const WeightParent>& owner,
-                          std::shared_ptr<const std::vector<float>>& divisors_owner,
+                          std::shared_ptr<const std::vector<float>>& matrix_scales_owner,
                           std::function<void(std::uint64_t, std::span<std::byte>)>& read) {
-        auto divisors = std::make_shared<std::vector<float>>(
-            matrix.parent->weight_divisors.begin(), matrix.parent->weight_divisors.end());
+        auto matrix_scales = std::make_shared<std::vector<float>>(
+            matrix.parent->matrix_scales.begin(), matrix.parent->matrix_scales.end());
         auto parent = std::make_shared<WeightParent>(WeightParent{
-            matrix.parent->geometry, Device::cpu(), nullptr, *divisors});
+            matrix.parent->geometry, Device::cpu(), nullptr, *matrix_scales});
         auto bytes = std::make_shared<std::vector<std::byte>>(matrix.parent->geometry.bytes);
         std::memcpy(bytes->data(), matrix.parent->data, bytes->size());
         owner = std::move(parent);
-        divisors_owner = std::move(divisors);
+        matrix_scales_owner = std::move(matrix_scales);
         read  = [bytes](std::uint64_t offset, std::span<std::byte> destination) {
             if (offset > bytes->size() || destination.size() > bytes->size() - offset)
                 throw std::out_of_range("file-backed test source range");
@@ -108,9 +108,9 @@ ExpertBankSource file_source(const ExpertBankSource& original) {
         };
         return bind_weight_bank_metadata(*owner, matrix.layout);
     };
-    out.gate_up = bind(original.gate_up, out.gate_up_owner, out.gate_up_divisors_owner,
+    out.gate_up = bind(original.gate_up, out.gate_up_owner, out.gate_up_matrix_scales_owner,
                        out.gate_up_read);
-    out.down = bind(original.down, out.down_owner, out.down_divisors_owner, out.down_read);
+    out.down = bind(original.down, out.down_owner, out.down_matrix_scales_owner, out.down_read);
     return out;
 }
 

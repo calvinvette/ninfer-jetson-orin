@@ -10,6 +10,8 @@
 
 #include "ops/quantized_weight.h"
 #include "ops/op_check.h"
+#include "ops/ple/gate_fixture.h"
+#include "ops/ple/conv_fixture.h"
 
 #include <algorithm>
 #include <chrono>
@@ -25,6 +27,57 @@ using namespace ninfer;
 namespace q4 = models::qwen4_exp;
 using test::artifact_fixture::require;
 constexpr std::size_t GiB = 1024ULL * 1024 * 1024;
+
+void qualify_real_ple_gate(const q4::execution::PleParameters& parameters,
+                           DeviceContext& device) {
+    using namespace test::ple;
+    GateFixture fixture(3, 1);
+    fixture.eps = parameters.gate.rms_epsilon;
+    fixture.prepare(GateSignal::Random, 0, false);
+    const auto bind_norm = [](const Tensor& source, Words& destination) {
+        require(source.dtype == DType::BF16 && source.ne[0] == H && source.ne[1] == C &&
+                    source.nb[0] == 2 && source.nb[1] == H * 2,
+                "real PLE gate norm has unexpected shape or layout");
+        const auto words = test::from_device<std::uint16_t>(source.data, H * C);
+        for (int s = 0; s < C; ++s)
+            for (int d = 0; d < H; ++d)
+                destination.host[destination.index(d, s)] = words[s * H + d];
+        destination.upload();
+    };
+    bind_norm(parameters.gate.norm_key, fixture.norm_key);
+    bind_norm(parameters.gate.norm_query, fixture.norm_query);
+    bind_norm(parameters.gate.norm_conv, fixture.norm_conv);
+    fixture.launch(device.execution_view());
+    device.synchronize();
+    require(fixture.verify("Flash-Next real PLE gate") == 0,
+            "Flash-Next real PLE gate differs from FP64 mathematical oracle");
+    std::cout << "PASS Flash-Next real PLE gate FP64 oracle\n";
+}
+
+void qualify_real_ple_conv(const Tensor& convolution, const Tensor& next_norm,
+                           DeviceContext& device) {
+    using namespace test::ple;
+    ConvFixture fixture(3, 1);
+    fixture.prepare(0, false);
+    const auto bind = [](const Tensor& source, Words& destination, int x, int y) {
+        require(source.dtype == DType::BF16 && source.ne[0] == x && source.ne[1] == y &&
+                    source.nb[0] == 2 && source.nb[1] == x * 2,
+                "real PLE convolution or output norm has unexpected shape or layout");
+        const auto words = test::from_device<std::uint16_t>(source.data,
+                                                            std::size_t(x) * y);
+        for (int j = 0; j < y; ++j)
+            for (int i = 0; i < x; ++i)
+                destination.host[destination.index(i, j)] = words[j * x + i];
+        destination.upload();
+    };
+    bind(convolution, fixture.kernel, D, 4);
+    bind(next_norm, fixture.norm, H, C);
+    fixture.launch(true, device.execution_view());
+    device.synchronize();
+    require(fixture.verify(true, "Flash-Next real PLE convolution") == 0,
+            "Flash-Next real PLE convolution differs from FP64 mathematical oracle");
+    std::cout << "PASS Flash-Next real PLE convolution FP64 oracle\n";
+}
 
 test::quantized_weight::PackedWeight decode_nvfp4_expert(
     const WeightBankView& bank, std::uint32_t expert,
@@ -499,6 +552,11 @@ int main(int argc, char** argv) {
             if (stream_one_layer && !mtp) {
                 auto model = q4::materialize_model(std::move(disk_load), device);
                 q4::execution::Parameters parameters(*model, profile);
+                qualify_real_ple_gate(parameters.text.ple, device);
+                require(parameters.text.layers.size() > 1,
+                        "Flash-Next PLE output has no following text layer");
+                qualify_real_ple_conv(parameters.text.ple.convolution,
+                                      parameters.text.layers[1].attention_hc.norm, device);
                 std::vector<const models::moe::Parameters*> layers;
                 for (const auto& layer : parameters.text.layers) layers.push_back(&layer.moe);
                 auto schedule = disk_plan->moe->create(layers, model->expert_banks(), device,
