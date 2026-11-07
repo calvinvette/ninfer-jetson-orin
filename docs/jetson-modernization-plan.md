@@ -209,7 +209,9 @@ the worker was interrupted after about 100 seconds. A shorter Graph-enabled `hi`
 with eight output tokens and draft window four: serial and MTP token IDs matched exactly, with five
 drafts, four accepted tokens, and one fallback. A second Graph-enabled case on “A small robot
 explores a forest at sunrise” matched through 32 output tokens with MTP-4 (40 drafted, 20 accepted,
-one fallback). The real-artifact test runner now accepts `NINFER_TEST_CUDA_GRAPH=1` to run the
+one fallback). A Graph-enabled two-request, two-row MTP cohort also matched serial generation
+exactly; the requests reported 9/4 and 5/5 drafted/accepted tokens, and the test observed a two-row
+decode step. The real-artifact test runner now accepts `NINFER_TEST_CUDA_GRAPH=1` to run the
 existing parity cases with the production Graph route. A 64-token Graph/MTP case remains
 inconclusive because the worker stalled in direct-I/O wait before returning results.
 
@@ -269,8 +271,8 @@ schedule/oracle run.
 
 ### Remaining gates
 
-- Qualify broader MTP acceptance/commit and state restoration across prompts, output horizons,
-  fallback boundaries, Vision, and larger concurrent cohorts.
+- Extend MTP state qualification to Vision and cohorts larger than two. Text Graph/MTP now has exact
+  serial parity at 8 and 32 output tokens, fallback cases, and a two-request decode cohort.
 - Repeat the public mixed-media/ExpertCache breakdown under stable storage conditions. The current
   mixed-media Graph report is one diagnostic sample with NVMe timeouts; Vision numerical and
   encoder-throughput qualification covers artifact weights at up to 64 patches.
