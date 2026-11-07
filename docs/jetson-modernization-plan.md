@@ -728,8 +728,9 @@ query, gate, cache, positions, selection, and metadata; all 6,144 BF16 attention
 matched the T=2 result. The plan trace identified the cause: serial position 63 had a 64-token
 visibility envelope and selected the short-context SIMT route, while its T=2 verify call included
 position 64, raised the shared envelope to 65, and selected MMA with three splits. The operator
-therefore used different arithmetic routes for the same query. QSA now keeps the MMA arithmetic
-route for short contexts as well, removing that per-call SIMT/MMA discontinuity. A focused
+therefore used different arithmetic routes for the same query. The Jetson Orin build now keeps
+the MMA arithmetic route for short contexts as well, removing that per-call SIMT/MMA
+discontinuity; the RTX 5090 short-context route is unchanged. A focused
 serial-versus-window QSA regression with the same logical cache passes exactly for BF16 and
 INT8-G64; oracle cases at history 64 and 65 pass for both formats. The real Flash-Next `Hello`
 MTP regression now matches all 33 generated tokens for both draft windows 1 and 4 (17/15 and
