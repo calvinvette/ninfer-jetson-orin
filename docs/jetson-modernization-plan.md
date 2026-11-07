@@ -204,11 +204,11 @@ attempts the kernel logged repeated NVMe I/O timeouts on `nvme0n1`; SMART report
 51 C, and 90 error-log entries. These runs are inconclusive, not parity failures. Further long-
 horizon artifact tests need a stable storage run; the previous parity evidence remains valid for
 its recorded prompts and horizons. A new Graph-enabled serial/MTP comparison on `hi` at 64 output
-tokens with a four-token draft window also stalled before producing token output. The worker was in
-`pread`/direct-I/O wait for about 100 seconds when interrupted; the kernel logged another `nvme0n1`
-timeout at 13:50 UTC. The real-artifact test runner now accepts `NINFER_TEST_CUDA_GRAPH=1` to run
-the existing parity cases with the production Graph route, but acceptance/commit parity in that
-mode remains unqualified until the storage path completes the workload.
+tokens with a four-token draft window stalled in direct-I/O wait before producing token output;
+the worker was interrupted after about 100 seconds. A shorter Graph-enabled `hi` run completed
+with eight output tokens and draft window four: serial and MTP token IDs matched exactly, with five
+drafts, four accepted tokens, and one fallback. The real-artifact test runner now accepts
+`NINFER_TEST_CUDA_GRAPH=1` to run the existing parity cases with the production Graph route.
 
 The public Engine completes a single-image request, a mixed image/video fixture (1,615 prompt
 tokens, output `NIFER-9`), text prefix reuse, and repeated image prefix reuse. The mixed-media
@@ -238,13 +238,18 @@ work. Command:
   /home/calvin/models/Qwen3.8-Flash-Next-NInfer/qwen3_8_flash_next.ninfer 2 5
 ```
 
-The public Engine also completed a mixed image/video request with CUDA Graphs enabled after the
-file-backed Graph integration. The smoke input used a resized 224x224 image and a two-second
-84x56 video fixture, producing 156 prompt tokens and one output token. On AGX Orin with CUDA 12.6
-and `jetson_clocks` (CPU 2.201 GHz, GPU 1.298 GHz, EMC 3.199 GHz), prefill took 36.9 s and the
-Vision stream interval was 48.2 ms. Graph calibration took 5.6 s. This verifies the Graph route
-across mixed media; one run at this short horizon does not isolate expert-storage latency or serve
-as a performance benchmark.
+The public Engine completed a mixed image/video smoke input with a resized 224x224 image and a
+two-second 84x56 video fixture. A one-token run took the eager Prefill route (Graphs enabled but
+not used for Prefill), producing 156 prompt tokens in 36.9 s with a 48.2 ms Vision stream interval.
+A separate one-repetition `ninfer_bench` run requested two output tokens, so it also exercised one
+file-backed Decode Graph step (reported as `compute_paths.mixed=1`; the file-backed host handoff
+keeps it out of the resident-only `graph` count). Total request wall time was 67.67 s: 67.09 s
+through the first token and 0.589 s for the decode step. The report attributed 49.1 ms to the
+Vision stream, 61.89 s to cumulative expert-cache planning (including synchronous direct range
+reads into staging), 0.246 s to cache submission, and 43.22 GB to expert uploads. CUDA 12.6 on AGX
+Orin with `jetson_clocks` was enabled (CPU 2.201 GHz, GPU 1.298 GHz, EMC 3.199 GHz). This separates
+public mixed-media latency from the cache's synchronous range-read work for one run; repeated NVMe
+timeouts and single-run variability mean these values are diagnostic, not a stable benchmark.
 
 A focused CUDA cache test captures a consumer against the stable expert-cache view, stages two
 different file-backed expert IDs into the cache, and verifies graph replay reads each updated expert
@@ -263,8 +268,9 @@ schedule/oracle run.
 
 - Qualify broader MTP acceptance/commit and state restoration across prompts, output horizons,
   fallback boundaries, Vision, and larger concurrent cohorts.
-- Measure public mixed-media latency separately from expert-storage latency; Vision numerical and
-  encoder-throughput qualification now covers artifact weights at up to 64 patches.
+- Repeat the public mixed-media/ExpertCache breakdown under stable storage conditions. The current
+  mixed-media Graph report is one diagnostic sample with NVMe timeouts; Vision numerical and
+  encoder-throughput qualification covers artifact weights at up to 64 patches.
 - Distinguish SSD/controller cache state for physical cold/warm storage measurements; `O_DIRECT`
   isolates requests from the host page cache but does not flush or measure device caches.
 - Extend Engine Graph qualification beyond the one-token smoke request, including mixed media and
