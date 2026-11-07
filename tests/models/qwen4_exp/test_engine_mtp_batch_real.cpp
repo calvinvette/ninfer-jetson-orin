@@ -52,6 +52,27 @@ Run run(const std::string& artifact, bool mtp) {
     return result;
 }
 
+GenerationResult run_long(const std::string& artifact, bool mtp) {
+    EngineOptions options;
+    options.artifact_path = artifact;
+    options.max_context = 1024;
+    options.prefill_chunk = 128;
+    options.max_concurrency = 1;
+    options.kv_cache = KvCacheStorage::Int8Group64;
+    options.context_capacity = ContextCapacityPolicy::explicit_capacity(1ULL << 30);
+    options.context_cache.enabled = false;
+    options.context_cache.host_capacity_bytes = 0;
+    options.use_cuda_graph = false;
+    if (mtp) options.speculative = {SpeculativeBackend::Mtp, 4};
+    Engine engine(std::move(options));
+    RequestOptions request;
+    request.execution.requested_output_tokens = 32;
+    request.execution.sampling.temperature = 0.0F;
+    request.execution.sampling.seed = 0;
+    request.stop.include_model_defaults = false;
+    return engine.generate(engine.prepare(prompt("hi")), std::move(request));
+}
+
 void require(bool condition, const char* message) {
     if (!condition) throw std::runtime_error(message);
 }
@@ -68,6 +89,17 @@ int main() {
         return 77;
     }
     try {
+        const auto serial_long = run_long(artifact, false);
+        const auto mtp_long = run_long(artifact, true);
+        require(serial_long.generated_token_ids.size() == 32 &&
+                    mtp_long.generated_token_ids == serial_long.generated_token_ids,
+                "32-token greedy MTP output differs from non-speculative decode");
+        std::cout << "long serial=";
+        for (auto token : serial_long.generated_token_ids) std::cout << token << ' ';
+        std::cout << "\nlong mtp=";
+        for (auto token : mtp_long.generated_token_ids) std::cout << token << ' ';
+        std::cout << '\n';
+        std::cout << "PASS exact 32-token MTP parity for Flash-Next\n";
         const auto reference = run(artifact, false);
         const auto mtp       = run(artifact, true);
         require(reference.requests.size() == 2 && mtp.requests.size() == 2,

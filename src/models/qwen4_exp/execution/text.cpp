@@ -92,7 +92,8 @@ void TextRun::local_mixer(std::uint32_t i) {
                                      state.state_index, batch_.destination_offsets)};
         qsa(roots_.input, parameters_.profile->local.qsa, std::get<QsaParameters>(p.mixer), batch_,
             execution_.states.main_tail(state.state_index, batch_.source_offsets), after,
-            execution_.cache.layer(state.state_index), records, roots_.output, arena, cuda_);
+            execution_.cache.layer(state.state_index), records, roots_.output, arena, cuda_,
+            std::holds_alternative<VerifyRecords>(update_));
     }
 }
 
@@ -147,7 +148,8 @@ void TextRun::consume_ple(const Tensor& embedding) {
                            : std::optional{execution_.states.ple(batch_.destination_offsets)};
     ple(embedding, parameters_.profile->config.text, p.ple, batch_,
         execution_.states.ple(batch_.source_offsets), after, records, p.layers[start].attention_hc,
-        roots_.residual, roots_.normalized, execution_.workspace, cuda_);
+        roots_.residual, roots_.normalized, std::holds_alternative<VerifyRecords>(update_),
+        execution_.workspace, cuda_);
 }
 
 void TextRun::finish(TextOutputs output, Tensor logits) {

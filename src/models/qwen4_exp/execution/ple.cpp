@@ -1,13 +1,15 @@
 #include "models/qwen4_exp/execution/ple.h"
 #include "models/qwen4_exp/execution/workspace.h"
 
+#include "ninfer/ops/linear.h"
+
 namespace ninfer::models::qwen4_exp::execution {
 
 void ple(const Tensor& embedding, const TextConfig& c, const PleParameters& p,
          const BatchView& batch, const ops::PleConvStateView& before,
          std::optional<ops::PleConvStateView> after, ops::PleConvRecordWindowView records,
-         const HcParameters& next, Tensor& residual, Tensor& normalized, MemoryArena& arena,
-         CudaExecutionView cuda) {
+         const HcParameters& next, Tensor& residual, Tensor& normalized,
+         bool serial_projection_columns, MemoryArena& arena, CudaExecutionView cuda) {
     const auto h = dimension(c.hidden), streams = dimension(c.hc.streams);
     const auto channels = dimension(c.residual_width());
     auto scope          = arena.scope();
@@ -17,8 +19,17 @@ void ple(const Tensor& embedding, const TextConfig& c, const PleParameters& p,
         records = {buffers.records.view({channels, t, b}), batch.record_offsets};
     {
         auto scratch = arena.scope();
-        ops::linear(embedding.view({dimension(c.ple.embedding), m}), p.projection.weight,
-                    buffers.projection, p.projection.policy, arena, cuda);
+        if (!serial_projection_columns) {
+            ops::linear(embedding.view({dimension(c.ple.embedding), m}), p.projection.weight,
+                        buffers.projection, p.projection.policy, arena, cuda);
+        } else {
+            for (int col = 0; col < m; ++col) {
+                const auto x = embedding.view({dimension(c.ple.embedding), m}).slice(1, col, 1);
+                auto y = buffers.projection.view({dimension(c.residual_width() + c.hidden), m})
+                             .slice(1, col, 1);
+                ops::linear(x, p.projection.weight, y, p.projection.policy, arena, cuda);
+            }
+        }
     }
     const auto parent = buffers.projection.view({dimension(c.residual_width() + c.hidden), t, b});
     Tensor key(parent.data, parent.device, DType::BF16, {h, streams, t, b});
