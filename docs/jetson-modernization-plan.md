@@ -207,8 +207,11 @@ its recorded prompts and horizons. A new Graph-enabled serial/MTP comparison on 
 tokens with a four-token draft window stalled in direct-I/O wait before producing token output;
 the worker was interrupted after about 100 seconds. A shorter Graph-enabled `hi` run completed
 with eight output tokens and draft window four: serial and MTP token IDs matched exactly, with five
-drafts, four accepted tokens, and one fallback. The real-artifact test runner now accepts
-`NINFER_TEST_CUDA_GRAPH=1` to run the existing parity cases with the production Graph route.
+drafts, four accepted tokens, and one fallback. A second Graph-enabled case on “A small robot
+explores a forest at sunrise” matched through 32 output tokens with MTP-4 (40 drafted, 20 accepted,
+one fallback). The real-artifact test runner now accepts `NINFER_TEST_CUDA_GRAPH=1` to run the
+existing parity cases with the production Graph route. A 64-token Graph/MTP case remains
+inconclusive because the worker stalled in direct-I/O wait before returning results.
 
 The public Engine completes a single-image request, a mixed image/video fixture (1,615 prompt
 tokens, output `NIFER-9`), text prefix reuse, and repeated image prefix reuse. The mixed-media
