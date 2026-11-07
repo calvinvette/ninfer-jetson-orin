@@ -10,6 +10,7 @@
 
 #include "ops/quantized_weight.h"
 #include "ops/op_check.h"
+#include "ninfer/ops/linear_split.h"
 #include "ops/ple/gate_fixture.h"
 #include "ops/ple/conv_fixture.h"
 
@@ -114,6 +115,143 @@ void qualify_real_ple(const q4::execution::PleParameters& parameters, const Tens
     }
     std::cout << "PASS Flash-Next real PLE committed states T=" << tokens
               << " accepted extents 0.." << tokens << '\n';
+}
+
+void qualify_real_qsa_projection(const q4::execution::LinearParameters& projection,
+                                 std::span<const std::int32_t> segments,
+                                 DeviceContext& device, const char* name) {
+    namespace qw = test::quantized_weight;
+    const auto& source = projection.weight;
+    if ((source.qtype != QType::Q8_G32_FP16 && source.qtype != QType::NVFP4 &&
+         source.qtype != QType::BF16) ||
+        source.k <= 0 || source.n <= 0)
+        throw std::runtime_error(
+            "Flash-Next QSA projection has unexpected weight format or geometry: qtype=" +
+            std::to_string(static_cast<int>(source.qtype)) + " K=" +
+            std::to_string(source.k) + " N=" + std::to_string(source.n));
+    require(std::accumulate(segments.begin(), segments.end(), 0) == source.n,
+            "Flash-Next QSA projection segments do not cover the parent weight");
+
+    const std::array<std::uint64_t, 2> shape{static_cast<std::uint64_t>(source.n),
+                                             static_cast<std::uint64_t>(source.k)};
+    qw::PackedWeight packed;
+    packed.weight = source;
+    packed.weight.device = Device::cpu();
+    if (source.qtype == QType::BF16) {
+        const auto bytes = std::size_t(source.n) * source.k * sizeof(std::uint16_t);
+        const void* data = source.qdata ? source.qdata : source.payload;
+        require(data != nullptr, "Flash-Next QSA BF16 projection has no data plane");
+        packed.payload.resize(bytes);
+        CUDA_CHECK(cudaMemcpy(packed.payload.data(), data, bytes, cudaMemcpyDeviceToHost));
+        packed.geometry = {};
+    } else {
+        packed.geometry = weight_geometry(source.qtype, source.layout, shape);
+        require(source.qdata != nullptr && source.scales != nullptr,
+                "Flash-Next QSA projection is missing a code or scale plane");
+        const auto code_bytes = packed.geometry.code_bytes;
+        const auto scale_bytes = packed.geometry.scale_bytes;
+        packed.payload.resize(packed.geometry.bytes);
+        CUDA_CHECK(cudaMemcpy(packed.payload.data(), source.qdata, code_bytes,
+                              cudaMemcpyDeviceToHost));
+        const auto scale_offset = source.qtype == QType::Q8_G32_FP16
+                                      ? code_bytes
+                                      : packed.geometry.scale_offset;
+        CUDA_CHECK(cudaMemcpy(packed.payload.data() + scale_offset, source.scales, scale_bytes,
+                              cudaMemcpyDeviceToHost));
+        packed.code_plane_bytes = code_bytes;
+        packed.high_plane_offset = packed.geometry.high_offset;
+        packed.high_plane_bytes = packed.geometry.high_bytes;
+        packed.scale_plane_bytes = scale_bytes;
+        if (source.qtype == QType::Q8_G32_FP16) {
+            packed.payload.resize(code_bytes + scale_bytes);
+            packed.geometry = {};
+            packed.scale_plane_offset = scale_offset;
+        } else {
+            std::memcpy(packed.payload.data() + packed.geometry.matrix_scale_offset,
+                        &source.weight_scale, sizeof(source.weight_scale));
+            packed.scale_plane_offset = packed.geometry.scale_offset;
+        }
+    }
+
+    constexpr int columns = 5;
+    std::vector<std::uint16_t> input_host(std::size_t(source.k) * columns);
+    for (int column = 0; column < columns; ++column)
+        for (int k = 0; k < source.k; ++k) {
+            const float value = static_cast<float>((k * 13 + column * 7) % 31 - 15) / 128.0F;
+            auto bits = std::bit_cast<std::uint32_t>(value);
+            bits += 0x7fffU + ((bits >> 16U) & 1U);
+            input_host[std::size_t(column) * source.k + k] =
+                static_cast<std::uint16_t>(bits >> 16U);
+        }
+    DeviceBuffer input_buffer(device.device(), input_host.size() * sizeof(std::uint16_t));
+    input_buffer.copy_from_host(input_host.data(), input_buffer.size());
+
+    const auto run = [&](int token_count) {
+        Tensor input(input_buffer.span(), DType::BF16, {source.k, token_count});
+        std::vector<DeviceBuffer> output_buffers;
+        std::vector<Tensor> outputs;
+        output_buffers.reserve(segments.size());
+        outputs.reserve(segments.size());
+        for (const auto rows : segments) {
+            output_buffers.emplace_back(device.device(),
+                                        std::size_t(rows) * token_count * sizeof(std::uint16_t));
+            outputs.emplace_back(output_buffers.back().span(), DType::BF16,
+                                 std::initializer_list<std::int32_t>{rows, token_count});
+        }
+        const ops::ProjectionWeights weights = projection;
+        const auto capacity = ops::linear_split_workspace_capacity_bytes(
+            weights, segments, token_count, token_count);
+        DeviceBuffer scratch(device.device(), std::max<std::size_t>(256, capacity));
+        MemoryArena workspace(scratch.span());
+        ops::linear_split(input, weights, outputs, workspace, device.execution_view());
+        device.synchronize();
+        std::vector<std::vector<std::uint16_t>> values(segments.size());
+        for (std::size_t i = 0; i < segments.size(); ++i) {
+            values[i].resize(std::size_t(segments[i]) * token_count);
+            output_buffers[i].copy_to_host(values[i].data(), output_buffers[i].size());
+        }
+        return values;
+    };
+    const auto serial = run(1);
+    const auto verify = run(columns);
+    constexpr int rows_per_segment = 64;
+    int first_column_differences = 0;
+    for (std::size_t segment = 0; segment < segments.size(); ++segment)
+        for (std::int32_t row = 0; row < segments[segment]; ++row)
+            first_column_differences +=
+                serial[segment][row] != verify[segment][row];
+
+    std::vector<double> actual(rows_per_segment * segments.size() * columns);
+    std::vector<double> expected(actual.size());
+    std::vector<std::int32_t> begins(segments.size());
+    for (std::size_t segment = 1; segment < segments.size(); ++segment)
+        begins[segment] = begins[segment - 1] + segments[segment - 1];
+    for (int job = 0; job < rows_per_segment * static_cast<int>(segments.size()); ++job) {
+        const auto segment = static_cast<std::size_t>(job / rows_per_segment);
+        const int sample = job % rows_per_segment;
+        const int row = std::min(segments[segment] - 1,
+                                 sample * segments[segment] / rows_per_segment);
+        const int logical_row = begins[segment] + row;
+        for (int column = 0; column < columns; ++column) {
+            double sum = 0.0;
+            for (int k = 0; k < source.k; ++k)
+                sum += qw::logical_weight_fp64(packed, logical_row, k) *
+                       static_cast<double>(qw::detail::bf16_to_f32(
+                           input_host[std::size_t(column) * source.k + k]));
+            const auto index = std::size_t(job) * columns + column;
+            expected[index] = sum;
+            actual[index] = static_cast<double>(qw::detail::bf16_to_f32(
+                verify[segment][std::size_t(column) * segments[segment] + row]));
+        }
+    }
+    constexpr test::ReductionCriterion criterion{1.0 / 256.0, 1.0 / 256.0, 2.0 / 256.0};
+    const auto stats = test::compute_reduction_stats(actual.data(), expected.data(),
+                                                      static_cast<std::int64_t>(actual.size()));
+    require(test::reduction_passes(stats, static_cast<std::int64_t>(actual.size()), criterion),
+            "Flash-Next real QSA projection differs from its FP64 linear oracle");
+    std::cout << "Flash-Next real QSA projection " << name << " oracle rel_l2="
+              << stats.relative_l2 << " max_abs=" << stats.maximum_absolute_error
+              << " T1/T5 first-column differing BF16 values=" << first_column_differences << '\n';
 }
 
 test::quantized_weight::PackedWeight decode_nvfp4_expert(
@@ -594,6 +732,30 @@ int main(int argc, char** argv) {
                 for (const int tokens : {1, 3, 5})
                     qualify_real_ple(parameters.text.ple,
                                      parameters.text.layers[1].attention_hc.norm, device, tokens);
+                const auto qsa_layer = std::find_if(
+                    parameters.text.layers.begin(), parameters.text.layers.end(),
+                    [](const auto& layer) {
+                        return std::holds_alternative<q4::execution::QsaParameters>(layer.mixer);
+                    });
+                require(qsa_layer != parameters.text.layers.end(),
+                        "Flash-Next has no main QSA projection to qualify");
+                const auto* main_qsa = std::get_if<q4::execution::MainQsaProjection>(
+                    &std::get<q4::execution::QsaParameters>(qsa_layer->mixer).input);
+                require(main_qsa != nullptr,
+                        "Flash-Next QSA layer does not use the registered main projections");
+                const auto& qsa_config = profile->config.text.qsa;
+                const std::array<std::int32_t, 2> query_gate_rows{
+                    static_cast<std::int32_t>(qsa_config.query_width()),
+                    static_cast<std::int32_t>(qsa_config.query_width())};
+                const std::array<std::int32_t, 4> kv_index_rows{
+                    static_cast<std::int32_t>(qsa_config.kv_width()),
+                    static_cast<std::int32_t>(qsa_config.kv_width()),
+                    static_cast<std::int32_t>(qsa_config.index_query_width()),
+                    static_cast<std::int32_t>(qsa_config.index_key_width())};
+                qualify_real_qsa_projection(main_qsa->query_gate, query_gate_rows, device,
+                                            "query_gate");
+                qualify_real_qsa_projection(main_qsa->kv_index, kv_index_rows, device,
+                                            "kv_index");
                 std::vector<const models::moe::Parameters*> layers;
                 for (const auto& layer : parameters.text.layers) layers.push_back(&layer.moe);
                 auto schedule = disk_plan->moe->create(layers, model->expert_banks(), device,
