@@ -130,8 +130,8 @@ std::size_t total(Sizes sizes) {
     return result;
 }
 
-__global__ void gather(ExpertBankDeviceView bank, unsigned expert, Sizes sizes,
-                       unsigned char* out) {
+__device__ void gather_one(ExpertBankDeviceView bank, unsigned expert, Sizes sizes,
+                           unsigned char* out) {
     const auto i        = std::uint64_t(blockIdx.x) * blockDim.x + threadIdx.x;
     std::uint64_t start = 0;
     for (int p = 0; p < 6; ++p) {
@@ -162,6 +162,16 @@ __global__ void gather(ExpertBankDeviceView bank, unsigned expert, Sizes sizes,
             out[start + 4 + b] = reinterpret_cast<const unsigned char*>(&dn)[b];
         }
     }
+}
+
+__global__ void gather(ExpertBankDeviceView bank, unsigned expert, Sizes sizes,
+                       unsigned char* out) {
+    gather_one(bank, expert, sizes, out);
+}
+
+__global__ void gather_selected(ExpertBankDeviceView bank, const unsigned* expert,
+                                Sizes sizes, unsigned char* out) {
+    gather_one(bank, *expert, sizes, out);
 }
 
 std::vector<std::byte> expected(const ExpertBankSource& source, unsigned expert) {
@@ -603,6 +613,43 @@ void file_backed_staging(const DeviceContext& device) {
             "file-backed cache did not transfer the complete encoded expert");
 }
 
+void file_backed_graph_replay(const DeviceContext& device) {
+    Bank bank(QType::NVFP4, QType::NVFP4);
+    const auto original = bank.source(device.device());
+    const std::array sources{file_source(original)};
+    auto req = describe_expert_cache(
+        sources, {.capacity_bytes = 131072, .max_batch_bytes = 65536});
+    req.config.capacity_bytes = req.banks[0].entry_bytes;
+    ExpertCache cache(sources, req, device, device.transfer_view());
+    const auto dimensions = sizes(original);
+    DeviceBuffer output(device.device(), total(dimensions));
+    DeviceBuffer selected(device.device(), sizeof(unsigned));
+    check(cudaMemsetAsync(selected.data(), 0, selected.size(), device.stream()));
+
+    DecodeGraphDefinition definition;
+    definition.capture(device.stream(), [&] {
+        gather_selected<<<(output.size() + 255) / 256, 256, 0, device.stream()>>>(
+            cache.view({0}), static_cast<const unsigned*>(selected.data()), dimensions,
+            static_cast<unsigned char*>(output.data()));
+    });
+    DecodeGraphExecutable graph;
+    graph.instantiate(definition);
+
+    for (const auto expert : {1U, 4U}) {
+        const std::array keys{ExpertKey{{0}, expert}};
+        replace(cache, req, keys);
+        const auto use = acquire(cache, keys, device.execution_view());
+        selected.copy_from_host(&expert, sizeof(expert));
+        graph.launch(device.stream());
+        cache.release(use, device.execution_view());
+        device.synchronize();
+        std::vector<std::byte> actual(output.size());
+        output.copy_to_host(actual.data(), actual.size());
+        require(actual == expected(original, expert),
+                "file-backed Graph replay used stale expert IDs or cache contents");
+    }
+}
+
 } // namespace
 
 int main() {
@@ -618,6 +665,7 @@ int main() {
         fixed_regions_and_windows(device);
         promote_partial_upload(device);
         file_backed_staging(device);
+        file_backed_graph_replay(device);
         Bank failure_source(QType::NVFP4, QType::NVFP4);
         ninfer::test::expert_cache_cuda_errors(failure_source.source(device.device()), device);
         std::cout << "expert cache bytes, lifetimes, Graph and resident access passed\n";
