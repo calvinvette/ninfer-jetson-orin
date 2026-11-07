@@ -719,14 +719,19 @@ The real-artifact PLE comparison for the implicated pair `[248044, 248045]` is e
 candidate-column embedding from the two-token verify preparation equals serial one-token
 preparation after consuming its anchor and updating the two-token PLE history. This is now covered
 by `ninfer_ple_disk_prepare_pair_test` on a deterministic disk-backed fixture; the same comparison
-also passed directly against `qwen3_8_flash_next.ninfer`. A temporary state trace compared each
-GDN source state at serial step entry with the verifier source at the same frontier in the MTP-1
-`Hello` run. Compact GDN state layers 0–2 matched at every sampled frontier. Layer 3 first differed
-at position 64 in both convolution and recurrent state; at position 67 its convolution state
-matched again while recurrent state still differed through the final traced frontier (83). This
-locates the earliest observed discrepancy to the compact GDN layer-3 state timeline, after the
-verified PLE embedding boundary. It does not distinguish GDN projection/recurrence from replay
-recording, state commit, or a prior state transition, so the cause and correctness fix remain open.
+also passed directly against `qwen3_8_flash_next.ninfer`. A later layerwise trace found that, for
+position 63 in the MTP-1 `Hello` comparison, QSA layer 3 receives bit-identical normalized input
+and projection tensors. Its active selected block IDs and counts also match. The sampled active
+main-cache page matched byte-for-byte, while the sparse-attention output differed in 495 of 12,288
+bytes. The subsequent QSA output differed in 953 of 5,120 bytes. The cache inspection covered
+only that sampled page, so it does not establish that all referenced pages, table metadata, and
+valid-column metadata match. A separate state trace found compact GDN layers 0–2 matched at every
+sampled frontier and compact GDN layer 3 first differed at position 64 in convolution and
+recurrent state; this is downstream of the observed layer-3 QSA output divergence. A temporary
+experiment that ran verify columns through the single-column QSA route did not restore parity and
+has been removed. The current evidence localizes an early discrepancy to QSA sparse attention,
+but does not yet distinguish its cache addressing/metadata from its arithmetic route. No cause or
+correctness fix is claimed.
 
 The standalone expert-cache benchmark was run on the real artifact's first MoE layer
 (`text/layers/0/moe/experts`, 512 experts). It staged 1.416 GB of source weights in 0.396 s,
