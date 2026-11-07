@@ -233,12 +233,18 @@ work. Command:
   /home/calvin/models/Qwen3.8-Flash-Next-NInfer/qwen3_8_flash_next.ninfer 2 5
 ```
 
-A focused CUDA cache test now captures a
-consumer against the stable expert-cache view, stages two different file-backed expert IDs into
-the cache, and verifies graph replay reads each updated expert exactly. This qualifies the cache
-address/offset update mechanism with an in-memory file-source callback. The full file-backed Engine
-schedule still disables CUDA Graph capture; its layer-level route, staging, and readiness handoffs
-have not been integrated with captured execution.
+A focused CUDA cache test captures a consumer against the stable expert-cache view, stages two
+different file-backed expert IDs into the cache, and verifies graph replay reads each updated expert
+exactly. The file-backed schedule now captures routing separately from expert compute: the route
+Graph completes before route IDs are copied to the host and experts are staged, then the compute
+Graph launches after cache readiness. CUDA Graphs are enabled for this Engine route. On the real
+Qwen3.8-Flash-Next artifact, a one-layer captured file-backed NVFP4 MoE run passed the independent
+decoded-weight FP64 oracle (relative L2 5.38e-6, maximum absolute error 5.96e-8) while changing the
+routed expert set. A public Engine smoke run also completed Graph calibration (5.7 s), runtime
+initialization, and one-token generation with Graphs enabled: 53 prompt tokens, 16.1 s prefill,
+3.3 tokens/s. This exercises the full Engine path but is a smoke result, not a latency benchmark.
+Both runs used the local V3 artifact, CUDA 12.6, and AGX Orin; `jetson_clocks` was enabled for the
+schedule/oracle run.
 
 ### Remaining gates
 
@@ -248,8 +254,8 @@ have not been integrated with captured execution.
   encoder-throughput qualification now covers artifact weights at up to 64 patches.
 - Distinguish SSD/controller cache state for physical cold/warm storage measurements; `O_DIRECT`
   isolates requests from the host page cache but does not flush or measure device caches.
-- Integrate the qualified stable cache-view replay mechanism with the file-backed Engine schedule
-  and qualify captured layer execution; graph capture remains disabled on that full route.
+- Extend Engine Graph qualification beyond the one-token smoke request, including mixed media and
+  MTP state acceptance/commit behavior.
 - Re-run CUDA 12.6 regression after changes and qualify JP7/CUDA 13 when that environment becomes
   available.
 - Submit source changes upstream when a repository with push access is available. The local source
