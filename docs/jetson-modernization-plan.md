@@ -489,6 +489,12 @@ deltas are invalid and no state diagnosis follows from them. The exact verify-lo
 state comparison at the thirteenth-token boundary remains open. The multi-request short test remains
 passing; long-horizon MTP state and verify correctness remain open before MTP qualification.
 
+The artifact-backed `ninfer_qwen4_exp_mtp_batch_real_test` was explicitly run with
+`NINFER_TEST_ARTIFACT` set to the Flash-Next artifact and passed in 175.34 s. Both requests had
+exact generated-token-ID parity against MTP-off and the test observed a two-row decode batch. This
+reconfirms the bounded eight-token cohort case; it does not close the later single-request
+continuation mismatch above.
+
 A later layer-tagged trace used explicit stream synchronization before device-to-host copies. It
 shows GDN state index 0 bit-identical through all captured stages for the first five serial/verify
 columns. GDN state index 1 inputs match for positions 53 and 54; the first observed activation
@@ -515,6 +521,12 @@ CUDA Graphs disabled. The fixture asks for the chart title, red-circle count, an
 position. The model returned `NIFER VISION 731；3；左侧`, matching the image. It processed 428
 prompt tokens and generated 14 tokens before the stop token; Vision prefill took 92.4 s. This is
 a single-image correctness smoke, not a Vision performance qualification.
+
+A repeated OpenAI chat request was also served with prefix reuse enabled, INT8 KV, a 512 MiB
+context reservation, a 512-token limit, and CUDA Graphs disabled. Both requests completed. The
+second reported 57 cached prompt tokens out of 64 (89.1%, checkpoint reuse). This confirms a
+bounded text-prefix reuse route on the artifact, not the broader multimodal, competing-prefix, or
+memory-pressure behaviors.
 
 Two more public CLI checks used the same artifact and eager INT8-KV route, with 2 GiB each for
 Device context and the Vision budget, and a 4,096-token request limit. The documented
