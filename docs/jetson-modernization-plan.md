@@ -451,6 +451,20 @@ an independent oracle, MTP acceptance/commit and state-restoration qualification
 and prefix-reuse behavior, and graph capture remain open. The matched original-model performance
 matrix is recorded below; it does not qualify Flash-Next MTP or the other feature gates.
 
+The standalone expert-cache benchmark was run on the real artifact's first MoE layer
+(`text/layers/0/moe/experts`, 512 experts). It staged 1.416 GB of source weights in 0.396 s,
+registered 1.416 GB of host pages in 101 ms, and measured a 36.6 GB/s registered-H2D roofline.
+At MAXN fixed clocks, median uploads were 0.121 ms for one expert (2.765 MB), 0.744 ms for
+eight scattered experts, 11.203 ms for 128 scattered experts, and 43.699 ms for the full bank
+(32.4 GB/s measured payload rate). An active resident hit took 2.432 us median. Fixed-to-full
+and full-to-next-bank replacement each transferred the expected 1.416 GB in about 44 ms.
+The consumer-plus-next-bank case took 305.6 ms while reading the prior bank four times with a
+synthetic GPU consumer, so that result is not MoE throughput and does not isolate disk traffic.
+The source bytes were warm in host RAM; this benchmark characterizes cache planning and
+registered transfers, not cold-storage latency. The artifact uses roughly 2.8 GB for two cache
+banks at this layer, demonstrating that an individual layer bank is practical to stage under
+the available memory budget.
+
 ### 1. Modern JP6 platform and original models
 
 Bring up CUDA 12.6/SM87 builds of the modern engine, applications, and relevant tests.
