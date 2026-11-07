@@ -558,13 +558,17 @@ GPU temperature peaked at 53.6 C, GPU frequency sampled 1,275–1,300 MHz, and E
 | MTP-4 | 2.90 / 1.28 | 5/7 | 24.07 GB | Two runs 3.62–3.64 / 1.25–1.33 tok/s; one TTFT outlier at 25.7 s |
 
 The MTP-2 aggregate is dominated by two large timing stalls despite fixed clocks, cool
-temperatures, unchanged 22.65 GB upload counts, and ample host memory. The available evidence
-does not identify whether these stalls come from file-backed expert service or another host-side
-wait, so MTP-2 performance remains inconclusive. A later single MTP-2 run without warmup completed
-normally (18.0 s to first token, 5.0 s generation, 25.07 GB expert uploads), confirming the
-stall is intermittent at this depth. MTP-3 and MTP-4 are slower than MTP-off for this short request
-despite draft acceptance; the upload counters establish transfer volume but do not isolate
-sustained drive bandwidth. Do not select a speculative window from these short-run numbers alone.
+temperatures, unchanged 22.65 GB upload counts, and ample host memory. Added per-repetition expert
+cache timing to the public benchmark report and reran the same MTP-2 workload (one warmup, three
+measured repetitions). TTFT stayed at 14.79–15.25 s; generation took 5.03–10.57 s. The cache
+reported 17.28–22.50 s in planning and 0.133–0.134 s in submission per repetition, with 22.65 GB
+uploaded each time. In this file-backed route, planning includes `read_range` direct I/O into pinned
+staging, while submission queues the staged device transfers. This identifies synchronous expert
+reads as a major cache-service cost, although these measurements alone do not prove they cause the
+intermittent generation stalls. Moving file reads off the inference caller is the next performance
+candidate; it needs a controlled end-to-end comparison that preserves route/cache publication and
+buffer lifetime semantics. MTP-3 and MTP-4 remain slower than MTP-off for this short request despite
+draft acceptance. Do not select a speculative window from these short-run numbers alone.
 
 The public Engine also completed an image-grounded Vision request from
 `examples/cli/messages/image_chart.json` with the same artifact, INT8 KV, 512 MiB context, and
