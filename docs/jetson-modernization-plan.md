@@ -417,6 +417,13 @@ rejected on this Jetson target; the successful run used its supported 0 B Host c
 512 MiB Device context. This verifies the single-request text reuse route, not media-prefix reuse
 or broader cache eviction and multi-request behavior.
 
+A second prefix-reuse smoke used two concurrent identical `image_chart` requests, one warmup,
+the same artifact, eager INT8 KV, a 2 GiB Device context, a 2 GiB Vision budget, and a 4,096-token
+limit. Each prompt was 468 tokens; the measured requests computed 0 and 7 prefill tokens
+respectively (7 total), reusing the rest of their prefixes. Both requests completed their
+two-token output budget. This exercises the image-bearing prefix on the shared two-request path;
+changed-media invalidation, eviction, and broader cache behavior remain open.
+
 A current real-artifact rerun of the formerly failing `hi`, ten-token, MTP-4 case now matches the
 MTP-off token IDs exactly: `1596 1144 310 5707 310 1156 328 5834 3158 8722`. With CUDA Graphs
 disabled, MTP-4 completed three rounds, accepted six drafts, and had no fallback. This closes that
