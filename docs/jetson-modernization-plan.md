@@ -597,6 +597,23 @@ registered transfers, not cold-storage latency. The artifact uses roughly 2.8 GB
 banks at this layer, demonstrating that an individual layer bank is practical to stage under
 the available memory budget.
 
+The Orin feature branch was rebased from `a754fcf3` onto the fetched `Neroued/ninfer` `dev`
+revision `62674bae` in an isolated worktree. This exposed upstream API drift in matrix-scale
+metadata, newer Blackwell BF16 pair schedules, and MXFP8/SwiGLU source registration. The rebase
+now builds the full apps/benchmarks configuration with aarch64 CUDA 12.6 and SM87. File-backed
+expert binding uses upstream `matrix_scale` metadata; unsupported MXFP8 KDA and newer SwiGLU
+routes have explicit target behavior, and the Jetson BF16 pair path avoids upstream TMA
+instantiations. The updated NVFP4 helper uses the existing software E2M1 packer when CUDA FP4
+conversion intrinsics are unavailable.
+
+Focused checks on the rebased tree passed: Q8 linear-pair and block-scaled MoE operator tests,
+the Qwen4Exp file-backed loading test, and the public two-request Flash-Next MTP test. The
+artifact-backed loader also executed one streamed NVFP4 MoE layer and passed its independent
+FP64 oracle (relative L2 `3.32e-7`, maximum absolute error `3.73e-9`); it verified both MTP-off
+and MTP-enabled metadata plans. This does not close the longer-horizon MTP, PLE state, Vision,
+prefix-reuse, or graph-capture gates. Pushing the rebased source branch to `Neroued/ninfer` was
+rejected with HTTP 403 for the authenticated `calvinvette` account; the commit remains local.
+
 ### 1. Modern JP6 platform and original models
 
 Bring up CUDA 12.6/SM87 builds of the modern engine, applications, and relevant tests.
