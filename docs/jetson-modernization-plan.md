@@ -223,7 +223,13 @@ repeated route reuses cached experts (55,296,000 bytes uploaded across the two d
 routes, with no repeat uploads). The real-artifact regression now returns to the first route
 after the second route replaced its dynamic slots: uploads increase to 82,944,000 bytes for the
 eviction/refill, then remain unchanged on the next identical request. This directly covers
-bounded-cache miss, hit, eviction, and refill behavior on the supplied V3 artifact.
+bounded-cache miss, hit, eviction, and refill behavior on the supplied V3 artifact. The same
+test independently selects experts from the artifact's BF16 router in FP64, decodes the
+selected NVFP4 code/scale/divisor planes from disk, evaluates routed SwiGLU and the resident BF16
+shared term in FP64, then compares the represented BF16 output. On SM87/JP6 CUDA 12.6 it passed
+with relative L2 error 3.32e-7 and maximum absolute error 3.73e-9 for the deterministic first
+layer input. This qualifies that real layer and route; it does not qualify all 48 layers, all
+inputs, or the complete model's accumulated error.
 
 The public Engine also completes Flash-Next runs using the explicit artifact
 `~/models/Qwen3.8-Flash-Next-NInfer/qwen3_8_flash_next.ninfer`, prompt `hi`, greedy sampling,
