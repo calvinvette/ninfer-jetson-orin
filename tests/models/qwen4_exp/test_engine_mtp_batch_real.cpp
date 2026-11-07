@@ -5,6 +5,7 @@
 #include <iostream>
 #include <stdexcept>
 #include <string>
+#include <string_view>
 #include <vector>
 
 namespace {
@@ -23,6 +24,11 @@ PromptInput prompt(std::string text) {
     return input;
 }
 
+bool use_cuda_graph() {
+    const char* value = std::getenv("NINFER_TEST_CUDA_GRAPH");
+    return value && std::string_view(value) == "1";
+}
+
 Run run(const std::string& artifact, bool mtp) {
     EngineOptions options;
     options.artifact_path      = artifact;
@@ -33,7 +39,7 @@ Run run(const std::string& artifact, bool mtp) {
     options.context_capacity   = ContextCapacityPolicy::explicit_capacity(1ULL << 30);
     options.context_cache.enabled = false;
     options.context_cache.host_capacity_bytes = 0;
-    options.use_cuda_graph     = false;
+    options.use_cuda_graph     = use_cuda_graph();
     if (mtp) options.speculative = {SpeculativeBackend::Mtp, 4};
 
     Engine engine(std::move(options));
@@ -63,7 +69,7 @@ GenerationResult run_long(const std::string& artifact, bool mtp, std::string pro
     options.context_capacity = ContextCapacityPolicy::explicit_capacity(1ULL << 30);
     options.context_cache.enabled = false;
     options.context_cache.host_capacity_bytes = 0;
-    options.use_cuda_graph = false;
+    options.use_cuda_graph = use_cuda_graph();
     if (mtp) options.speculative = {SpeculativeBackend::Mtp, draft_tokens};
     Engine engine(std::move(options));
     RequestOptions request;
@@ -99,6 +105,7 @@ int main() {
         const auto draft_tokens = selected_drafts && *selected_drafts
                                       ? static_cast<std::uint32_t>(std::stoul(selected_drafts))
                                       : 4U;
+        std::cout << "cuda_graph=" << (use_cuda_graph() ? "true" : "false") << '\n';
         require(output_tokens > 0, "long MTP output token count must be positive");
         require(draft_tokens > 0, "MTP draft token count must be positive");
         const std::vector<std::string> long_prompts =
