@@ -501,20 +501,28 @@ difference 0.0078125). The corresponding state-1 output difference is downstream
 Earlier unsynchronized GDN/QSA diagnostic copies are discarded. A broader text-boundary capture
 initially used a faulty token/stream stride when extracting four-stream tensors; those comparisons
 are discarded. After correcting the extraction, the stem and layer-0 boundaries are bit-identical
-through token 310 at position 55. The configured PLE transition is between text layers 0 and 1;
-layer 1's normalized input (the PLE output) is the first captured tensor to differ there. The
-layer-1 HC mix output supplied to GDN then differs in 26 BF16 words of 2,560 (maximum absolute
-difference 0.0078125, mean 6.91e-6), and the GDN output differs in 791 BF16 words (maximum
-absolute difference 0.001953125). This localizes the first captured divergence to PLE processing,
-but does not distinguish its input/state/record transition or establish an Op correctness failure.
-Real-artifact PLE state and record comparison, verify-logit comparison, and committed-state
-comparison remain open.
+through token 310 at position 55. The configured PLE transition is between text layers 0 and 1.
+At that transition, the PLE embedding and residual inputs match, while its BF16 linear projection
+differs in 11 of 12,800 words (maximum absolute difference 0.00048828125, mean 4.62e-8) between
+the serial M=1 and verify M=5 routes. An independent FP64 oracle using the artifact's represented
+BF16 weights and input gives relative L2 error 0.00149856/0.00149857 and maximum absolute error
+0.000938142 for M=1/M=5. Both pass the existing A16 linear criteria (relative L2 1/256 and the
+finite gross-error bound). The PLE gate and convolution then produce small downstream differences;
+layer 1's normalized input differs in 13 BF16 words and its HC mix output supplied to GDN differs
+in 26 words (maximum absolute difference 0.0078125, mean 6.91e-6). The GDN output differs in 791
+BF16 words (maximum absolute difference 0.001953125). This is consistent with batch-shape
+rounding in the PLE projection and does not establish an Op correctness failure. Real-artifact PLE
+gate/conv oracle qualification, verify-logit comparison, and committed-state comparison remain
+open.
 
 The existing SM87 `ninfer_gated_residual_test` passed in 315.69 s. It checks HC Mix against its
 independent mathematical oracle and includes exact serial-column parity for a five-column fixture;
 the fixture weights do not replace real-artifact weight qualification.
 The SM87 `ninfer_ple_test` also passed in 50.81 s; real-artifact PLE state/record qualification
 remains open.
+The BF16 linear projection oracle case for the exact PLE geometry (N=12,800, K=2,560, M=8) passed
+in 1.25 s. A separate FP64 calculation over the actual artifact input/weights/output passed for
+both M=1 and M=5 as described above.
 
 The same artifact and prompt were then measured at MAXN with fixed CPU/GPU/EMC clocks of
 2,201.6/1,300.5/3,199 MHz, INT8 KV, a 512 MiB context reservation, 1,024 maximum context, 128
