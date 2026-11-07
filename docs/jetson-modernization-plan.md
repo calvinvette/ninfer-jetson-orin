@@ -230,9 +230,17 @@ reproduced with Graphs both enabled and disabled, and with draft windows two and
 16-token run reproduced the same mismatch at the same prompt/token. The same prompt passed a
 single-row serial/MTP comparison through 16 tokens (draft window two; 11 drafted, 9 accepted, no
 fallback); both single-row outputs produced 2716, while the ordinary three- and four-row cohorts
-produced 4145. This narrows the discrepancy to batched execution but does not distinguish a
-batch-shape numerical change from a state/dispatch defect. Cohort parity is established only through
-three rows at the previously tested eight-token horizon; longer cohort decoding remains unqualified.
+produced 4145. A temporary device-to-host diagnostic captured the represented BF16 sample for the
+same decode context (sequence 2, frontier 71, input token 14862). Single-row ordinary and
+MTP samples were bitwise equal. In the cohort run, ordinary and MTP samples differed in 2,448 of
+2,560 channels (relative L2 3.30%, maximum absolute difference 0.75); the ordinary cohort sample
+also differed from single-row ordinary by relative L2 2.54%. The corresponding top-two output logits
+were only 0.125 apart: ordinary cohort ranked token 4145 at 23.125 over 2716 at 23.0, while MTP
+ranked 2716 at 23.0 over 4145 at 22.875. This confirms that the mismatch is already present at the
+BF16 sample boundary and is magnified into an argmax change; it does not identify whether the
+boundary difference comes from batch-shape arithmetic or batched state handling. Cohort parity is
+established only through three rows at the previously tested eight-token horizon; longer cohort
+decoding remains unqualified pending that attribution.
 
 A real-artifact image-conditioned MTP comparison also passed on the public Engine with Graphs
 enabled: one resized 224x224 image, 83 prompt tokens, greedy output horizon 8, and draft window 4.
