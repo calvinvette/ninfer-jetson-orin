@@ -213,9 +213,15 @@ one fallback). Graph-enabled MTP-4 also matched serial output for `hi` through 6
 drafted, 47 accepted, one fallback) and 128 tokens (123 drafted, 96 accepted, no fallback). A
 Graph-enabled two-request, two-row MTP cohort matched serial generation exactly; the requests
 reported 9/4 and 5/5 drafted/accepted tokens, and the test observed a two-row decode step. The
-real-artifact test runner accepts `NINFER_TEST_CUDA_GRAPH=1` to run these parity cases with the
-production Graph route. A prior 64-token attempt was inconclusive after direct-I/O stalled; a
-subsequent rerun completed and supersedes that result.
+cohort test now exercises three concurrent requests: all three matched serial token IDs, observed a
+three-row decode batch, and reported 9/4, 5/5, and 5/5 drafted/accepted tokens. To make this
+supported batch shape work on Orin, the Qwen4Exp MoE shape policy now slices ordinary decode input
+at the qualified per-format kernel width (two rows for block-FP8 and one for NVFP4), as it already
+did for masked MTP subsets. The Graph-enabled real-artifact CTest passed, including the 64-token text
+parity case, in 427.8 s; NVMe timeouts caused long waits. The real-artifact test runner accepts
+`NINFER_TEST_CUDA_GRAPH=1` to run these parity cases with the production Graph route. A prior
+64-token attempt was inconclusive after direct-I/O stalled; a subsequent rerun completed and
+supersedes that result.
 
 A real-artifact image-conditioned MTP comparison also passed on the public Engine with Graphs
 enabled: one resized 224x224 image, 83 prompt tokens, greedy output horizon 8, and draft window 4.
@@ -230,7 +236,7 @@ state correctness at a longer media horizon, not a speedup. A follow-up with a 6
 naturally on the model stop token after 35 output tokens; serial and MTP IDs matched exactly. MTP
 drafted 44 tokens, accepted 23 over 11 rounds, and had no fallback. That run took 41.6 s serial and
 40.3 s with MTP, which is only one diagnostic sample. Longer Vision/MTP horizons and cohorts larger
-than two remain open.
+than three remain open.
 
 The public Engine completes a single-image request, a mixed image/video fixture (1,615 prompt
 tokens, output `NIFER-9`), text prefix reuse, and repeated image prefix reuse. The mixed-media
@@ -288,10 +294,11 @@ schedule/oracle run.
 
 ### Remaining gates
 
-- Extend MTP state qualification to longer Vision/video horizons and cohorts larger than two. Text
+- Extend MTP state qualification to longer Vision/video horizons and cohorts larger than three. Text
   Graph/MTP has exact serial parity through 128 output tokens, fallback cases, and a two-request
-  decode cohort; image-conditioned runs cover 8 and 32 tokens, and video-conditioned runs cover 4,
-  32, and 35 generated tokens (the last run ended on the stop token with a 64-token cap).
+  decode cohorts through three requests; image-conditioned runs cover 8 and 32 tokens, and
+  video-conditioned runs cover 4, 32, and 35 generated tokens (the last run ended on the stop token
+  with a 64-token cap).
 - Repeat the public mixed-media/ExpertCache breakdown under stable storage conditions. The current
   mixed-media Graph report is one diagnostic sample with NVMe timeouts; Vision numerical and
   encoder-throughput qualification covers artifact weights at up to 64 patches.

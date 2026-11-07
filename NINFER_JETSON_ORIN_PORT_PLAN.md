@@ -709,12 +709,15 @@ parity on the supplied V3 artifact with serial-shaped PLE/QSA projections; its
 matched 32-token benchmark showed a 19% median decode gain over MTP off in this
 single workload. File-backed CUDA Graph routing and expert compute now pass a
 real NVFP4 MoE oracle and a public Engine mixed-media Decode smoke. Graph-enabled
-serial/MTP parity passes for text at 8 and 32 output tokens, a two-request
-cohort, image-conditioned output through 32 tokens, and video-conditioned output through 32
-tokens and a 64-token-cap run that ended at 35 tokens. The video 32-token case matched exactly (41
-drafts, 20 accepted, 11 rounds, no fallback); the 35-token run also matched exactly (44 drafts, 23
-accepted, 11 rounds, no fallback). These are parity results rather than performance claims. These
-checks extend qualification; they do not close longer media horizons, cohorts larger than two,
+serial/MTP parity passes for text at 8 and 32 output tokens, three-request cohorts, image-conditioned
+output through 32 tokens, and video-conditioned output through 32 tokens and a 64-token-cap run that
+ended at 35 tokens. The video 32-token case matched exactly (41 drafts, 20 accepted, 11 rounds, no
+fallback); the 35-token run also matched exactly (44 drafts, 23 accepted, 11 rounds, no fallback).
+The three-row cohort matched all request token IDs exactly (draft/accept counts 9/4, 5/5, and 5/5)
+and exercised a three-row decode batch. Supporting this cohort required slicing Orin FP8 and NVFP4
+MoE inputs at their qualified per-kernel row limits. These are parity results rather than
+performance claims. These checks extend qualification; they do not close longer media horizons,
+cohorts larger than three,
 stable cold/warm storage measurements, or physical SSD/controller cache
 characterization. CUDA 12.6 remains the required toolchain; JP7/CUDA 13
 qualification awaits that environment. Scope and run details are recorded in
