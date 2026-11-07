@@ -181,8 +181,11 @@ miss, hit, eviction, and refill, and compares one real layer against an independ
 A public Engine cache-cold/cache-warm pair on `Hello` staged 23.81 GB then 21.90 GB of expert
 payload for repeated 53-token prompts. Prefill rose from 2.46 to 3.40 tok/s; the second request
 still loaded substantial expert data. These are ExpertCache-cold/warm measurements, not cold
-physical-drive measurements. File reads use O_DIRECT; physical aligned device-byte traffic was not
-isolated. The full benchmark context and timings are recorded below.
+physical-drive measurements. An instrumented repeat of the same two-request benchmark observed
+53.27 GB read and 3.17 MB written in `/sys/block/nvme0n1/stat` sector counters (512-byte sectors)
+across startup and both requests. This is whole-device block-layer traffic, not per-request
+attribution to expert payload; `O_DIRECT` bypasses the page cache but does not control SSD/controller
+caches. The full benchmark context and timings are recorded below.
 
 MTP greedy equivalence now passes against serial decode for the real artifact on `hi` and `Hello`
 through 128 output tokens, with draft windows 1 and 4 tested at shorter horizons and MTP-4 at 128.
@@ -204,8 +207,8 @@ lack a supported captured-address update path. Graph replay for this route remai
   fallback boundaries, Vision, and larger concurrent cohorts.
 - Establish Vision numerical evidence at model-relevant shapes and measure the mixed-media path
   separately from expert-storage latency.
-- Measure actual physical cold-drive I/O and aligned bytes on the artifact storage device; current
-  Engine counters report expert payload bytes and transfer/planning times.
+- Attribute physical block-layer reads to individual requests and distinguish SSD/controller cache
+  state; the current NVMe sector-counter sample is aggregate across startup and both requests.
 - Implement or otherwise qualify a stable CUDA Graph update route for file-backed expert staging,
   if graph support is required for the supported product path.
 - Re-run CUDA 12.6 regression after changes and qualify JP7/CUDA 13 when that environment becomes
