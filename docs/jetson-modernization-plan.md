@@ -516,15 +516,18 @@ rounding in the PLE projection and does not establish an Op correctness failure.
 Flash-Next artifact's BF16 PLE gate norms and convolution kernel, together with layer 1's BF16
 attention-HC norm, now pass the gate and convolution Ops' independent FP64 fixture oracles at
 T=3, B=1. This qualifies the real-artifact weight bindings and Op arithmetic; it does not close
-the committed-state comparison or explain the observed full-route state divergence.
+the full-route committed-state comparison or explain the observed state divergence.
 
 The existing SM87 `ninfer_gated_residual_test` passed in 315.69 s. It checks HC Mix against its
 independent mathematical oracle and includes exact serial-column parity for a five-column fixture;
 the fixture weights do not replace real-artifact weight qualification.
 The SM87 `ninfer_ple_test` also passed in 50.81 s. The real-artifact streaming loading test now
 reports `PASS Flash-Next real PLE gate FP64 oracle` and
-`PASS Flash-Next real PLE convolution FP64 oracle`; its separate real NVFP4 MoE oracle still passes.
-PLE committed-state and record-window behavior in a model execution remain open.
+`PASS Flash-Next real PLE convolution FP64 oracle`, followed by an exact comparison of the
+accepted PLE record transition into next state; its separate real NVFP4 MoE oracle still passes.
+This chains the real-weight gate, convolution, and state-extract Ops at T=3, B=1 with initialized
+history. The full model-route committed-state comparison and the reproduced long-horizon MTP state
+divergence remain open.
 The BF16 linear projection oracle case for the exact PLE geometry (N=12,800, K=2,560, M=8) passed
 in 1.25 s. A separate FP64 calculation over the actual artifact input/weights/output passed for
 both M=1 and M=5 as described above.
