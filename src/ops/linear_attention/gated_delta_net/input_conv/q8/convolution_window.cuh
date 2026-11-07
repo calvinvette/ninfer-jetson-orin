@@ -106,13 +106,11 @@ void launch_window(const Tensor& x, const Weight& weight, const Tensor& conv_wei
     }
 #if defined(NINFER_TARGET_JETSON_ORIN)
     if constexpr (Width <= 8) {
-        if constexpr (Width == 1) {
-            using GemvTile = Q8A16GemvTileSchedule<2, 8, 1, 2, 2560, 8>;
-            launch_q8_a16_gemv<GemvTile>(operands, output, epilogue, stream);
-        } else {
-            using GemvTile = Q8A16GemvTileSchedule<Width, 8, 1, 2, 2560, 8>;
-            launch_q8_a16_gemv<GemvTile>(operands, output, epilogue, stream);
-        }
+        // Several short sequences share this projection. Tile the flattened columns in complete
+        // convolution windows; the largest supported tile is a multiple of Width.
+        constexpr int TileTokens = Width == 1 ? 8 : (8 / Width) * Width;
+        using GemvTile = Q8A16GemvTileSchedule<TileTokens, 8, 1, 2, 2560, 8>;
+        launch_q8_a16_gemv<GemvTile>(operands, output, epilogue, stream);
         return;
     }
 #endif
