@@ -226,8 +226,11 @@ tokens on a 49-token prompt with Graphs enabled and MTP-4; MTP accepted two draf
 without fallback, and the Vision stream was 16.2 ms. The same video prompt also matched through 32
 greedy output tokens with Graphs and MTP-4 enabled: MTP drafted 41 tokens, accepted 20 across 11
 rounds, and had no fallback. The serial run took 39.3 s and the MTP run 70.4 s, so this establishes
-state correctness at a longer media horizon, not a speedup. Longer Vision/MTP horizons and cohorts
-larger than two remain open.
+state correctness at a longer media horizon, not a speedup. A follow-up with a 64-token cap ended
+naturally on the model stop token after 35 output tokens; serial and MTP IDs matched exactly. MTP
+drafted 44 tokens, accepted 23 over 11 rounds, and had no fallback. That run took 41.6 s serial and
+40.3 s with MTP, which is only one diagnostic sample. Longer Vision/MTP horizons and cohorts larger
+than two remain open.
 
 The public Engine completes a single-image request, a mixed image/video fixture (1,615 prompt
 tokens, output `NIFER-9`), text prefix reuse, and repeated image prefix reuse. The mixed-media
@@ -287,8 +290,8 @@ schedule/oracle run.
 
 - Extend MTP state qualification to longer Vision/video horizons and cohorts larger than two. Text
   Graph/MTP has exact serial parity through 128 output tokens, fallback cases, and a two-request
-  decode cohort; image-conditioned runs cover 8 and 32 tokens, and video-conditioned runs cover 4
-  and 32 tokens.
+  decode cohort; image-conditioned runs cover 8 and 32 tokens, and video-conditioned runs cover 4,
+  32, and 35 generated tokens (the last run ended on the stop token with a 64-token cap).
 - Repeat the public mixed-media/ExpertCache breakdown under stable storage conditions. The current
   mixed-media Graph report is one diagnostic sample with NVMe timeouts; Vision numerical and
   encoder-throughput qualification covers artifact weights at up to 64 patches.
