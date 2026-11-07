@@ -481,11 +481,9 @@ diverges at that same token, reporting 11 drafted, eight accepted (`4,4` by posi
 fallback. Both used the same real Flash-Next artifact on SM87/JP6 CUDA 12.6. This does not yet
 establish a continuation/state defect: earlier traces found batch-shape-dependent target logits
 before commit, and the accepted-prefix selection matched the serial path in the first traced
-round. A focused first-round trace found bit-identical inputs to GDN state 1 and matching control
-outputs, Q/K/V projections, normalized values, and projected outputs for the paired serial/verify
-columns. An initial attempt
-to compare the recurrent and Z buffers used incorrect dtype interpretation, so those apparent state
-deltas are invalid and no state diagnosis follows from them. The exact verify-logit and committed
+round. Earlier trace evidence covered only the first paired columns. An initial attempt to compare
+the recurrent and Z buffers used incorrect dtype interpretation, so those apparent state deltas
+are invalid and no state diagnosis follows from them. The exact verify-logit and committed
 state comparison at the thirteenth-token boundary remains open. The multi-request short test remains
 passing; long-horizon MTP state and verify correctness remain open before MTP qualification.
 
@@ -501,8 +499,19 @@ columns. GDN state index 1 inputs match for positions 53 and 54; the first obser
 difference is its input for token 310 at position 55 (26 of 2,560 BF16 words, maximum absolute
 difference 0.0078125). The corresponding state-1 output difference is downstream of that input.
 Earlier unsynchronized GDN/QSA diagnostic copies are discarded. A broader text-boundary capture
-did not establish a reliable layer-0-to-layer-1 handoff comparison, so the source transition and
-the verify-logit/committed-state boundary remain open; this trace does not identify a root cause.
+initially used a faulty token/stream stride when extracting four-stream tensors; those comparisons
+are discarded. After correcting the extraction, the stem and layer-0 boundaries are bit-identical
+through token 310 at position 55, as is layer-1's normalized input. The first observed difference
+is the layer-1 HC mix output supplied to GDN: 26 bytes differ in the 2,560-element BF16 input
+vector (maximum absolute difference 0.0078125, mean 6.91e-6). The GDN output then differs in 791
+BF16 words (maximum absolute difference 0.001953125). This localizes the first captured divergence
+to the HC mix boundary but does not establish an Op correctness failure: comparison of both
+batch-shape routes against the independent oracle with the real artifact weights remains open.
+The verify-logit and committed-state boundary also remain open.
+
+The existing SM87 `ninfer_gated_residual_test` passed in 315.69 s. It checks HC Mix against its
+independent mathematical oracle and includes exact serial-column parity for a five-column fixture;
+the fixture weights do not replace real-artifact weight qualification.
 
 The same artifact and prompt were then measured at MAXN with fixed CPU/GPU/EMC clocks of
 2,201.6/1,300.5/3,199 MHz, INT8 KV, a 512 MiB context reservation, 1,024 maximum context, 128
