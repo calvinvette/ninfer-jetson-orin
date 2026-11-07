@@ -427,6 +427,13 @@ completed two rounds, accepted all seven drafted tokens, and had no fallback. Th
 window-5 checks exercise distinct acceptance extents, but do not qualify partial-prefix commit,
 multi-request verify, or state restoration generally.
 
+A separate prompt, `The capital of France is`, was run with the same artifact and greedy seed,
+INT8 KV, 512 MiB context, 1,024 maximum context, 128 prefill chunk, and eager execution. MTP-off
+and MTP-4 produced identical eight-token sequences (`1596 1144 310 5707 310 1156 25 328`).
+MTP-4 accepted four of eleven drafts, distributed `2,1,1,0` by draft position, with no fallback.
+The MTP run followed the baseline and benefited from warm artifact/page caches, so their timings
+are not comparable. This is another bounded greedy correctness case, not general MTP qualification.
+
 The same artifact and prompt were then measured at MAXN with fixed CPU/GPU/EMC clocks of
 2,201.6/1,300.5/3,199 MHz, INT8 KV, a 512 MiB context reservation, 1,024 maximum context, 128
 prefill chunk, CUDA Graphs and prefix reuse disabled, one request, and nine output tokens (eight
