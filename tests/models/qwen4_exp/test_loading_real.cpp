@@ -28,12 +28,12 @@ namespace q4 = models::qwen4_exp;
 using test::artifact_fixture::require;
 constexpr std::size_t GiB = 1024ULL * 1024 * 1024;
 
-void qualify_real_ple_gate(const q4::execution::PleParameters& parameters,
-                           DeviceContext& device) {
+void qualify_real_ple(const q4::execution::PleParameters& parameters, const Tensor& next_norm,
+                      DeviceContext& device) {
     using namespace test::ple;
-    GateFixture fixture(3, 1);
-    fixture.eps = parameters.gate.rms_epsilon;
-    fixture.prepare(GateSignal::Random, 0, false);
+    GateFixture gate(3, 1);
+    gate.eps = parameters.gate.rms_epsilon;
+    gate.prepare(GateSignal::Random, 0, false);
     const auto bind_norm = [](const Tensor& source, Words& destination) {
         require(source.dtype == DType::BF16 && source.ne[0] == H && source.ne[1] == C &&
                     source.nb[0] == 2 && source.nb[1] == H * 2,
@@ -44,21 +44,25 @@ void qualify_real_ple_gate(const q4::execution::PleParameters& parameters,
                 destination.host[destination.index(d, s)] = words[s * H + d];
         destination.upload();
     };
-    bind_norm(parameters.gate.norm_key, fixture.norm_key);
-    bind_norm(parameters.gate.norm_query, fixture.norm_query);
-    bind_norm(parameters.gate.norm_conv, fixture.norm_conv);
-    fixture.launch(device.execution_view());
+    bind_norm(parameters.gate.norm_key, gate.norm_key);
+    bind_norm(parameters.gate.norm_query, gate.norm_query);
+    bind_norm(parameters.gate.norm_conv, gate.norm_conv);
+    gate.launch(device.execution_view());
     device.synchronize();
-    require(fixture.verify("Flash-Next real PLE gate") == 0,
+    require(gate.verify("Flash-Next real PLE gate") == 0,
             "Flash-Next real PLE gate differs from FP64 mathematical oracle");
     std::cout << "PASS Flash-Next real PLE gate FP64 oracle\n";
-}
 
-void qualify_real_ple_conv(const Tensor& convolution, const Tensor& next_norm,
-                           DeviceContext& device) {
-    using namespace test::ple;
-    ConvFixture fixture(3, 1);
-    fixture.prepare(0, false);
+    ConvFixture conv(3, 1);
+    conv.prepare(0, false);
+    conv.residual.host = gate.residual.host;
+    conv.gated.host = gate.gated.download();
+    conv.records.host = gate.records.download();
+    std::fill(conv.history.host.begin(), conv.history.host.end(), 0);
+    conv.residual.upload();
+    conv.gated.upload();
+    conv.records.upload();
+    conv.history.upload();
     const auto bind = [](const Tensor& source, Words& destination, int x, int y) {
         require(source.dtype == DType::BF16 && source.ne[0] == x && source.ne[1] == y &&
                     source.nb[0] == 2 && source.nb[1] == x * 2,
@@ -70,13 +74,36 @@ void qualify_real_ple_conv(const Tensor& convolution, const Tensor& next_norm,
                 destination.host[destination.index(i, j)] = words[j * x + i];
         destination.upload();
     };
-    bind(convolution, fixture.kernel, D, 4);
-    bind(next_norm, fixture.norm, H, C);
-    fixture.launch(true, device.execution_view());
+    bind(parameters.convolution, conv.kernel, D, 4);
+    bind(next_norm, conv.norm, H, C);
+    conv.launch(true, device.execution_view());
     device.synchronize();
-    require(fixture.verify(true, "Flash-Next real PLE convolution") == 0,
+    require(conv.verify(true, "Flash-Next real PLE convolution") == 0,
             "Flash-Next real PLE convolution differs from FP64 mathematical oracle");
     std::cout << "PASS Flash-Next real PLE convolution FP64 oracle\n";
+
+    Words after({D, 9, 1});
+    after.fill(0x5a, 1.f, true);
+    after.upload();
+    DeviceBuffer destination_offset(device.device(), sizeof(std::int64_t));
+    upload_offsets(destination_offset, after.tensor, {0});
+    const auto before_view = conv.state_view();
+    ops::PleConvStateView after_view{
+        history_field(after.tensor, after.device->span(),
+                      Tensor(destination_offset.span(), DType::I64, {1}))};
+    const auto batch_view = conv.batch_view();
+    ops::ple_state_extract(before_view, {conv.records.tensor, batch_view.valid_columns},
+                           batch_view.valid_columns, after_view, device.execution_view());
+    device.synchronize();
+    auto expected = after.host;
+    for (int c = 0; c < D; ++c)
+        for (int j = 0; j < 9; ++j)
+            expected[after.index(c, j)] = j < 6 ? conv.history.host[conv.history.index(c, j + 3, 1)]
+                                                : conv.records.host[conv.records.index(c, j - 6, 0)];
+    require(test::verify_exact("Flash-Next real PLE committed state", after.download(), expected) ==
+                0,
+            "Flash-Next real PLE committed state differs from exact accepted-record transition");
+    std::cout << "PASS Flash-Next real PLE committed state exact comparison\n";
 }
 
 test::quantized_weight::PackedWeight decode_nvfp4_expert(
@@ -552,11 +579,10 @@ int main(int argc, char** argv) {
             if (stream_one_layer && !mtp) {
                 auto model = q4::materialize_model(std::move(disk_load), device);
                 q4::execution::Parameters parameters(*model, profile);
-                qualify_real_ple_gate(parameters.text.ple, device);
                 require(parameters.text.layers.size() > 1,
                         "Flash-Next PLE output has no following text layer");
-                qualify_real_ple_conv(parameters.text.ple.convolution,
-                                      parameters.text.layers[1].attention_hc.norm, device);
+                qualify_real_ple(parameters.text.ple,
+                                 parameters.text.layers[1].attention_hc.norm, device);
                 std::vector<const models::moe::Parameters*> layers;
                 for (const auto& layer : parameters.text.layers) layers.push_back(&layer.moe);
                 auto schedule = disk_plan->moe->create(layers, model->expert_banks(), device,
