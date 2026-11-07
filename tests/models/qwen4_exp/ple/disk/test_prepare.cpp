@@ -9,6 +9,7 @@
 #include <algorithm>
 #include <atomic>
 #include <chrono>
+#include <cstring>
 #include <iostream>
 #include <thread>
 
@@ -269,6 +270,43 @@ void host(const disk::Table& source, const Input& input, bool failure) {
     service.release(*zero);
 }
 
+void compare_pair(const disk::Table& source, const Input& input) {
+    require(input.tokens == 2 && input.batch == 1 && input.valid[0] == 2,
+            "pair mode requires one valid two-token row");
+    HostBuffer wide_output(2 * kEmbeddingBytes), serial_output(2 * kEmbeddingBytes);
+    const std::array outputs{wide_output.span(), serial_output.span()};
+    disk::PrepareService service(source, input.eos,
+                                 {.max_positions = 2, .io_depth = 4, .cache_bytes = 512},
+                                 outputs);
+    const auto wide = prepare(service, input);
+    service.seal(wide, std::array<std::uint32_t, 1>{2});
+    const auto& original = input.rows[0];
+    const std::array<std::int32_t, 1> serial_id{original.ids[1]};
+    const InputRow serial_row{
+        {original.identity.sequence + 1, original.identity.epoch,
+         original.identity.frontier + 1,
+         {original.identity.raw_tail[1], original.ids[0]}},
+        serial_id};
+    std::optional<Ticket> serial;
+    until([&] {
+        serial = service.prepare(1, std::span(&serial_row, 1));
+        return serial.has_value();
+    });
+    service.seal(*serial, std::array<std::uint32_t, 1>{1});
+    ready(service, wide);
+    ready(service, *serial);
+    const auto wide_embedding = service.embedding(wide);
+    const auto serial_embedding = service.embedding(*serial);
+    const auto* wide_words = static_cast<const std::uint16_t*>(wide_embedding.values.data);
+    const auto* serial_words = static_cast<const std::uint16_t*>(serial_embedding.values.data);
+    require(std::memcmp(wide_words + kEmbeddingElements, serial_words,
+                        kEmbeddingBytes) == 0,
+            "MTP candidate PLE embedding differs from serial one-token preparation");
+    std::cout << "PASS real PLE embedding equality for wide candidate and serial input\n";
+    service.release(wide);
+    service.release(*serial);
+}
+
 class StreamGate {
 public:
     explicit StreamGate(cudaStream_t stream) : stream_(stream) {
@@ -437,6 +475,8 @@ int main(int argc, char** argv) {
         }();
         if (mode == "--failure")
             host(source, input, true);
+        else if (mode == "--pair")
+            compare_pair(source, input);
         else if (mode == "--host") {
             row_reads(source);
             hashes(source, input);

@@ -70,9 +70,19 @@ def packet():
     return result
 
 
+def pair_packet():
+    # Compare the candidate column in a two-token verify window with the same token
+    # prepared as a one-token serial input after consuming its anchor.
+    return (
+        struct.pack("<IIi", 2, 1, EOS)
+        + struct.pack("<I2i2i", 2, 248046, 198, EOS, 248045)
+    )
+
+
 def run(executable, path, mode):
+    data = pair_packet() if mode == "--pair" else packet()
     result = subprocess.run(
-        [executable, str(path), mode], input=packet(), stdout=subprocess.PIPE
+        [executable, str(path), mode], input=data, stdout=subprocess.PIPE
     )
     if result.returncode == 77:
         raise SystemExit(77)
@@ -86,7 +96,11 @@ def main():
         path = Path(directory) / "small.ninfer"
         fixture(path, hash_controls=CONTROLS)
         decoded, hashes, expected = reference(path)
-        if mode == "--gpu":
+        if mode == "--pair":
+            assert run(executable, path, mode) == (
+                b"PASS real PLE embedding equality for wide candidate and serial input\n"
+            )
+        elif mode == "--gpu":
             assert run(executable, path, mode) == expected * 2
         else:
             prefix = struct.pack("<160H", *decoded[44]) * 2
