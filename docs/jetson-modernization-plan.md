@@ -596,6 +596,15 @@ measured 1.824, 1.827, and 1.704 decode tok/s (median 1.824). The MTP-off contro
 19% higher with MTP for this workload, but the control variance and single prompt do not establish
 a general performance result.
 
+I also measured the existing two-request cohort (`The capital of France is` and `The number
+after 2 is`) at concurrency 2, with eight requested outputs per request and the same MAXN clocks,
+INT8 KV, 1 GiB context reservation, 1,024 maximum context, 128-token prefill chunks, eager execution,
+and no prefix reuse. MTP-4 accepted 9 of 16 drafts over five rounds and measured 1.587 and 1.579
+decode tok/s. MTP-off measured 2.234 and 0.385 tok/s; the latter included a 15.68 s single-row
+decode step, while its six two-row steps were stable at 0.83 s each. MTP's two two-row steps took
+3.21–3.26 s each. This short concurrent workload did not show an MTP throughput gain; the isolated
+single-row stall makes aggregate control throughput inconclusive. MTP remains a per-workload choice.
+
 The artifact was measured at MAXN with CPU/GPU/EMC pinned to 2,201.6/1,300.5/3,199 MHz, INT8 KV,
 a 512 MiB context reservation, 1,024 maximum context, 128-token prefill chunks, CUDA Graphs and
 prefix reuse disabled, one `hi` request, greedy seed 0, and nine output tokens (eight decode
@@ -679,9 +688,11 @@ MoE suite also passed (`ninfer_moe_block_scaled_test`), including its complete N
 H=2,560, I=640, E=512, top-k=10. That suite checks the route against an independent FP64 oracle
 over decoded NVFP4 weights. This qualifies representative NVFP4 projection and expert arithmetic
 on SM87; it does not replace a comparison of a real Flash-Next layer and its artifact-bound
-metadata against an independent oracle. MTP acceptance/commit and state-restoration qualification,
-broader Vision and prefix-reuse behavior, and graph capture remain open. The matched original-model
-performance matrix is recorded below; it does not qualify Flash-Next MTP or the other feature gates.
+metadata against an independent oracle. General MTP acceptance/commit and state-restoration
+qualification across prompts and verify extents remains open; the recorded real-artifact checks
+cover one exact 64-token greedy request and the two-request cohort. Broader Vision and prefix-reuse
+behavior and graph capture remain open. The matched original-model performance matrix is recorded
+below and does not substitute for Flash-Next measurements.
 
 The standalone expert-cache benchmark was run on the real artifact's first MoE layer
 (`text/layers/0/moe/experts`, 512 experts). It staged 1.416 GB of source weights in 0.396 s,
