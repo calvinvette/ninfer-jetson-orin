@@ -698,9 +698,14 @@ H=2,560, I=640, E=512, top-k=10. That suite checks the route against an independ
 over decoded NVFP4 weights. This qualifies representative NVFP4 projection and expert arithmetic
 on SM87. Together with the real-artifact PLE and QSA projection checks recorded above, the input
 projections and state Ops have representative artifact-bound oracle coverage; complete model-route
-and state qualification remains open. General MTP acceptance/commit and state-restoration
-qualification across prompts and verify extents remains open; the recorded real-artifact checks
-cover one exact 64-token greedy request and the two-request cohort. Broader Vision and prefix-reuse
+and state qualification remains open. The clean-runtime real-artifact MTP regression passes exact
+greedy equivalence for the 64-token `hi` prompt and the two-request cohort. A prompt-selectable
+qualification run on `Hello` (34 generated tokens, eager execution, MTP-4) matched for the first
+32 tokens, then diverged at output index 32: serial decode emitted `846`, while MTP emitted
+`248045`; MTP reported 33 drafted tokens, 23 accepted, and one fallback step. This establishes an
+additional prompt-generalization failure without identifying its cause. General MTP
+acceptance/commit and state-restoration qualification across prompts and verify extents therefore
+remains open. Broader Vision and prefix-reuse
 behavior and graph capture remain open. The matched original-model performance matrix is recorded
 below and does not substitute for Flash-Next measurements.
 
