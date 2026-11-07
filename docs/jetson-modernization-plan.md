@@ -582,9 +582,9 @@ only for `VerifyRecords`. The serial and verify QSA query, gate, index query, sp
 output, and final QSA output were bit-identical for token 328 at position 59. Serializing only the
 QSA projections while leaving the PLE projection batched still diverged at token 13; the earlier
 PLE-only experiment diverged at token 9. With both stages serialized, the real-artifact eager
-MTP-4 run for `hi`, greedy seed 0, matched MTP-off exactly for all 32 requested output tokens. It
+MTP-4 run for `hi`, greedy seed 0, matched MTP-off exactly for all 64 requested output tokens. It
 also passed the existing two-request exact-parity cohort test. The source change is limited to the
-verify path. This qualifies the reproduced 32-token route, while other prompts, verify extents,
+verify path. This qualifies the reproduced 64-token route, while other prompts, verify extents,
 CUDA Graph execution, and longer horizons remain open.
 
 At MAXN with CPU/GPU/EMC pinned to 2,201.6/1,300.5/3,199 MHz, I measured the exact workload with

@@ -704,7 +704,7 @@ The following toolchain comparisons remain future qualification work:
 Flash-Next now follows the explicit architecture decision and bounded expert
 streaming milestones in the modernization plan. Its execution and memory
 qualification remain separate from the completed resident-model campaign.
-The modernized Flash-Next verify path now passes exact 32-token greedy MTP-4
+The modernized Flash-Next verify path now passes exact 64-token greedy MTP-4
 parity on the supplied V3 artifact with serial-shaped PLE/QSA projections; its
 matched 32-token benchmark showed a 19% median decode gain over MTP off in this
 single workload. Scope and run details are recorded in
