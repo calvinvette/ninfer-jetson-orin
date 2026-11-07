@@ -3,13 +3,20 @@
 #include "core/arena.h"
 #include "core/buffer.h"
 #include "models/qwen4_exp/program/resources.h"
+#include "models/common/moe/weights.h"
 #include "artifact/fixture.h"
 #include "core/transfer.h"
 #include "core/platform.h"
 
+#include "ops/quantized_weight.h"
+#include "ops/op_check.h"
+
+#include <algorithm>
 #include <chrono>
+#include <cmath>
 #include <cstring>
 #include <iostream>
+#include <numeric>
 #include <thread>
 #include <sys/resource.h>
 
@@ -18,6 +25,156 @@ using namespace ninfer;
 namespace q4 = models::qwen4_exp;
 using test::artifact_fixture::require;
 constexpr std::size_t GiB = 1024ULL * 1024 * 1024;
+
+test::quantized_weight::PackedWeight decode_nvfp4_expert(
+    const WeightBankView& bank, std::uint32_t expert,
+    const std::function<void(std::uint64_t, std::span<std::byte>)>& read) {
+    namespace qw = test::quantized_weight;
+    const auto& layout = bank.layout;
+    const auto& geometry = bank.parent->geometry;
+    qw::PackedWeight packed;
+    packed.code_plane_bytes = layout.codes.expert_bytes;
+    packed.scale_plane_offset = packed.code_plane_bytes;
+    packed.scale_plane_bytes = layout.scales.expert_bytes;
+    packed.payload.resize(packed.code_plane_bytes + packed.scale_plane_bytes);
+    read(layout.codes.offset + expert * layout.codes.expert_stride,
+         std::as_writable_bytes(std::span(packed.payload).first(packed.code_plane_bytes)));
+    read(layout.scales.offset + expert * layout.scales.expert_stride,
+         std::as_writable_bytes(std::span(packed.payload).subspan(
+             packed.scale_plane_offset, packed.scale_plane_bytes)));
+
+    auto& weight = packed.weight;
+    weight.device = Device::cpu();
+    weight.qtype = QType::NVFP4;
+    weight.layout = QuantLayout::BlockScaleK16M128x4;
+    weight.scale_dtype = DType::FP8_E4M3FN;
+    weight.ndim = 2;
+    weight.n = weight.shape[0] = weight.padded_shape[0] = layout.region.rows;
+    weight.k = weight.shape[1] = weight.padded_shape[1] = layout.columns;
+    weight.group = weight.group_size = 16;
+    weight.weight_scale_divisor = bank.divisor(expert);
+    if (geometry.padded_columns != layout.columns || !weight.weight_scale_divisor)
+        throw std::runtime_error("real NVFP4 expert geometry or divisor is invalid");
+    return packed;
+}
+
+std::vector<double> real_nvfp4_moe_oracle(
+    const models::moe::Parameters& parameters, const ExpertBankSource& bank,
+    const std::function<void(std::uint64_t, std::span<std::byte>)>& read_gate_up,
+    const std::function<void(std::uint64_t, std::span<std::byte>)>& read_down,
+    std::span<const std::uint16_t> input) {
+    namespace qw = test::quantized_weight;
+    const auto& profile = parameters.profile;
+    const auto hidden = profile.routed.ffn.hidden;
+    const auto intermediate = profile.routed.ffn.intermediate;
+    const auto experts = profile.routed.experts;
+    const auto top_k = profile.routed.top_k;
+    if (input.size() != static_cast<std::size_t>(hidden) ||
+        profile.routed.ffn.gate_up_type != QType::NVFP4 ||
+        profile.routed.ffn.down_type != QType::NVFP4)
+        throw std::runtime_error("real-layer oracle received an unsupported profile");
+
+    std::vector<std::uint16_t> control_bits(
+        std::size_t(experts + 1) * hidden);
+    CUDA_CHECK(cudaMemcpy(control_bits.data(), parameters.control.qdata,
+                          control_bits.size() * sizeof(std::uint16_t), cudaMemcpyDeviceToHost));
+    const auto control = [&](int row, int column) {
+        return static_cast<double>(qw::detail::bf16_to_f32(
+            control_bits[std::size_t(row) * hidden + column]));
+    };
+    std::vector<double> logits(experts + 1, 0.0);
+    for (int row = 0; row <= experts; ++row)
+        for (int k = 0; k < hidden; ++k)
+            logits[row] += control(row, k) * qw::detail::bf16_to_f32(input[k]);
+    std::vector<int> order(experts);
+    std::iota(order.begin(), order.end(), 0);
+    std::stable_sort(order.begin(), order.end(), [&](int a, int b) {
+        return logits[a] == logits[b] ? a < b : logits[a] > logits[b];
+    });
+    double normalization = 0.0;
+    for (int i = 0; i < top_k; ++i) normalization += std::exp(logits[order[i]] - logits[order[0]]);
+
+    std::vector<double> result(hidden, 0.0);
+    std::vector<double> activation(intermediate);
+    for (int selected = 0; selected < top_k; ++selected) {
+        const auto expert = static_cast<std::uint32_t>(order[selected]);
+        const auto gate_up = decode_nvfp4_expert(bank.gate_up, expert, read_gate_up);
+        const auto down = decode_nvfp4_expert(bank.down, expert, read_down);
+        const auto coefficient = std::exp(logits[expert] - logits[order[0]]) / normalization;
+        for (int row = 0; row < intermediate; ++row) {
+            double gate = 0.0, up = 0.0;
+            for (int k = 0; k < hidden; ++k) {
+                const auto x = static_cast<double>(qw::detail::bf16_to_f32(input[k]));
+                gate += qw::logical_weight_fp64(gate_up, row, k) * x;
+                up += qw::logical_weight_fp64(gate_up, row + intermediate, k) * x;
+            }
+            if (profile.routed.ffn.clamp_limit) {
+                const auto limit = static_cast<double>(*profile.routed.ffn.clamp_limit);
+                gate = std::min(gate, limit);
+                up = std::clamp(up, -limit, limit);
+            }
+            activation[row] = (gate >= 0.0 ? gate / (1.0 + std::exp(-gate))
+                                            : gate * std::exp(gate) / (1.0 + std::exp(gate))) * up;
+        }
+        for (int row = 0; row < hidden; ++row) {
+            double value = 0.0;
+            for (int k = 0; k < intermediate; ++k)
+                value += qw::logical_weight_fp64(down, row, k) * activation[k];
+            result[row] += coefficient * value;
+        }
+    }
+    if (profile.shared.intermediate != 0) {
+        const auto& gate_weight = parameters.shared.gate_up.weight;
+        const auto& down_weight = parameters.shared.down.weight;
+        if (gate_weight.qtype != QType::BF16 || down_weight.qtype != QType::BF16 ||
+            gate_weight.k != hidden || gate_weight.n != 2 * profile.shared.intermediate ||
+            down_weight.k != profile.shared.intermediate || down_weight.n != hidden)
+            throw std::runtime_error("real-layer oracle received unsupported shared weights");
+        std::vector<std::uint16_t> gate_bits(std::size_t(gate_weight.n) * gate_weight.k);
+        std::vector<std::uint16_t> down_bits(std::size_t(down_weight.n) * down_weight.k);
+        CUDA_CHECK(cudaMemcpy(gate_bits.data(), gate_weight.qdata,
+                             gate_bits.size() * sizeof(std::uint16_t), cudaMemcpyDeviceToHost));
+        CUDA_CHECK(cudaMemcpy(down_bits.data(), down_weight.qdata,
+                             down_bits.size() * sizeof(std::uint16_t), cudaMemcpyDeviceToHost));
+        std::vector<double> shared_activation(profile.shared.intermediate);
+        for (int row = 0; row < profile.shared.intermediate; ++row) {
+            double gate = 0.0, up = 0.0;
+            for (int k = 0; k < hidden; ++k) {
+                const auto x = static_cast<double>(qw::detail::bf16_to_f32(input[k]));
+                gate += qw::detail::bf16_to_f32(gate_bits[std::size_t(row) * hidden + k]) * x;
+                up += qw::detail::bf16_to_f32(
+                          gate_bits[std::size_t(row + profile.shared.intermediate) * hidden + k]) *
+                      x;
+            }
+            if (profile.shared.clamp_limit) {
+                const auto limit = static_cast<double>(*profile.shared.clamp_limit);
+                gate = std::min(gate, limit);
+                up = std::clamp(up, -limit, limit);
+            }
+            shared_activation[row] =
+                (gate >= 0.0 ? gate / (1.0 + std::exp(-gate))
+                             : gate * std::exp(gate) / (1.0 + std::exp(gate))) * up;
+        }
+        const auto shared_coefficient =
+            1.0 / (1.0 + std::exp(-std::clamp(logits[experts], -700.0, 700.0)));
+        for (int row = 0; row < hidden; ++row) {
+            double value = 0.0;
+            for (int k = 0; k < profile.shared.intermediate; ++k)
+                value += qw::detail::bf16_to_f32(
+                             down_bits[std::size_t(row) * profile.shared.intermediate + k]) *
+                         shared_activation[k];
+            result[row] += shared_coefficient * value;
+        }
+    }
+
+    for (auto& value : result) {
+        auto bits = std::bit_cast<std::uint32_t>(static_cast<float>(value));
+        bits += 0x7fffU + ((bits >> 16U) & 1U);
+        const auto bf16 = static_cast<std::uint16_t>(bits >> 16U);
+        value = qw::detail::bf16_to_f32(bf16);
+    }
+    return result;
+}
 
 void rank_loading(const artifact::Reader& reader, DeviceContext& device, std::uint32_t rank,
                   bool load, std::uint32_t ep) {
@@ -403,6 +560,22 @@ int main(int argc, char** argv) {
                             return std::isfinite(fp) && fp != 0.0F;
                         }),
                         "file-backed Flash-Next MoE produced no finite nonzero output");
+                const auto& source = disk_sources.at(bank.index);
+                const auto expected = real_nvfp4_moe_oracle(
+                    parameters.text.layers.front().moe, source, source.gate_up_read,
+                    source.down_read, input);
+                std::vector<double> actual(values.size());
+                std::transform(values.begin(), values.end(), actual.begin(), [](auto value) {
+                    return static_cast<double>(test::quantized_weight::detail::bf16_to_f32(value));
+                });
+                constexpr test::ReductionCriterion criterion{0.25, 1.0e-7, 0.35};
+                const auto stats = test::compute_reduction_stats(
+                    actual.data(), expected.data(), static_cast<std::int64_t>(actual.size()));
+                require(test::reduction_passes(stats, static_cast<std::int64_t>(actual.size()),
+                                               criterion),
+                        "real file-backed NVFP4 MoE output differs from decoded-weight FP64 oracle");
+                std::cout << "real NVFP4 oracle rel_l2=" << stats.relative_l2
+                          << " max_abs=" << stats.maximum_absolute_error << '\n';
                 std::cout << "PASS one real file-backed NVFP4 MoE layer; uploaded="
                           << schedule->uploaded_bytes() << " bytes\n";
             }
