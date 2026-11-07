@@ -415,6 +415,11 @@ MTP-off token IDs exactly: `1596 1144 310 5707 310 1156 328 5834 3158 8722`. Wit
 disabled, MTP-4 completed three rounds, accepted six drafts, and had no fallback. This closes that
 specific reproduced failure; it does not qualify other acceptance/state boundaries.
 
+The same ten-token `hi` request with draft window 5 also emitted the exact MTP-off sequence. It
+completed two rounds, accepted all seven drafted tokens, and had no fallback. These window-4 and
+window-5 checks exercise distinct acceptance extents, but do not qualify partial-prefix commit,
+multi-request verify, or state restoration generally.
+
 The same artifact and prompt were then measured at MAXN with fixed CPU/GPU/EMC clocks of
 2,201.6/1,300.5/3,199 MHz, INT8 KV, a 512 MiB context reservation, 1,024 maximum context, 128
 prefill chunk, CUDA Graphs and prefix reuse disabled, one request, and nine output tokens (eight
