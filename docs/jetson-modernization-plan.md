@@ -229,8 +229,11 @@ A follow-up four-request, 16-token cohort exposed a deterministic parity failure
 both enabled and disabled, and with draft windows two and four. The same prompt passed a single-row
 serial/MTP comparison through 16 tokens (draft window two; 11 drafted, 9 accepted, no fallback),
 so the current evidence isolates the divergence to batched execution but does not yet identify
-whether it is MTP state handling or a batch-shape numerical difference. Four-row cohort support
-remains unqualified pending that diagnosis; three-row parity remains the largest passing cohort.
+whether it is MTP state handling or a batch-shape numerical difference. The single-row serial and
+MTP outputs both produced 2716 at that position, while the ordinary four-row serial cohort produced
+4145; this narrows the discrepancy to batched execution but does not yet distinguish a batch-shape
+numerical change from a state/dispatch defect. Four-row cohort support remains unqualified pending
+that diagnosis; three-row parity remains the largest passing cohort.
 
 A real-artifact image-conditioned MTP comparison also passed on the public Engine with Graphs
 enabled: one resized 224x224 image, 83 prompt tokens, greedy output horizon 8, and draft window 4.
