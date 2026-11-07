@@ -454,8 +454,13 @@ windows, and the GEMV validator allows the tiled kernel to process multiple tile
 snapshot cases pass for Q8 windows 5x2, 4x4, and 3x8 (10, 16, and 24 flattened columns).
 After the fix, a two-request public benchmark on the same two prompts completed with MTP-4 and
 matched MTP-off decoded text and output-token counts for both rows. MTP accepted 9 of 16 drafts
-over five rounds with no fallback. This is a bounded concurrent smoke; the benchmark report does
-not expose generated token IDs, so exact token-ID parity is not claimed for these batch cases.
+over five rounds with no fallback. A durable real-artifact test,
+`ninfer_qwen4_exp_mtp_batch_real_test`, submits both requests through one public Engine and checks
+exact generated-token-ID parity against MTP-off, plus an observed two-row decode step. It passed
+on the supplied artifact in 96.4 s. The matched sequences were
+`1596 1144 310 5707 310 1156 25 328` and `1596 1144 4087 1156 25 328 760 1324`; MTP drafted
+11/5 and accepted 4/5 for the respective rows. This protects the reproduced multi-row path, not
+general multi-request state restoration or all acceptance boundaries.
 
 The same artifact and prompt were then measured at MAXN with fixed CPU/GPU/EMC clocks of
 2,201.6/1,300.5/3,199 MHz, INT8 KV, a 512 MiB context reservation, 1,024 maximum context, 128
