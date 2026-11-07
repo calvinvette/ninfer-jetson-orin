@@ -219,7 +219,10 @@ A real-artifact image-conditioned MTP comparison also passed on the public Engin
 enabled: one resized 224x224 image, 83 prompt tokens, greedy output horizon 8, and draft window 4.
 Serial and MTP generated token IDs matched exactly; MTP drafted 8 tokens, accepted 3, and took one
 fallback across three rounds. The Vision stream was 35.4 ms. This qualifies one image-conditioned
-accept/commit path; video-conditioned MTP and longer Vision/MTP horizons remain open.
+accept/commit path. A video-only comparison also matched serial token IDs for four greedy output
+tokens on a 49-token prompt with Graphs enabled and MTP-4; MTP accepted two drafts in one round
+without fallback, and the Vision stream was 16.2 ms. Video-conditioned MTP now has a short
+accept/commit smoke result; longer Vision/MTP horizons remain open.
 
 The public Engine completes a single-image request, a mixed image/video fixture (1,615 prompt
 tokens, output `NIFER-9`), text prefix reuse, and repeated image prefix reuse. The mixed-media
@@ -277,9 +280,9 @@ schedule/oracle run.
 
 ### Remaining gates
 
-- Extend MTP state qualification to video and cohorts larger than two. Text Graph/MTP now has exact
-  serial parity at 8 and 32 output tokens, fallback cases, a two-request decode cohort, and one
-  image-conditioned eight-token run.
+- Extend MTP state qualification to longer Vision/video horizons and cohorts larger than two. Text
+  Graph/MTP has exact serial parity at 8 and 32 output tokens, fallback cases, a two-request decode
+  cohort, and short image/video-conditioned runs.
 - Repeat the public mixed-media/ExpertCache breakdown under stable storage conditions. The current
   mixed-media Graph report is one diagnostic sample with NVMe timeouts; Vision numerical and
   encoder-throughput qualification covers artifact weights at up to 64 patches.
