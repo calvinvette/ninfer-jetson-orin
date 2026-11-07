@@ -490,11 +490,22 @@ and stopped after seven generated tokens; prefill took 1m54s. These establish bo
 two-image inference smokes, not full input-limit, multi-request Vision, or performance
 qualification.
 
-The disk schedule runs eagerly: CUDA Graph capture is disabled for this route until stable
-cache contents and graph replay are supported. Numerical comparison of a real layer against
-an independent oracle, MTP acceptance/commit and state-restoration qualification, broader Vision
-and prefix-reuse behavior, and graph capture remain open. The matched original-model performance
-matrix is recorded below; it does not qualify Flash-Next MTP or the other feature gates.
+The disk schedule runs eagerly. Graph capture is not currently safe for this route: each expert
+layer routes on the GPU, copies route IDs to pinned host memory, synchronizes the stream, and then
+replaces dynamic cache slots before launching the consumer. The generic offloaded graph segments
+capture fixed GPU work and have no representation for that host-side route/cache transaction.
+Supporting replay therefore requires an explicit ownership and scheduling design for expert
+selection, slot updates, and stable captured addresses; merely removing the startup graph-disable
+would call a capture path that deliberately throws. Graph capture remains open.
+
+The SM87 NVFP4 projection suite passed (`ninfer_linear_projection_nvfp4_test`). The block-scaled
+MoE suite also passed (`ninfer_moe_block_scaled_test`), including its complete NVFP4 routes at
+H=2,560, I=640, E=512, top-k=10. That suite checks the route against an independent FP64 oracle
+over decoded NVFP4 weights. This qualifies representative NVFP4 projection and expert arithmetic
+on SM87; it does not replace a comparison of a real Flash-Next layer and its artifact-bound
+metadata against an independent oracle. MTP acceptance/commit and state-restoration qualification,
+broader Vision and prefix-reuse behavior, and graph capture remain open. The matched original-model
+performance matrix is recorded below; it does not qualify Flash-Next MTP or the other feature gates.
 
 The standalone expert-cache benchmark was run on the real artifact's first MoE layer
 (`text/layers/0/moe/experts`, 512 experts). It staged 1.416 GB of source weights in 0.396 s,
