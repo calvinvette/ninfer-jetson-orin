@@ -305,6 +305,11 @@ schedule/oracle run.
   encoder-throughput qualification covers artifact weights at up to 64 patches.
 - Distinguish SSD/controller cache state for physical cold/warm storage measurements; `O_DIRECT`
   isolates requests from the host page cache but does not flush or measure device caches.
+- Storage diagnosis: the 4 TB Seagate FireCuda 530 (`SU6SM001`) reports no critical warning,
+  100% spare, 0 media errors, and 44 C after the latest run. PCIe is 16 GT/s ×4 with ASPM disabled.
+  A temporary APST-disable run still logged NVMe I/O timeouts; APST and its original PS3/PS4
+  transition table have been restored. This rules out APST as a sufficient explanation but does
+  not identify the timeout source.
 - Graph execution beyond the one-token smoke is now verified with text MTP through 128 tokens,
   image MTP through 32 tokens, video MTP through 35 generated tokens, a three-request MTP cohort,
   and a file-backed mixed-media Decode step. These are correctness/smoke checks; stable end-to-end
