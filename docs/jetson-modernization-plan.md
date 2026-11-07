@@ -412,10 +412,12 @@ places the discrepancy before layer 4's GDN and does not identify GDN as its cau
 batched GEMV now preserves the serial per-column reduction for block-HC widths 2..48. Its M=5
 output and FP32 injections match five independent serial GEMV invocations bit-for-bit; focused
 M=5, M=48, and M=49 HC cases pass. On the `Hello` MTP-4 trace, layer-0 target-token injections and
-residual now match serial decode, but the generated sequence still diverges. A later QSA
-local-output mismatch was observed, but the temporary trace did not align that output with the
-same QSA invocation across serial and verify, so its cause remains unresolved. Debug tracing was
-removed before commit. No end-to-end performance claim has been measured for the batched route.
+residual now match serial decode, but the generated sequence still diverges. A layer-tagged trace
+of the target token at QSA layer 7 shows identical mixer input but different projected query and
+gate hashes between serial and verify; the sparse-attention output differs downstream. This
+localizes the current first mismatch to T-dependent QSA input projection. Debug tracing was
+removed after the comparison. No end-to-end performance claim has been measured for the batched
+HC route.
 
 The disk schedule runs eagerly: CUDA Graph capture is disabled for this route until stable
 cache contents and graph replay are supported. Numerical comparison of a real layer against
