@@ -85,6 +85,8 @@ RankMemoryUsage RankProgramImpl::observe_resources() const {
     summary.cpu_workspace_bytes   = description.cpu_workspace_bytes;
     summary.uploaded_bytes        = cache.data_bytes;
     summary.prefetched_bytes      = cache.prefetched_bytes;
+    summary.cache_planning_nanoseconds = cache.planning_nanoseconds;
+    summary.cache_submit_nanoseconds   = cache.submit_nanoseconds;
     for (const auto& layer : description.layers) {
         summary.fixed_experts_per_layer.push_back(layer.fixed_experts);
         summary.target_experts_per_layer.push_back(layer.cache_experts);

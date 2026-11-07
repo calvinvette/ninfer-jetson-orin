@@ -64,6 +64,8 @@ RankMemoryUsage RankProgramImpl::observe_resources() const {
         summary.cpu_workspace_bytes = plan.cpu_workspace_bytes;
         summary.uploaded_bytes      = resources.moe->uploaded_bytes();
         summary.prefetched_bytes    = usage.prefetched_bytes;
+        summary.cache_planning_nanoseconds = usage.planning_nanoseconds;
+        summary.cache_submit_nanoseconds   = usage.submit_nanoseconds;
         out.experts                 = std::move(summary);
     }
     return out;

@@ -25,7 +25,8 @@ auto fields(T& v) {
                         v.window_bytes, v.window_count, v.used_bytes, v.target_bytes, v.ready_bytes,
                         v.cpu_workers, v.fixed_experts_per_layer, v.target_experts_per_layer,
                         v.ready_experts_per_layer, v.bridge_device_bytes, v.bridge_pinned_bytes,
-                        v.cpu_workspace_bytes, v.uploaded_bytes, v.prefetched_bytes);
+                        v.cpu_workspace_bytes, v.uploaded_bytes, v.prefetched_bytes,
+                        v.cache_planning_nanoseconds, v.cache_submit_nanoseconds);
     else if constexpr (std::is_same_v<Value, MemoryAllocations>)
         return std::tie(v.device_weights_bytes, v.host_weights_bytes, v.registered_weights_bytes,
                         v.persistent_device_bytes, v.context_device_bytes, v.workspace_device_bytes,

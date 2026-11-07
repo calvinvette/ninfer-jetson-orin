@@ -263,7 +263,9 @@ Json resource_json(const RankSnapshot& rank) {
                           {"target_experts_per_layer", e.target_experts_per_layer},
                           {"ready_experts_per_layer", e.ready_experts_per_layer},
                           {"uploaded_bytes", e.uploaded_bytes},
-                          {"prefetched_bytes", e.prefetched_bytes}};
+                          {"prefetched_bytes", e.prefetched_bytes},
+                          {"cache_planning_nanoseconds", e.cache_planning_nanoseconds},
+                          {"cache_submit_nanoseconds", e.cache_submit_nanoseconds}};
     }
     if (m.ple) {
         const auto& p = *m.ple;

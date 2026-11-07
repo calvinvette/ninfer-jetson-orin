@@ -118,10 +118,17 @@ Json rank_window(const RankSnapshot& before, const RankSnapshot& after) {
     Json out{{"rank", after.rank},
              {"workspace_peak_bytes", after.memory.workspace.measurement_peak_bytes},
              {"expert_upload_bytes", nullptr},
+             {"expert_cache_planning_ns", nullptr},
+             {"expert_cache_submit_ns", nullptr},
              {"ple_upload_bytes", nullptr}};
-    if (before.memory.experts && after.memory.experts)
+    if (before.memory.experts && after.memory.experts) {
         out["expert_upload_bytes"] =
             after.memory.experts->uploaded_bytes - before.memory.experts->uploaded_bytes;
+        out["expert_cache_planning_ns"] = after.memory.experts->cache_planning_nanoseconds -
+                                           before.memory.experts->cache_planning_nanoseconds;
+        out["expert_cache_submit_ns"] = after.memory.experts->cache_submit_nanoseconds -
+                                         before.memory.experts->cache_submit_nanoseconds;
+    }
     if (before.memory.ple && after.memory.ple)
         out["ple_upload_bytes"] =
             after.memory.ple->uploaded_bytes - before.memory.ple->uploaded_bytes;
@@ -386,7 +393,9 @@ std::string format_report(const Json& report, OutputFormat format) {
             out << "run " << rep["repetition"] << " rank " << rank["rank"]
                 << ": workspace peak=" << rank["workspace_peak_bytes"] << " B"
                 << "  expert upload=" << number(rank["expert_upload_bytes"], 0)
-                << " B  PLE upload=" << number(rank["ple_upload_bytes"], 0) << " B\n";
+                << " B  cache planning=" << number(rank["expert_cache_planning_ns"], 0)
+                << " ns  cache submit=" << number(rank["expert_cache_submit_ns"], 0)
+                << " ns  PLE upload=" << number(rank["ple_upload_bytes"], 0) << " B\n";
     }
     return out.str();
 }

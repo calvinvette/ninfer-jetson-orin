@@ -227,6 +227,10 @@ EngineSnapshot observation_delta(EngineSnapshot current, const EngineSnapshot& b
         if (rank.memory.experts && prior->memory.experts) {
             rank.memory.experts->uploaded_bytes -= prior->memory.experts->uploaded_bytes;
             rank.memory.experts->prefetched_bytes -= prior->memory.experts->prefetched_bytes;
+            rank.memory.experts->cache_planning_nanoseconds -=
+                prior->memory.experts->cache_planning_nanoseconds;
+            rank.memory.experts->cache_submit_nanoseconds -=
+                prior->memory.experts->cache_submit_nanoseconds;
         }
         if (rank.memory.ple && prior->memory.ple)
             for (auto field :

@@ -45,6 +45,8 @@ struct MoeMemorySummary {
     std::size_t cpu_workspace_bytes = 0;
     std::uint64_t uploaded_bytes    = 0;
     std::uint64_t prefetched_bytes  = 0;
+    std::uint64_t cache_planning_nanoseconds = 0;
+    std::uint64_t cache_submit_nanoseconds   = 0;
 };
 
 struct GraphMemorySummary {

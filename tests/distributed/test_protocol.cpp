@@ -920,6 +920,8 @@ int main() {
         memory.node                                             = 3;
         memory.memory.workspace                                 = {64, 96, 80};
         memory.memory.experts.emplace().fixed_experts_per_layer = {1, 7, 3};
+        memory.memory.experts->cache_planning_nanoseconds = 1234;
+        memory.memory.experts->cache_submit_nanoseconds   = 5678;
         RankMemoryBudget budget;
         budget.headroom_bytes         = 512;
         budget.host_reservation_bytes = 1024;
@@ -954,6 +956,8 @@ int main() {
                 report.communication.at(0).backends.at(0).memory.library->tracked_device_bytes ==
                     100 &&
                 report.communication.at(0).backends.at(0).memory.owned_host_bytes == 64 &&
+                report.memory.experts->cache_planning_nanoseconds == 1234 &&
+                report.memory.experts->cache_submit_nanoseconds == 5678 &&
                 report.memory.experts->fixed_experts_per_layer ==
                     std::vector<std::uint32_t>{1, 7, 3},
             "resource observation lost rank identity, values or signed calibration");

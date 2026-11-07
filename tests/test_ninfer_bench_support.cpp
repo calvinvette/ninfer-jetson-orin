@@ -147,6 +147,18 @@ void report_test() {
     std::vector<bench::Repetition> repetitions{
         sample({{2, 8000000}, {2, 12000000}, {1, 6000000}}),
         sample({{2, 20000000}, {1, 4000000}, {1, 10000000}})};
+    auto& first = repetitions.front();
+    RankSnapshot before;
+    before.rank = 0;
+    before.memory.experts.emplace().cache_planning_nanoseconds = 100;
+    before.memory.experts->cache_submit_nanoseconds = 200;
+    before.memory.experts->uploaded_bytes = 300;
+    auto after = before;
+    after.memory.experts->cache_planning_nanoseconds += 4'000;
+    after.memory.experts->cache_submit_nanoseconds += 500;
+    after.memory.experts->uploaded_bytes += 600;
+    first.before.ranks.push_back(std::move(before));
+    first.after.ranks.push_back(std::move(after));
     const auto summary = bench::summarize(repetitions, 4);
     const auto& decode = summary["executions"]["decode"];
     expect(decode["units"] == 6 && decode["rows"] == 9, "actual global steps and rows");
@@ -179,6 +191,10 @@ void report_test() {
            "early EOS retained");
     expect(report["repetitions"][0]["requests"][0]["first_token_seconds"].is_null(),
            "missing first-token timing is null");
+    expect(report["repetitions"][0]["ranks"][0]["expert_cache_planning_ns"] == 4'000 &&
+               report["repetitions"][0]["ranks"][0]["expert_cache_submit_ns"] == 500 &&
+               report["repetitions"][0]["ranks"][0]["expert_upload_bytes"] == 600,
+           "per-run expert cache service counters are differenced from the baseline");
     expect(Json::parse(bench::format_report(report, bench::OutputFormat::Json)) == report,
            "JSON round trip");
     expect(bench::format_report(report, bench::OutputFormat::Table).find("13.333") !=
