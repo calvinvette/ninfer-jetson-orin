@@ -218,9 +218,12 @@ maximum absolute error is 0.02344. The same oracle also loads the artifact's dis
 Vision weights and passes the full 27-layer encoder for one four-patch feature: relative L2 is
 0.03122 and maximum absolute error is 0.00586. The test compares the final represented BF16 output
 with the independent FP64 computation and uses relative-L2 <= 0.04 and max-absolute <= 0.01
-acceptance criteria. Vision throughput is not qualified. File-backed expert execution still
-disables CUDA Graph capture because its host-side expert selection/cache updates lack a supported
-captured-address update path. Graph replay for this route remains open.
+acceptance criteria. Vision throughput is not qualified. A focused CUDA cache test now captures a
+consumer against the stable expert-cache view, stages two different file-backed expert IDs into
+the cache, and verifies graph replay reads each updated expert exactly. This qualifies the cache
+address/offset update mechanism with an in-memory file-source callback. The full file-backed Engine
+schedule still disables CUDA Graph capture; its layer-level route, staging, and readiness handoffs
+have not been integrated with captured execution.
 
 ### Remaining gates
 
@@ -230,8 +233,8 @@ captured-address update path. Graph replay for this route remains open.
   qualification now covers all distinct artifact Vision weights at one four-patch feature.
 - Distinguish SSD/controller cache state for physical cold/warm storage measurements; `O_DIRECT`
   isolates requests from the host page cache but does not flush or measure device caches.
-- Implement or otherwise qualify a stable CUDA Graph update route for file-backed expert staging,
-  if graph support is required for the supported product path.
+- Integrate the qualified stable cache-view replay mechanism with the file-backed Engine schedule
+  and qualify captured layer execution; graph capture remains disabled on that full route.
 - Re-run CUDA 12.6 regression after changes and qualify JP7/CUDA 13 when that environment becomes
   available.
 - Submit source changes upstream when a repository with push access is available. The local source
