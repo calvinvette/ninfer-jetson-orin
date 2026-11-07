@@ -193,8 +193,9 @@ The default 64-token `hi` case exercises one fallback; the 128-token `hi` case c
 and accepts 96 without fallback. The two-request MTP cohort also matches non-speculative token IDs
 and exercises a two-row decode batch. An additional 32-token case on “A small robot explores a
 forest at sunrise” matched exactly with MTP-4 (38 drafted, 21 accepted, no fallback). This resolves
-the previously reproduced token-13 and token-32 mismatches for the tested cases. Other prompts and
-horizons above 128 remain unqualified.
+the previously reproduced token-13 and token-32 mismatches for the tested cases. A separate
+64-token arithmetic explanation prompt matched with MTP-2 (81 drafted, 21 accepted, one fallback).
+Other prompts and horizons above 128 remain unqualified.
 
 The public Engine completes a single-image request, a mixed image/video fixture (1,615 prompt
 tokens, output `NIFER-9`), text prefix reuse, and repeated image prefix reuse. The mixed-media
