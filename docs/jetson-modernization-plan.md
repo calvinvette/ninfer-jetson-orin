@@ -191,8 +191,10 @@ MTP greedy equivalence now passes against serial decode for the real artifact on
 through 128 output tokens, with draft windows 1 and 4 tested at shorter horizons and MTP-4 at 128.
 The default 64-token `hi` case exercises one fallback; the 128-token `hi` case completes 123 drafts
 and accepts 96 without fallback. The two-request MTP cohort also matches non-speculative token IDs
-and exercises a two-row decode batch. This resolves the previously reproduced token-13 and token-32
-mismatches for the tested cases. Other prompts and horizons above 128 remain unqualified.
+and exercises a two-row decode batch. An additional 32-token case on “A small robot explores a
+forest at sunrise” matched exactly with MTP-4 (38 drafted, 21 accepted, no fallback). This resolves
+the previously reproduced token-13 and token-32 mismatches for the tested cases. Other prompts and
+horizons above 128 remain unqualified.
 
 The public Engine completes a single-image request, a mixed image/video fixture (1,615 prompt
 tokens, output `NIFER-9`), text prefix reuse, and repeated image prefix reuse. The mixed-media
