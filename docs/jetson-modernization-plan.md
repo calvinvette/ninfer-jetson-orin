@@ -705,7 +705,10 @@ qualification run on `Hello` (34 generated tokens, eager execution, MTP-4) match
 `248045`; MTP reported 33 drafted tokens, 23 accepted, and one fallback step. This establishes an
 additional prompt-generalization failure without identifying its cause. General MTP
 acceptance/commit and state-restoration qualification across prompts and verify extents therefore
-remains open. Broader Vision and prefix-reuse
+remains open. The same 33-token `Hello` boundary reproduces with MTP-1: the first 32 tokens match,
+then MTP emits `248045` where serial emits `846` (17 drafts, 15 accepted, no fallback steps).
+This makes the observed failure independent of the configured draft window, while its internal
+state cause remains unlocated. Broader Vision and prefix-reuse
 behavior and graph capture remain open. The matched original-model performance matrix is recorded
 below and does not substitute for Flash-Next measurements.
 
