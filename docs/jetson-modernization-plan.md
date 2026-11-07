@@ -377,6 +377,23 @@ between serial and verify column 0. Thus the fixed layer-0 GDN path is not the c
 mismatch. MTP acceptance/commit, state-restoration, and verify-forward correctness remain open;
 temporary trace code was removed.
 
+A same-process trace then localized the first residual difference for token 1156 to the FP32 HC
+injection. The serial and T=5 input and pre-combine residual match exactly; the original split-K
+down projection changed the four injections by at most 6.71e-7. After HC combine, 38/10,240 BF16
+residual values differed (maximum 2.44e-4). Routing block HC projections with 2..48 flattened
+columns through the SIMT reduction avoids split-K across speculative windows (six columns times
+the supported eight request rows). At T=5, the largest injection difference from the serial
+GEMV route falls to 1.12e-8 and the post-combine residual is bit-identical. The focused HC oracle
+cases at M=5, M=48, and M=49 pass, covering the new route and its upper boundary.
+
+With that route, the supplied artifact, prompt `hi`, greedy seed 0, eager execution, prefill
+chunk 128, and ten generated tokens produces the MTP-off sequence
+`1596 1144 310 5707 310 1156 328 5834 3158 8722` for both draft windows 4 and 5. MTP-4
+completed three rounds (9 drafted, 6 accepted, no fallback); MTP-5 completed two rounds (7/7
+accepted, no fallback). This closes the reproduced token-7 mismatch for these cases, but does not
+qualify fallback behavior, other acceptance extents, terminal commits, multi-request batches,
+Vision, or state restoration generally.
+
 The disk schedule runs eagerly: CUDA Graph capture is disabled for this route until stable
 cache contents and graph replay are supported. Numerical comparison of a real layer against
 an independent oracle, MTP acceptance/commit and state-restoration qualification, Vision,
