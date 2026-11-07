@@ -549,6 +549,16 @@ tie-sensitive numerical difference in the batched target forward; it is not evid
 accept/commit defect. The long-horizon route remains unqualified, and the accepted-state comparison
 and a full-route numerical criterion remain open.
 
+A synchronized persistent-state capture at the frontier immediately before that continuation
+compared MTP-off after one serial step with MTP-4 after accepting its matching prefix. The GDN
+convolution and recurrent fields, main QSA raw tail, and QSA coordinates were byte-identical.
+The nine-column PLE history differed in 278 of 92,160 BF16 values (maximum decoded absolute
+difference 0.00390625); the saved 2,560-element sample hidden differed in 2,527 values (mean
+absolute difference over changed values 0.2694, maximum 2.0). Generated IDs still matched through
+token 12. The exact accepted-prefix PLE extraction Op test passes, so this capture narrows the
+remaining state drift to values produced by the batched target forward, while not proving which
+upstream PLE or hidden computation is responsible. It does not support a commit-indexing defect.
+
 To isolate the observed PLE projection batch-shape difference without changing prefill, I
 temporarily made only the MTP verify path issue one single-column BF16 projection per token. The
 16-token MTP-off sequence stayed unchanged, but MTP-4 then diverged at token 9 and emitted
