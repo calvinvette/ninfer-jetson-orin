@@ -707,6 +707,12 @@ qualification remain separate from the completed resident-model campaign.
 The modernized Flash-Next verify path now passes exact 64-token greedy MTP-4
 parity on the supplied V3 artifact with serial-shaped PLE/QSA projections; its
 matched 32-token benchmark showed a 19% median decode gain over MTP off in this
-single workload. Scope and run details are recorded in
-[`docs/jetson-modernization-plan.md`](docs/jetson-modernization-plan.md). Broader
-MTP, Vision, CUDA-Graph, and memory qualification remain open.
+single workload. File-backed CUDA Graph routing and expert compute now pass a
+real NVFP4 MoE oracle and a public Engine mixed-media Decode smoke. Graph-enabled
+serial/MTP parity passes for text at 8 and 32 output tokens, a two-request
+cohort, and short image- and video-conditioned runs. These checks extend
+qualification; they do not close longer media horizons, cohorts larger than two,
+stable cold/warm storage measurements, or physical SSD/controller cache
+characterization. CUDA 12.6 remains the required toolchain; JP7/CUDA 13
+qualification awaits that environment. Scope and run details are recorded in
+[`docs/jetson-modernization-plan.md`](docs/jetson-modernization-plan.md).
