@@ -66,7 +66,7 @@ GenerationResult run_long(const std::string& artifact, bool mtp) {
     if (mtp) options.speculative = {SpeculativeBackend::Mtp, 4};
     Engine engine(std::move(options));
     RequestOptions request;
-    request.execution.requested_output_tokens = 32;
+    request.execution.requested_output_tokens = 64;
     request.execution.sampling.temperature = 0.0F;
     request.execution.sampling.seed = 0;
     request.stop.include_model_defaults = false;
@@ -91,15 +91,15 @@ int main() {
     try {
         const auto serial_long = run_long(artifact, false);
         const auto mtp_long = run_long(artifact, true);
-        require(serial_long.generated_token_ids.size() == 32 &&
+        require(serial_long.generated_token_ids.size() == 64 &&
                     mtp_long.generated_token_ids == serial_long.generated_token_ids,
-                "32-token greedy MTP output differs from non-speculative decode");
+                "64-token greedy MTP output differs from non-speculative decode");
         std::cout << "long serial=";
         for (auto token : serial_long.generated_token_ids) std::cout << token << ' ';
         std::cout << "\nlong mtp=";
         for (auto token : mtp_long.generated_token_ids) std::cout << token << ' ';
         std::cout << '\n';
-        std::cout << "PASS exact 32-token MTP parity for Flash-Next\n";
+        std::cout << "PASS exact 64-token MTP parity for Flash-Next\n";
         const auto reference = run(artifact, false);
         const auto mtp       = run(artifact, true);
         require(reference.requests.size() == 2 && mtp.requests.size() == 2,
