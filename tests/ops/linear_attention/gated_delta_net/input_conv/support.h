@@ -61,10 +61,13 @@ struct RecordCase {
 
 struct Q8RouteCapture {
     std::vector<std::uint16_t> query, key, value, z, first_state;
+    std::vector<std::uint16_t> sequence_query, sequence_key, sequence_value, sequence_z;
+    std::vector<std::uint16_t> activation, initial_state, state_after;
 };
 
 int run_snapshot(Weights& weights, const SnapshotCase& c);
 int q8_first_column_invariance(Weights& weights);
+int q8_sequence_single_step_equivalence(Weights& weights);
 int snapshot_capacity_contract();
 int run_record(Weights& weights, const RecordCase& c);
 

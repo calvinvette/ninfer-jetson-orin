@@ -83,7 +83,9 @@ struct GdnConvEpilogue {
             publish.publish(token, batch_row, row, s1, s2, p);
             s0 = s1;
             s1 = s2;
-            s2 = p;
+            // The next token observes the same BF16 convolution state that a separate
+            // single-token call would persist and then reload.
+            s2 = __bfloat162float(__float2bfloat16_rn(p));
         }
     }
 };

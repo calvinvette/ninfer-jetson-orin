@@ -222,6 +222,10 @@ int main(int argc, char** argv) {
                 Weights weights(profile, false);
                 return q8_first_column_invariance(weights) + weights.preserved();
             });
+            suite.add("gdn_input_snapshot/q8/flash_next/t1_t5_serial_equivalence", [=] {
+                Weights weights(profile, false);
+                return q8_sequence_single_step_equivalence(weights) + weights.preserved();
+            });
         }
         const auto tests = cases(profile);
         std::vector<OpCase> catalogue;

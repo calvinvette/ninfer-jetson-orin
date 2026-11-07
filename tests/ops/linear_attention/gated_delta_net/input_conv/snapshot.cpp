@@ -115,12 +115,14 @@ snapshot_oracle(std::int32_t value_rows, std::int32_t tokens, const std::vector<
             const double convolved =
                 weight0 * state0 + weight1 * state1 + weight2 * state2 + weight3 * projected;
             output.push_back(silu_fp64(convolved));
+            const double persisted_projected =
+                bf16_to_f32(f32_to_bf16(static_cast<float>(projected)));
             oracle.state.push_back(state1);
             oracle.state.push_back(state2);
-            oracle.state.push_back(projected);
+            oracle.state.push_back(persisted_projected);
             state0 = state1;
             state1 = state2;
-            state2 = projected;
+            state2 = persisted_projected;
         }
     };
 
@@ -616,7 +618,9 @@ int run_q4_q5_case(DevicePackedWeight& query_key, DevicePackedWeight& value_z_we
 
 int run_q8_case(DevicePackedWeight& parent, std::int32_t tokens, std::int32_t initial_slot,
                 bool graph = false, std::uint32_t route_seed = 0,
-                ninfer::test::gdn_input_conv::Q8RouteCapture* route_capture = nullptr) {
+                ninfer::test::gdn_input_conv::Q8RouteCapture* route_capture = nullptr,
+                const std::vector<std::uint16_t>* activation_override = nullptr,
+                const std::vector<std::uint16_t>* initial_state_override = nullptr) {
     const auto weight                        = parent.view();
     const std::int32_t kHidden               = weight.k;
     const std::int32_t kValueRows            = weight.n == 16384 ? 6144 : 4096;
@@ -630,8 +634,22 @@ int run_q8_case(DevicePackedWeight& parent, std::int32_t tokens, std::int32_t in
     std::vector<std::uint16_t> activation_bits        = bf16_bits(activation);
     const std::vector<float> conv_weight              = make_conv_weight(kChannels, 709U);
     const std::vector<std::uint16_t> conv_weight_bits = bf16_bits(conv_weight);
-    const std::vector<std::uint16_t> state_before =
+    if (activation_override) {
+        if (activation_override->size() != activation_bits.size())
+            throw std::invalid_argument("Q8 route activation override has incorrect size");
+        activation_bits = *activation_override;
+        for (std::size_t i = 0; i < activation.size(); ++i)
+            activation[i] = bf16_to_f32(activation_bits[i]);
+    }
+    std::vector<std::uint16_t> state_before =
         make_state(kChannels, slots, initial_slot, state_seed);
+    if (initial_state_override) {
+        const std::size_t stride = static_cast<std::size_t>(kChannels) * 3;
+        if (initial_state_override->size() != stride)
+            throw std::invalid_argument("Q8 route state override has incorrect size");
+        std::copy(initial_state_override->begin(), initial_state_override->end(),
+                  state_before.begin() + static_cast<std::size_t>(initial_slot) * stride);
+    }
     const std::vector<std::int32_t> initial_value{initial_slot};
     const std::vector<std::int32_t> snapshot_base_value{kSnapshotBaseSlot};
 
@@ -728,6 +746,22 @@ int run_q8_case(DevicePackedWeight& parent, std::int32_t tokens, std::int32_t in
         const auto base = static_cast<std::size_t>(kSnapshotBaseSlot) * 3 * kChannels;
         route_capture->first_state.assign(state_after.begin() + base,
                                           state_after.begin() + base + 3 * kChannels);
+        route_capture->sequence_query = query.bits();
+        route_capture->sequence_key   = key.bits();
+        route_capture->sequence_value = value.bits();
+        route_capture->sequence_z     = z.bits();
+        route_capture->activation     = activation_bits;
+        const auto initial_base = static_cast<std::size_t>(initial_slot) * 3 * kChannels;
+        route_capture->initial_state.assign(state_before.begin() + initial_base,
+                                            state_before.begin() + initial_base + 3 * kChannels);
+        route_capture->state_after.clear();
+        for (std::int32_t token = 0; token < tokens; ++token) {
+            const auto token_base = static_cast<std::size_t>(kSnapshotBaseSlot + token) *
+                                    3 * kChannels;
+            route_capture->state_after.insert(route_capture->state_after.end(),
+                                              state_after.begin() + token_base,
+                                              state_after.begin() + token_base + 3 * kChannels);
+        }
     }
     const std::string suffix =
         " Q8 K=" + std::to_string(kHidden) + " A16 T=" + std::to_string(tokens) +
@@ -1036,7 +1070,7 @@ int q8_first_column_invariance(Weights& weights) {
         weights.profile.qk_rows != 2048)
         throw std::invalid_argument("Q8 first-column test requires the Flash-Next projection shape");
     Q8RouteCapture single;
-    int failures = run_q8_case(weights.first, 1, 4, false, 0x51a7U, &single);
+    int failures = run_q8_case(weights.first, 1, 1, false, 0x51a7U, &single);
     const auto check = [&](const char* label, const std::vector<std::uint16_t>& a,
                            const std::vector<std::uint16_t>& b) {
         if (a == b) return 0;
@@ -1047,7 +1081,7 @@ int q8_first_column_invariance(Weights& weights) {
     };
     for (int width = 2; width <= 5; ++width) {
         Q8RouteCapture window;
-        failures += run_q8_case(weights.first, width, 4, false, 0x51a7U, &window);
+        failures += run_q8_case(weights.first, width, 1, false, 0x51a7U, &window);
         const auto suffix = " T=" + std::to_string(width);
         failures += check(("Q8 GDN first-column query" + suffix).c_str(), single.query,
                           window.query);
@@ -1057,6 +1091,68 @@ int q8_first_column_invariance(Weights& weights) {
         failures += check(("Q8 GDN first-column z" + suffix).c_str(), single.z, window.z);
         failures += check(("Q8 GDN first-column convolution state" + suffix).c_str(),
                           single.first_state, window.first_state);
+    }
+    return failures;
+}
+
+int q8_sequence_single_step_equivalence(Weights& weights) {
+    constexpr std::int32_t width = 5;
+    constexpr std::int32_t hidden = 2560;
+    constexpr std::int32_t qk_rows = 2048;
+    constexpr std::int32_t value_rows = 6144;
+    constexpr std::int32_t channels = 2 * qk_rows + value_rows;
+    constexpr std::uint32_t seed = 0x61b9U;
+    if (weights.profile.format != QType::Q8_G32_FP16 || weights.profile.hidden != hidden ||
+        weights.profile.qk_rows != qk_rows)
+        throw std::invalid_argument("Q8 sequence test requires the Flash-Next projection shape");
+
+    Q8RouteCapture sequence;
+    int failures = run_q8_case(weights.first, width, 0, false, seed, &sequence);
+    const auto compare_column = [&](std::string_view label,
+                                    const std::vector<std::uint16_t>& batched,
+                                    const std::vector<std::uint16_t>& single,
+                                    std::int32_t rows, std::int32_t token) {
+        const auto begin = batched.begin() + static_cast<std::ptrdiff_t>(token) * rows;
+        if (std::equal(begin, begin + rows, single.begin())) return 0;
+        std::int32_t index = 0;
+        while (index < rows && *(begin + index) == single[static_cast<std::size_t>(index)]) ++index;
+        std::cerr << label << ": T=" << width << " column=" << token
+                  << " differs from serial step at element " << index << '\n';
+        return 1;
+    };
+    const std::size_t state_stride = static_cast<std::size_t>(channels) * 3;
+    const std::size_t activation_stride = hidden;
+    for (std::int32_t token = 0; token < width; ++token) {
+        const auto& source = token == 0
+                                 ? sequence.initial_state
+                                 : std::vector<std::uint16_t>(
+                                       sequence.state_after.begin() +
+                                           static_cast<std::ptrdiff_t>(token - 1) * state_stride,
+                                       sequence.state_after.begin() +
+                                           static_cast<std::ptrdiff_t>(token) * state_stride);
+        const std::vector<std::uint16_t> activation(
+            sequence.activation.begin() + static_cast<std::ptrdiff_t>(token) * activation_stride,
+            sequence.activation.begin() +
+                static_cast<std::ptrdiff_t>(token + 1) * activation_stride);
+        Q8RouteCapture serial;
+        failures += run_q8_case(weights.first, 1, 0, false, seed, &serial, &activation, &source);
+        failures += compare_column("Q8 GDN query", sequence.sequence_query, serial.query,
+                                   qk_rows, token);
+        failures += compare_column("Q8 GDN key", sequence.sequence_key, serial.key, qk_rows,
+                                   token);
+        failures += compare_column("Q8 GDN value", sequence.sequence_value, serial.value,
+                                   value_rows, token);
+        failures += compare_column("Q8 GDN Z", sequence.sequence_z, serial.z, value_rows, token);
+        if (serial.state_after.size() != state_stride ||
+            !std::equal(sequence.state_after.begin() +
+                            static_cast<std::ptrdiff_t>(token) * state_stride,
+                        sequence.state_after.begin() +
+                            static_cast<std::ptrdiff_t>(token + 1) * state_stride,
+                        serial.state_after.begin())) {
+            std::cerr << "Q8 GDN convolution state: T=" << width << " column=" << token
+                      << " differs from serial step\n";
+            ++failures;
+        }
     }
     return failures;
 }
