@@ -28,6 +28,11 @@ ninfer_add_test(ninfer_qwen4_exp_loading_real_test
   LIBRARIES ninfer_model_execution)
 set_tests_properties(ninfer_qwen4_exp_loading_real_test PROPERTIES
   SKIP_RETURN_CODE 77 RUN_SERIAL TRUE LABELS "gpu;real")
+ninfer_add_test(ninfer_qwen4_exp_mtp_batch_real_test
+  SOURCES "${CMAKE_CURRENT_LIST_DIR}/test_engine_mtp_batch_real.cpp"
+  LIBRARIES ninfer_engine)
+set_tests_properties(ninfer_qwen4_exp_mtp_batch_real_test PROPERTIES
+  SKIP_RETURN_CODE 77 RUN_SERIAL TRUE LABELS "gpu;real" TIMEOUT 600)
 ninfer_add_test(ninfer_qwen4_exp_loading_test
   SOURCES "${CMAKE_CURRENT_LIST_DIR}/test_loading.cpp"
   LIBRARIES ninfer_model_loading)
