@@ -439,6 +439,17 @@ MTP-4 accepted 9 of 17 drafts (`3,2,2,2` by position) and recorded one fallback 
 exercises a real-artifact fallback in a single eager request; it does not qualify fallback state
 restoration across other states, context boundaries, or concurrent requests.
 
+A two-request public Engine run exposed a multi-row Q8 GDN projection failure: the window route
+used the per-sequence width as the GEMV tile capacity, while the projection flattened columns
+across active rows. The tiled GEMV kernel already supported multiple tiles, but its host validator
+incorrectly rejected inputs wider than one tile. The Orin route now tiles in complete convolution
+windows, and the GEMV validator allows the tiled kernel to process multiple tiles. FP64-oracle
+snapshot cases pass for Q8 windows 5x2, 4x4, and 3x8 (10, 16, and 24 flattened columns).
+After the fix, a two-request public benchmark on the same two prompts completed with MTP-4 and
+matched MTP-off decoded text and output-token counts for both rows. MTP accepted 9 of 16 drafts
+over five rounds with no fallback. This is a bounded concurrent smoke; the benchmark report does
+not expose generated token IDs, so exact token-ID parity is not claimed for these batch cases.
+
 The same artifact and prompt were then measured at MAXN with fixed CPU/GPU/EMC clocks of
 2,201.6/1,300.5/3,199 MHz, INT8 KV, a 512 MiB context reservation, 1,024 maximum context, 128
 prefill chunk, CUDA Graphs and prefix reuse disabled, one request, and nine output tokens (eight
