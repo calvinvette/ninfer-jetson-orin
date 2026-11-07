@@ -218,7 +218,22 @@ maximum absolute error is 0.02344. The same oracle also loads the artifact's dis
 Vision weights and passes the full 27-layer encoder for one four-patch feature: relative L2 is
 0.03122 and maximum absolute error is 0.00586. The test compares the final represented BF16 output
 with the independent FP64 computation and uses relative-L2 <= 0.04 and max-absolute <= 0.01
-acceptance criteria. Vision throughput is not qualified. A focused CUDA cache test now captures a
+acceptance criteria. An isolated production `VisionContext` benchmark now measures the encoder
+with the artifact's learned weights (synthetic deterministic patch tensors and position metadata),
+excluding image decode and preprocessing. On AGX Orin in MAXN with `jetson_clocks` (CPU 2.2016 GHz,
+GPU 1.3005 GHz, EMC 3.199 GHz; CUDA runtime 12.6.0), two warmups and five repetitions gave median
+CUDA-stream / synchronized wall times of 8.615 / 8.621 ms for 1 feature (4 patches), 10.067 /
+10.076 ms for 4 features (16 patches), and 12.859 / 12.865 ms for 16 features (64 patches). The
+corresponding wall-time throughput is 464, 1,588, and 4,975 patches/s. These are encoder-only
+measurements; end-to-end mixed-media latency is still not isolated from Text and expert-storage
+work. Command:
+
+```bash
+./build/jetson-orin-jp6-rebase/bench/ninfer_qwen4_exp_vision_bench \
+  /home/calvin/models/Qwen3.8-Flash-Next-NInfer/qwen3_8_flash_next.ninfer 2 5
+```
+
+A focused CUDA cache test now captures a
 consumer against the stable expert-cache view, stages two different file-backed expert IDs into
 the cache, and verifies graph replay reads each updated expert exactly. This qualifies the cache
 address/offset update mechanism with an in-memory file-source callback. The full file-backed Engine
@@ -229,8 +244,8 @@ have not been integrated with captured execution.
 
 - Qualify broader MTP acceptance/commit and state restoration across prompts, output horizons,
   fallback boundaries, Vision, and larger concurrent cohorts.
-- Measure the mixed-media path separately from expert-storage latency; Vision numerical oracle
-  qualification now covers all distinct artifact Vision weights at one four-patch feature.
+- Measure public mixed-media latency separately from expert-storage latency; Vision numerical and
+  encoder-throughput qualification now covers artifact weights at up to 64 patches.
 - Distinguish SSD/controller cache state for physical cold/warm storage measurements; `O_DIRECT`
   isolates requests from the host page cache but does not flush or measure device caches.
 - Integrate the qualified stable cache-view replay mechanism with the file-backed Engine schedule
