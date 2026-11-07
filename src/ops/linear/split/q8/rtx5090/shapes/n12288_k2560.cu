@@ -8,6 +8,7 @@ namespace {
 using Mma64     = Q8A16MmaSchedule<32, 64, 64, 32, 16, 2, 3>;
 using Mma64Full = Q8A16MmaSchedule<48, 64, 64, 48, 16, 2, 3>;
 using Gemv      = Q8A16GemvSchedule<8, 1, 2, 2560, 1>;
+using Gemv8     = Q8A16GemvTileSchedule<8, 8, 1, 3, 2560, 1>;
 using Small     = Q8A16SlicedKMmaSchedule<16, 4, 1, 1, Q8ScaleAccess::Shared, Cache::ca, Cache::cg,
                                           Q8ActivationStage::PaddedZero, 2560>;
 using Medium    = Q8A16MmaSchedule<32, 32, 128, 16, 16, 2, 3>;
@@ -30,6 +31,9 @@ auto select_route(int tokens, const Routes& routes) {
     // Full token tiles select different kernels from tails; retain their measured winners.
     // The 34-column single-stage sliced schedule also has a repeatable advantage.
     if (tokens == 1) return routes.template gemv<Gemv>();
+#if NINFER_TARGET_JETSON_ORIN
+    if (tokens <= 8) return routes.template gemv<Gemv8>();
+#endif
     if (tokens <= 16) return routes.template sliced<Small>();
     if (tokens == 32) return routes.template grouped<Group32>();
     if (tokens < 32) return routes.template mma<Medium>();

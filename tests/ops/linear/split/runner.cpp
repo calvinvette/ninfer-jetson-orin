@@ -145,6 +145,33 @@ int verify_output(const Profile& profile, const Invocation& call,
     return failures;
 }
 
+int verify_serial_columns(const Profile& profile, const Weight& weight, const Invocation& call,
+                          const DeviceBuffer& input, const Outputs& batch,
+                          CudaExecutionView cuda) {
+    int failures = 0;
+    for (int column = 0; column < call.t; ++column) {
+        const auto* data = static_cast<const std::byte*>(input.data()) +
+                           std::size_t(column) * profile.k * sizeof(std::uint16_t);
+        Tensor x(const_cast<std::byte*>(data), input.device(), DType::BF16, {profile.k, 1});
+        Outputs serial(profile, 1, false);
+        ops::linear_split(x, weight, serial.views, cuda);
+        cuda_synchronize(cuda.stream());
+        for (std::size_t part = 0; part < batch.views.size(); ++part) {
+            const auto rows = std::size_t(profile.outputs[part]);
+            const auto expected = from_device<std::uint16_t>(
+                static_cast<const std::byte*>(batch.views[part].data) +
+                    std::size_t(column) * rows * sizeof(std::uint16_t), rows);
+            const auto actual = from_device<std::uint16_t>(serial.views[part].data, rows);
+            if (actual != expected) {
+                std::cerr << call.id << ": serial output differs at column " << column
+                          << ", segment " << part << '\n';
+                ++failures;
+            }
+        }
+    }
+    return failures;
+}
+
 ops::ProjectionWeights prepare(const Profile& profile, const Invocation& call,
                                const std::vector<std::unique_ptr<DevicePackedWeight>>& weights) {
     if (profile.binding == Binding::Direct) {
@@ -387,6 +414,9 @@ int run(const Profile& profile, std::span<const Invocation> calls) {
                 launch();
             context.synchronize();
             failures += verify_output(profile, call, weights, output, activation, bias_values);
+            if (!phase && call.serial_column_parity)
+                failures += verify_serial_columns(profile, weights[0]->view(), call, input, output,
+                                                  context.execution_view());
             failures += input_projection::verify_preserved(call.id, input, bits);
             failures += scratch.verify_guards(call.id);
             if (workspace.used() != 0 || workspace.peak_used() > capacity) {
@@ -437,6 +467,7 @@ void add_profile(Suite& suite, const Profile& profile, std::vector<Invocation> c
         if (call.omit_divisors) input += "/no-divisors";
         if (call.validate_operands) input += "/invalid-operands";
         if (call.workspace_intervals) input += "/workspace-intervals";
+        if (call.serial_column_parity) input += "/serial-column-parity";
         auto test = linear_suite::make_case(
             format, n, profile.k, call.t, call.policy,
             call.graph ? linear_suite::Execution::Graph : linear_suite::Execution::Eager, input);

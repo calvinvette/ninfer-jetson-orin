@@ -56,7 +56,7 @@ void add_segmented_cases(Suite& suite) {
           {6144, 6144},
           {{0, 6144, 256}, {6144, 6144, 256}},
           a16},
-         {1,   2,   4,   8,   15,  16,  17,  31,  32,   33,   34,   35,  39,  40,
+         {1,   2,   4,   5,   8,   15,  16,  17,  31,  32,   33,   34,   35,  39,  40,
           41,  63,  64,  65,  79,  80,  81,  95,  96,   97,   103,  104, 105, 109,
           110, 111, 112, 113, 127, 128, 129, 512, 1024, 2048, 4096, 4097}},
         {{2560,
@@ -163,13 +163,18 @@ void add_segmented_cases(Suite& suite) {
         }
         std::vector<Invocation> calls{{.t = 0, .validate_operands = true}};
         for (int t : tokens) {
-            calls.push_back({.t            = t,
-                             .graph        = graph_tokens.contains(t),
-                             .input_seed   = 317U,
-                             .changed_seed = 348U,
-                             .columns      = Columns::HeadBoundaries,
-                             .full_rows    = t <= 8 || (w_b && (t == 32 || t == 128)),
-                             .convenience  = true});
+            Invocation call{.t            = t,
+                            .graph        = graph_tokens.contains(t),
+                            .input_seed   = 317U,
+                            .changed_seed = 348U,
+                            .columns      = Columns::HeadBoundaries,
+                            .full_rows    = t <= 8 || (w_b && (t == 32 || t == 128)),
+                            .convenience  = true};
+            call.serial_column_parity = fixture.profile.k == 2560 && t == 5 &&
+                                        fixture.profile.weights.size() == 1 &&
+                                        fixture.profile.weights[0].type == QType::Q8_G32_FP16 &&
+                                        fixture.profile.weights[0].rows == 12288;
+            calls.push_back(std::move(call));
         }
         calls.push_back({.t             = 17,
                          .graph         = true,

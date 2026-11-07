@@ -48,6 +48,7 @@ struct Invocation {
     bool eager_before_capture  = false;
     bool validate_operands     = false;
     bool workspace_intervals   = false;
+    bool serial_column_parity   = false;
     std::string id;
 };
 

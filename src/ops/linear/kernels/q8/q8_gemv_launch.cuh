@@ -9,7 +9,7 @@ template <class Schedule, class Output, class Epilogue>
 void launch_q8_a16_gemv(const Q8LinearOperands& operands, Output output, Epilogue epilogue,
                         cudaStream_t stream) {
     validate_q8_operands(operands);
-    if (operands.tokens < 1 ||
+    if (operands.tokens < 1 || operands.tokens > Schedule::kBlockTokens ||
         (Schedule::kBlockTokens == 1 && operands.tokens != 1) || operands.k % 8 != 0)
         throw std::invalid_argument("Q8 GEMV requires valid token tiles and K aligned to 8");
     if constexpr (Schedule::kStaticK > 0) {
