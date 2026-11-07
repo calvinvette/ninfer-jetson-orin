@@ -29,9 +29,9 @@ using test::artifact_fixture::require;
 constexpr std::size_t GiB = 1024ULL * 1024 * 1024;
 
 void qualify_real_ple(const q4::execution::PleParameters& parameters, const Tensor& next_norm,
-                      DeviceContext& device) {
+                      DeviceContext& device, int tokens) {
     using namespace test::ple;
-    GateFixture gate(3, 1);
+    GateFixture gate(tokens, 1);
     gate.eps = parameters.gate.rms_epsilon;
     gate.prepare(GateSignal::Random, 0, false);
     const auto bind_norm = [](const Tensor& source, Words& destination) {
@@ -53,7 +53,7 @@ void qualify_real_ple(const q4::execution::PleParameters& parameters, const Tens
             "Flash-Next real PLE gate differs from FP64 mathematical oracle");
     std::cout << "PASS Flash-Next real PLE gate FP64 oracle\n";
 
-    ConvFixture conv(3, 1);
+    ConvFixture conv(tokens, 1);
     conv.prepare(0, false);
     conv.residual.host = gate.residual.host;
     conv.gated.host = gate.gated.download();
@@ -112,7 +112,8 @@ void qualify_real_ple(const q4::execution::PleParameters& parameters, const Tens
                                    expected) == 0,
                 "Flash-Next real PLE state differs from exact accepted-record transition");
     }
-    std::cout << "PASS Flash-Next real PLE committed states for accepted extents 0..3\n";
+    std::cout << "PASS Flash-Next real PLE committed states T=" << tokens
+              << " accepted extents 0.." << tokens << '\n';
 }
 
 test::quantized_weight::PackedWeight decode_nvfp4_expert(
@@ -590,8 +591,9 @@ int main(int argc, char** argv) {
                 q4::execution::Parameters parameters(*model, profile);
                 require(parameters.text.layers.size() > 1,
                         "Flash-Next PLE output has no following text layer");
-                qualify_real_ple(parameters.text.ple,
-                                 parameters.text.layers[1].attention_hc.norm, device);
+                for (const int tokens : {1, 3, 5})
+                    qualify_real_ple(parameters.text.ple,
+                                     parameters.text.layers[1].attention_hc.norm, device, tokens);
                 std::vector<const models::moe::Parameters*> layers;
                 for (const auto& layer : parameters.text.layers) layers.push_back(&layer.moe);
                 auto schedule = disk_plan->moe->create(layers, model->expert_banks(), device,
