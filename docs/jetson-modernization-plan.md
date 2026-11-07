@@ -707,8 +707,11 @@ additional prompt-generalization failure without identifying its cause. General 
 acceptance/commit and state-restoration qualification across prompts and verify extents therefore
 remains open. The same 33-token `Hello` boundary reproduces with MTP-1: the first 32 tokens match,
 then MTP emits `248045` where serial emits `846` (17 drafts, 15 accepted, no fallback steps).
-This makes the observed failure independent of the configured draft window, while its internal
-state cause remains unlocated. Broader Vision and prefix-reuse
+At the failing MTP-1 round (frontier 83), the verifier target argmax columns were `248045, 248045`
+with draft `248045`; serial decode agrees on the first column at frontier 83, then predicts `846`
+at frontier 84 after consuming `248045`. Thus greedy acceptance is following the verifier logits;
+the divergence is in the multi-token target execution/state path, not in the acceptance decision.
+The responsible operator or state transition remains unlocated. Broader Vision and prefix-reuse
 behavior and graph capture remain open. The matched original-model performance matrix is recorded
 below and does not substitute for Flash-Next measurements.
 
