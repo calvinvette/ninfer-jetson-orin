@@ -87,23 +87,32 @@ void qualify_real_ple(const q4::execution::PleParameters& parameters, const Tens
     after.upload();
     DeviceBuffer destination_offset(device.device(), sizeof(std::int64_t));
     upload_offsets(destination_offset, after.tensor, {0});
+    DeviceBuffer accepted_count(device.device(), sizeof(std::int32_t));
     const auto before_view = conv.state_view();
     ops::PleConvStateView after_view{
         history_field(after.tensor, after.device->span(),
                       Tensor(destination_offset.span(), DType::I64, {1}))};
     const auto batch_view = conv.batch_view();
-    ops::ple_state_extract(before_view, {conv.records.tensor, batch_view.valid_columns},
-                           batch_view.valid_columns, after_view, device.execution_view());
-    device.synchronize();
-    auto expected = after.host;
-    for (int c = 0; c < D; ++c)
-        for (int j = 0; j < 9; ++j)
-            expected[after.index(c, j)] = j < 6 ? conv.history.host[conv.history.index(c, j + 3, 1)]
-                                                : conv.records.host[conv.records.index(c, j - 6, 0)];
-    require(test::verify_exact("Flash-Next real PLE committed state", after.download(), expected) ==
-                0,
-            "Flash-Next real PLE committed state differs from exact accepted-record transition");
-    std::cout << "PASS Flash-Next real PLE committed state exact comparison\n";
+    const Tensor counts(accepted_count.span(), DType::I32, {1});
+    for (int accepted = 0; accepted <= conv.tokens; ++accepted) {
+        after.upload();
+        accepted_count.copy_from_host(&accepted, sizeof(accepted));
+        ops::ple_state_extract(before_view, {conv.records.tensor, batch_view.valid_columns},
+                               counts, after_view, device.execution_view());
+        device.synchronize();
+        auto expected = after.host;
+        for (int c = 0; c < D; ++c)
+            for (int j = 0; j < 9; ++j) {
+                const int source = accepted + j;
+                expected[after.index(c, j)] =
+                    source < 9 ? conv.history.host[conv.history.index(c, source, 1)]
+                               : conv.records.host[conv.records.index(c, source - 9, 0)];
+            }
+        require(test::verify_exact("Flash-Next real PLE committed state", after.download(),
+                                   expected) == 0,
+                "Flash-Next real PLE state differs from exact accepted-record transition");
+    }
+    std::cout << "PASS Flash-Next real PLE committed states for accepted extents 0..3\n";
 }
 
 test::quantized_weight::PackedWeight decode_nvfp4_expert(
