@@ -358,11 +358,24 @@ serial decode before token 1596 and verify before its anchor column select recor
 complete BF16 convolution source tensors match exactly (30,720/30,720 elements). An earlier
 comparison that appeared to find different sources had compared serial state after token 1596
 against verify state before its anchor token, so it did not compare equivalent state. The source
-selector is not implicated by the corrected capture. The remaining evidence points to a small
-difference in the multi-column convolution result after applying the verify columns, but an
-independent mathematical-oracle comparison is still needed before attributing the T=5 failure or
-changing production code. The initial BF16-history-rounding hypothesis remains unsubstantiated;
-no production change was made. Temporary trace code was removed.
+selector is not implicated by the corrected capture. A direct T=5-vs-serial GDN test then exposed
+a real state-boundary mismatch: the multi-token convolution path fed its unrounded FP32 projection
+into the next token, while a separate single-token call persisted that state as BF16 and reloaded
+it. The kernel now rounds intra-window history to BF16 at the same point as persistent state. Its
+oracle models that stored-state transition, and a focused Flash-Next-shaped T=1-through-T=5
+serial-equivalence test passes bit-for-bit for Q/K/V/Z and convolution state. The single-request
+first-column test was also corrected to use a true batch-one case. The focused tests pass; the
+broader snapshot CTest still fails in unrelated capture/capacity cases that leave CUDA stream
+capture active.
+
+After this fix, the eager MTP-4 ten-token run changed from diverging at generated token 3 to
+diverging at token 7: MTP-off emits `1596 1144 310 5707 310 1156 328 5834 3158 8722`, while MTP-4
+emits `1596 1144 310 5707 310 1156 25 328 5834 3158`. It reports two rounds, seven accepted
+drafts, and no fallback. A second-round comparison for token 1156 found identical layer-0 input,
+convolution and recurrent source states, convolution weights, projected Q/K/V, and GDN output
+between serial and verify column 0. Thus the fixed layer-0 GDN path is not the cause of this later
+mismatch. MTP acceptance/commit, state-restoration, and verify-forward correctness remain open;
+temporary trace code was removed.
 
 The disk schedule runs eagerly: CUDA Graph capture is disabled for this route until stable
 cache contents and graph replay are supported. Numerical comparison of a real layer against
