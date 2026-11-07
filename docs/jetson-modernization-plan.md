@@ -515,19 +515,22 @@ BF16 words (maximum absolute difference 0.001953125). This is consistent with ba
 rounding in the PLE projection and does not establish an Op correctness failure. The real
 Flash-Next artifact's BF16 PLE gate norms and convolution kernel, together with layer 1's BF16
 attention-HC norm, now pass the gate and convolution Ops' independent FP64 fixture oracles at
-T=3, B=1. This qualifies the real-artifact weight bindings and Op arithmetic; it does not close
-the full-route committed-state comparison or explain the observed state divergence.
+T=1, 3, and 5 (B=1), covering serial and MTP verify widths. This qualifies the real-artifact
+weight bindings and Op arithmetic; it does not close the full-route committed-state comparison or
+explain the observed state divergence.
 
 The existing SM87 `ninfer_gated_residual_test` passed in 315.69 s. It checks HC Mix against its
 independent mathematical oracle and includes exact serial-column parity for a five-column fixture;
 the fixture weights do not replace real-artifact weight qualification.
 The SM87 `ninfer_ple_test` also passed in 50.81 s. The real-artifact streaming loading test now
 reports `PASS Flash-Next real PLE gate FP64 oracle` and
-`PASS Flash-Next real PLE convolution FP64 oracle`, followed by exact next-state comparisons for
-accepted extents 0 through 3; its separate real NVFP4 MoE oracle still passes. This chains the
-real-weight gate, convolution, and state-extract Ops at T=3, B=1 with initialized history and
-covers empty, partial, and full accepted prefixes. The full model-route committed-state comparison
-and the reproduced long-horizon MTP state divergence remain open.
+`PASS Flash-Next real PLE convolution FP64 oracle` at T=1, 3, and 5, plus exact next-state
+comparisons for every accepted extent at each width; its separate real NVFP4 MoE oracle still
+passes. This chains the
+real-weight gate, convolution, and state-extract Ops at T=1, 3, and 5, B=1, with initialized
+history. Each width checks every accepted extent, including empty, partial, and full prefixes.
+The full model-route committed-state comparison and the reproduced long-horizon MTP state
+divergence remain open.
 The BF16 linear projection oracle case for the exact PLE geometry (N=12,800, K=2,560, M=8) passed
 in 1.25 s. A separate FP64 calculation over the actual artifact input/weights/output passed for
 both M=1 and M=5 as described above.
@@ -622,7 +625,8 @@ and MTP-enabled metadata plans. This does not close the longer-horizon MTP, PLE 
 prefix-reuse, or graph-capture gates. Pushing the rebased source branch to `Neroued/ninfer` was
 rejected with HTTP 403 for the authenticated `calvinvette` account. The subsequent real-weight PLE
 oracle and accepted-prefix qualification commits (`9752ee05`, `b31b6bab`, `342ae3a4`) are also
-local on `feat/jetson-orin-sm87-jp6-sync` because that repository still rejects the push.
+local on `feat/jetson-orin-sm87-jp6-sync` because that repository still rejects the push. The
+follow-up serial/verify-width PLE qualification is committed as `49813f9d` on the same local branch.
 
 ### 1. Modern JP6 platform and original models
 
