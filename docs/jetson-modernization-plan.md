@@ -394,30 +394,21 @@ accepted, no fallback). This closes the reproduced token-7 mismatch for these ca
 qualify fallback behavior, other acceptance extents, terminal commits, multi-request batches,
 Vision, or state restoration generally.
 
-The HC selector also needs a token-width qualification beyond the `hi` case. With the committed
-T=1 GEMV / T=2..48 SIMT route, the public Flash-Next prompt `Hello` still diverges under eager
-MTP-4 at generated token 3 (`310` instead of the MTP-off `5707`); the six-token run accepted
-three drafts over two rounds without fallback. A diagnostic that routed T=1 through SIMT too
-made the first MTP verify residuals bit-identical through layers 0..3, but the first residual
-difference remained at layer 4, a GDN layer. That diagnostic also changed the MTP-off sequence
-and is not retained as a fix. Internal GDN captures from that experiment disagreed about their
-input snapshots, so they do not establish a narrower cause. The `Hello` result leaves a second
-greedy-correctness failure open and shows that the `hi` HC qualification does not generalize;
-MTP correctness remains unqualified.
+Two T-dependent reduction differences affected the `Hello` MTP-4 case. Block-HC widths 2..48
+now use a one-launch batched GEMV whose M=5 outputs and FP32 injections match five serial GEMV
+invocations bit-for-bit; the M=5, M=48, and M=49 HC cases pass. A later trace located QSA layer 7
+drift in its 12,288x2,560 Q8 query/gate projection: T=1 selected GEMV while T=2..8 selected
+sliced-K MMA. The SM87 route now uses a batched GEMV tile for T=2..8, retaining the T=1 per-column
+reduction order while sharing decoded weights. The split-op regression checks exact T=5 versus
+five serial columns, and the numerical T=2, T=4, and T=8 cases pass.
 
-A follow-up trace in the active Qwen4Exp executor compared the same anchor token (1596) in serial
-decode and the first MTP verify column. At layer 4, the HC mixer input already had different
-per-column activation hashes, and the GDN output and subsequent residual also differed. This
-places the discrepancy before layer 4's GDN and does not identify GDN as its cause. A one-launch
-batched GEMV now preserves the serial per-column reduction for block-HC widths 2..48. Its M=5
-output and FP32 injections match five independent serial GEMV invocations bit-for-bit; focused
-M=5, M=48, and M=49 HC cases pass. On the `Hello` MTP-4 trace, layer-0 target-token injections and
-residual now match serial decode, but the generated sequence still diverges. A layer-tagged trace
-of the target token at QSA layer 7 shows identical mixer input but different projected query and
-gate hashes between serial and verify; the sparse-attention output differs downstream. This
-localizes the current first mismatch to T-dependent QSA input projection. Debug tracing was
-removed after the comparison. No end-to-end performance claim has been measured for the batched
-HC route.
+With both routes active, the supplied artifact and `Hello` prompt produce the same six greedy token
+IDs with MTP disabled and MTP-4: `1596 1144 310 5707 310 1156`. MTP-4 completes two rounds and
+accepts three drafts without fallback. In a per-layer trace for token 1144, the verify layer-0
+residual hash differs from serial while layers 1..47 match; this did not change the generated IDs.
+This qualifies the reproduced short `Hello` case only. General MTP acceptance/commit and state
+restoration, other acceptance extents, multi-request batches, Vision, and fallback remain
+unqualified. No end-to-end performance result has been measured for either batched GEMV route.
 
 The disk schedule runs eagerly: CUDA Graph capture is disabled for this route until stable
 cache contents and graph replay are supported. Numerical comparison of a real layer against
