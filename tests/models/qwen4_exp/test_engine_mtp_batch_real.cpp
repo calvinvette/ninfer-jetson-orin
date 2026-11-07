@@ -53,7 +53,7 @@ Run run(const std::string& artifact, bool mtp) {
 }
 
 GenerationResult run_long(const std::string& artifact, bool mtp, std::string prompt_text,
-                          std::uint32_t output_tokens) {
+                          std::uint32_t output_tokens, std::uint32_t draft_tokens = 4) {
     EngineOptions options;
     options.artifact_path = artifact;
     options.max_context = 1024;
@@ -64,7 +64,7 @@ GenerationResult run_long(const std::string& artifact, bool mtp, std::string pro
     options.context_cache.enabled = false;
     options.context_cache.host_capacity_bytes = 0;
     options.use_cuda_graph = false;
-    if (mtp) options.speculative = {SpeculativeBackend::Mtp, 4};
+    if (mtp) options.speculative = {SpeculativeBackend::Mtp, draft_tokens};
     Engine engine(std::move(options));
     RequestOptions request;
     request.execution.requested_output_tokens = output_tokens;
@@ -92,17 +92,22 @@ int main() {
     try {
         const char* selected_prompt = std::getenv("NINFER_TEST_LONG_PROMPT");
         const char* selected_tokens = std::getenv("NINFER_TEST_LONG_TOKENS");
+        const char* selected_drafts = std::getenv("NINFER_TEST_DRAFT_TOKENS");
         const auto output_tokens = selected_tokens && *selected_tokens
                                        ? static_cast<std::uint32_t>(std::stoul(selected_tokens))
                                        : 64U;
+        const auto draft_tokens = selected_drafts && *selected_drafts
+                                      ? static_cast<std::uint32_t>(std::stoul(selected_drafts))
+                                      : 4U;
         require(output_tokens > 0, "long MTP output token count must be positive");
+        require(draft_tokens > 0, "MTP draft token count must be positive");
         const std::vector<std::string> long_prompts =
             selected_prompt && *selected_prompt
                 ? std::vector<std::string>{selected_prompt}
                 : std::vector<std::string>{"hi"};
         for (const auto& prompt_text : long_prompts) {
             const auto serial_long = run_long(artifact, false, prompt_text, output_tokens);
-            const auto mtp_long = run_long(artifact, true, prompt_text, output_tokens);
+            const auto mtp_long = run_long(artifact, true, prompt_text, output_tokens, draft_tokens);
             std::cout << "prompt=" << prompt_text << " mtp drafts="
                       << mtp_long.stats.speculative.drafted_tokens << " accepted="
                       << mtp_long.stats.speculative.accepted_tokens << " fallback_steps="
