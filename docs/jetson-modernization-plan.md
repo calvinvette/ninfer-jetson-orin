@@ -449,17 +449,6 @@ MTP-4 accepted four of eleven drafts, distributed `2,1,1,0` by draft position, w
 The MTP run followed the baseline and benefited from warm artifact/page caches, so their timings
 are not comparable. This is another bounded greedy correctness case, not general MTP qualification.
 
-A separate 16-token `hi` parity attempt used the real artifact, greedy seed 0, eager execution,
-INT8 KV, and MTP-4. MTP-off emitted
-`1596 1144 5707 310 1156 328 5834 3158 14235 1534 4145 40719 13 198 248069 271`,
-while MTP-4 emitted
-`1596 1144 5707 310 1156 328 5834 3158 8722 40719 13 14235 1534 61446 11321 13`.
-The experiment temporarily routed the 12,800x2,560 NF4 PLE projection at verify widths 2..5
-through independent BF16 GEMV columns; its T=5 projection oracle passed, but the route did not
-restore full-sequence parity. The experimental kernel path and failing test extension were
-reverted. This is a reproduced longer-horizon MTP failure for this test configuration, not a
-qualified PLE fix; existing bounded parity results above remain scoped to their recorded prompts
-and configurations.
 Extending the same prompt and settings to a 16-token output budget produced identical MTP-off and
 MTP-4 IDs (`1596 1144 310 5707 310 1156 25 328 760 6511 314 9338 369 3158 90410 6587`).
 MTP-4 accepted 9 of 17 drafts (`3,2,2,2` by position) and recorded one fallback step. This
@@ -505,6 +494,11 @@ The artifact-backed `ninfer_qwen4_exp_mtp_batch_real_test` was explicitly run wi
 exact generated-token-ID parity against MTP-off and the test observed a two-row decode batch. This
 reconfirms the bounded eight-token cohort case; it does not close the later single-request
 continuation mismatch above.
+
+A clean-source rebuild and rerun after reverting the experimental PLE selector reproduced the
+documented 16-token mismatch exactly at token 13 and again passed the two-request cohort check.
+The prior uncommitted experiment also changed the five-token prefill path, so its output sequence
+was not comparable to the recorded public-Engine baseline and is excluded from this evidence.
 
 A later layer-tagged trace used explicit stream synchronization before device-to-host copies. It
 shows GDN state index 0 bit-identical through all captured stages for the first five serial/verify
