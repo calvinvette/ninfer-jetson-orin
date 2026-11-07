@@ -240,9 +240,17 @@ __device__ __forceinline__ float2 nvfp4_mul_activation_values(float2 values, flo
 __device__ __forceinline__ std::uint8_t
 quantize_nvfp4_mul_activation_pair(float2 values, float multiplier, std::uint8_t scale) {
     if (!scale) return 0;
+#if !defined(NINFER_DISABLE_NVFP4_A4)
     return __nv_cvt_float2_to_fp4x2(
         nvfp4_mul_activation_values(values, multiplier, decode_e4m3(scale)), __NV_E2M1,
         cudaRoundNearest);
+#else
+    float2 pairs[8]{};
+    pairs[0] = nvfp4_mul_activation_values(values, multiplier, decode_e4m3(scale));
+    std::uint32_t lo = 0, hi = 0;
+    pack_nvfp4_e2m1x16(pairs, lo, hi);
+    return static_cast<std::uint8_t>(lo);
+#endif
 }
 
 __device__ __forceinline__ Nvfp4QuantizedK16 quantize_nvfp4_mul_k16(float2 (&values)[8],

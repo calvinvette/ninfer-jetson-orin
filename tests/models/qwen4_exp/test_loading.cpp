@@ -82,8 +82,8 @@ void bank_binding() {
                            sources[0].gate_up.parent->data + plane.offset +
                                e * plane.expert_stride),
                 "file-backed expert plane differs from materialized source");
-        require(disk_sources[0].gate_up.divisor(e) == float(1U << e) &&
-                    disk_sources[0].down.divisor(e) == float(8U << e),
+        require(disk_sources[0].gate_up.matrix_scale(e) == float(1U << e) &&
+                    disk_sources[0].down.matrix_scale(e) == float(8U << e),
                 "file-backed expert divisors differ");
     }
     std::swap(u.binding.parts[0], u.binding.parts[1]);

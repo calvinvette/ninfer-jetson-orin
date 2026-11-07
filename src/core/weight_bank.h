@@ -85,10 +85,10 @@ struct ExpertBankSource {
     // Optional for CPU-only math; GPU replicas require registered views of both parents.
     CudaHostView gate_up_upload;
     CudaHostView down_upload;
-    // Optional disk-backed encoded parents. The metadata parents own geometry/divisors but no
+    // Optional disk-backed encoded parents. The metadata parents own geometry/matrix scales but no
     // tensor payload; readers fill caller-owned encoded-plane staging on cache misses.
     std::shared_ptr<const WeightParent> gate_up_owner, down_owner;
-    std::shared_ptr<const std::vector<float>> gate_up_divisors_owner, down_divisors_owner;
+    std::shared_ptr<const std::vector<float>> gate_up_matrix_scales_owner, down_matrix_scales_owner;
     std::function<void(std::uint64_t, std::span<std::byte>)> gate_up_read, down_read;
 };
 

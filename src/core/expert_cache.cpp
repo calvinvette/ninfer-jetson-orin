@@ -102,7 +102,8 @@ ExpertCacheRequirements describe_expert_cache(std::span<const ExpertBankSource> 
     for (const auto& bank : sources) {
         const bool file_backed = bool(bank.gate_up_read) || bool(bank.down_read);
         if (file_backed && (!bank.gate_up_read || !bank.down_read || !bank.gate_up_owner ||
-                            !bank.gate_up_divisors_owner || !bank.down_divisors_owner ||
+                            !bank.gate_up_matrix_scales_owner ||
+                            !bank.down_matrix_scales_owner ||
                             !bank.down_owner || bank.gate_up.parent != bank.gate_up_owner.get() ||
                             bank.down.parent != bank.down_owner.get()))
             throw std::invalid_argument("file-backed expert source is incomplete");

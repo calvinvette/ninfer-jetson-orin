@@ -123,12 +123,10 @@ void launch_bf16_pair(const Tensor& x0, const Tensor& x1, const Weight& w0, cons
     const LinearBf16Output first{static_cast<__nv_bfloat16*>(y0.data), w0.n},
         second{static_cast<__nv_bfloat16*>(y1.data), w1.n};
 #if NINFER_TARGET_JETSON_ORIN
-    if (a.tokens > 128) {
-        launch_bf16_a16_mma<Small>(a, first, LinearIdentityEpilogue{}, stream);
-        launch_bf16_a16_mma<Small>(b, second, LinearIdentityEpilogue{}, stream);
-        return;
-    }
-#endif
+    if (a.tokens <= 128) return mma<Small, LinearIdentityEpilogue>(a, b, first, second, stream);
+    launch_bf16_a16_mma<Small>(a, first, LinearIdentityEpilogue{}, stream);
+    launch_bf16_a16_mma<Small>(b, second, LinearIdentityEpilogue{}, stream);
+#else
     if (a.rows == 4096) {
         if (a.tokens <= 32)
             return mma<CompleteK<16, 16, 8>, Bf16MmaWarpStoreEpilogue>(a, b, first, second, stream);
@@ -159,5 +157,6 @@ void launch_bf16_pair(const Tensor& x0, const Tensor& x1, const Weight& w0, cons
     else
         run.template operator()<Bf16ScheduleInstance<
             Bf16A16TmaMmaSchedule<64, 128, 64, 32, 32, 2, 2, Bf16MmaRaster::Grouped, 8, 3>, 128>>();
+#endif
 }
 } // namespace ninfer::ops::detail

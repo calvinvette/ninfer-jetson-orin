@@ -156,18 +156,19 @@ bind_file_banks(std::span<const BankDescription> banks,
     for (const auto& bank : banks) {
         const auto bind = [&](const MatrixSource& source,
                               std::shared_ptr<const WeightParent>& owner,
-                              std::shared_ptr<const std::vector<float>>& divisors_owner,
+                              std::shared_ptr<const std::vector<float>>& matrix_scales_owner,
                               std::function<void(std::uint64_t, std::span<std::byte>)>& read) {
             const auto& geometry = backing->geometry(source.object);
-            auto divisors = std::make_shared<std::vector<float>>(geometry.divisor_count);
-            if (!divisors->empty()) {
-                auto bytes = std::as_writable_bytes(std::span(*divisors));
-                backing->read_range(source.object, geometry.divisor_offset, bytes);
+            auto matrix_scales =
+                std::make_shared<std::vector<float>>(geometry.matrix_scale_count);
+            if (!matrix_scales->empty()) {
+                auto bytes = std::as_writable_bytes(std::span(*matrix_scales));
+                backing->read_range(source.object, geometry.matrix_scale_offset, bytes);
             }
             auto parent = std::make_shared<WeightParent>(
-                WeightParent{geometry, Device::cpu(), nullptr, *divisors});
+                WeightParent{geometry, Device::cpu(), nullptr, *matrix_scales});
             owner = std::move(parent);
-            divisors_owner = std::move(divisors);
+            matrix_scales_owner = std::move(matrix_scales);
             read = [backing, object = source.object](std::uint64_t offset,
                                                      std::span<std::byte> destination) {
                 backing->read_range(object, offset, destination);
@@ -176,8 +177,8 @@ bind_file_banks(std::span<const BankDescription> banks,
         };
         ExpertBankSource result;
         result.gate_up = bind(bank.gate_up, result.gate_up_owner,
-                              result.gate_up_divisors_owner, result.gate_up_read);
-        result.down = bind(bank.down, result.down_owner, result.down_divisors_owner,
+                              result.gate_up_matrix_scales_owner, result.gate_up_read);
+        result.down = bind(bank.down, result.down_owner, result.down_matrix_scales_owner,
                            result.down_read);
         out.push_back(std::move(result));
     }

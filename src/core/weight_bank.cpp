@@ -97,12 +97,12 @@ WeightBankView bind_weight_bank_metadata(const WeightParent& parent,
                                          const WeightBankLayout& layout) {
     if (parent.data || parent.device != Device::cpu() ||
         layout != describe_weight_bank(parent.geometry, layout.region) ||
-        parent.weight_divisors.size() != parent.geometry.divisor_count) {
+        parent.matrix_scales.size() != parent.geometry.matrix_scale_count) {
         throw std::invalid_argument("weight bank metadata differs from its layout");
     }
-    for (const auto value : parent.weight_divisors) {
+    for (const auto value : parent.matrix_scales) {
         if (!std::isfinite(value) || value <= 0)
-            throw std::invalid_argument("weight bank divisor must be finite and positive");
+            throw std::invalid_argument("weight bank matrix scale must be finite and positive");
     }
     return {&parent, layout};
 }

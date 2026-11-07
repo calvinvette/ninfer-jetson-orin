@@ -52,9 +52,9 @@ test::quantized_weight::PackedWeight decode_nvfp4_expert(
     weight.n = weight.shape[0] = weight.padded_shape[0] = layout.region.rows;
     weight.k = weight.shape[1] = weight.padded_shape[1] = layout.columns;
     weight.group = weight.group_size = 16;
-    weight.weight_scale_divisor = bank.divisor(expert);
-    if (geometry.padded_columns != layout.columns || !weight.weight_scale_divisor)
-        throw std::runtime_error("real NVFP4 expert geometry or divisor is invalid");
+    weight.weight_scale = bank.matrix_scale(expert);
+    if (geometry.padded_columns != layout.columns || !weight.weight_scale)
+        throw std::runtime_error("real NVFP4 expert geometry or matrix scale is invalid");
     return packed;
 }
 
@@ -485,8 +485,8 @@ int main(int argc, char** argv) {
                 const auto expected = reader.read_range(
                     object.offset + plane.offset + expert * plane.expert_stride, actual.size());
                 require(std::equal(actual.begin(), actual.end(), expected.begin()) &&
-                            disk_sources[index].gate_up.divisor(expert) > 0,
-                        "file-backed Flash-Next expert range or divisor differs");
+                            disk_sources[index].gate_up.matrix_scale(expert) > 0,
+                        "file-backed Flash-Next expert range or matrix scale differs");
             }
             auto disk_plan = plan_for(profile, load.ple_table().geometry(), options, 16 * GiB, true);
             require(disk_plan.has_value() && disk_plan->moe &&
