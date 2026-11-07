@@ -242,15 +242,19 @@ boundary difference comes from batch-shape arithmetic or batched state handling.
 established only through three rows at the previously tested eight-token horizon; longer cohort
 decoding remains unqualified pending that attribution.
 
-A token- and position-filtered layer-boundary capture on the three-row, 15-token reproduction
-compared sequence 2 at frontier 71 (input 14862) in the physical two-row decode batch. The
-post-combine BF16 residual is bitwise identical after layer 0. The first difference appears after
-layer 1: 640 of 15,360 channels differ, relative L2 0.00101, maximum absolute difference
-0.00024414. The drift then grows across subsequent layers. Artifact configuration identifies layer
-1 as GDN and places PLE immediately before it, so this narrows the source to the PLE/GDN/associated
-layer computation boundary but does not distinguish PLE injection from GDN recurrent execution.
-The public Engine reproduction still fails at output token 14. Temporary instrumentation was
-removed and the JP6 build completed successfully after the capture.
+The first temporary layer-boundary capture was invalid: it sliced the residual stream axis instead
+of the token-column axis, so its reported layer-0/layer-1 comparison must be ignored. A corrected
+token- and position-filtered capture compared the same anchor, input 14862 at position 71. Before
+changing arithmetic, ordinary batched PLE projection differed from MTP's per-column projection in
+17 of 12,800 BF16 values (relative L2 0.000240); the PLE gate differed in 92 of 10,240 values,
+and the post-PLE residual differed in 20 of 10,240. A temporary experiment made ordinary decode
+use MTP's per-column projection: projection and gate then matched bitwise, but the post-PLE
+residual still differed in 5 values (relative L2 2.62e-5, maximum absolute difference 6.10e-5),
+and GDN output differed in 377 of 2,560 values (relative L2 0.000918). The generated-token
+mismatch remained at output token 14. This shows the projection arithmetic contributes to drift,
+but does not explain or resolve the cohort parity failure; the remaining difference enters at PLE
+convolution or its input state. The temporary arithmetic change and all diagnostic instrumentation
+were removed, and the JP6 build completed successfully.
 
 A real-artifact image-conditioned MTP comparison also passed on the public Engine with Graphs
 enabled: one resized 224x224 image, 83 prompt tokens, greedy output horizon 8, and draft window 4.
