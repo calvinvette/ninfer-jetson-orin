@@ -408,7 +408,23 @@ accepts three drafts without fallback. In a per-layer trace for token 1144, the 
 residual hash differs from serial while layers 1..47 match; this did not change the generated IDs.
 This qualifies the reproduced short `Hello` case only. General MTP acceptance/commit and state
 restoration, other acceptance extents, multi-request batches, Vision, and fallback remain
-unqualified. No end-to-end performance result has been measured for either batched GEMV route.
+unqualified. The initial parity runs did not include an end-to-end performance measurement.
+
+A current real-artifact rerun of the formerly failing `hi`, ten-token, MTP-4 case now matches the
+MTP-off token IDs exactly: `1596 1144 310 5707 310 1156 328 5834 3158 8722`. With CUDA Graphs
+disabled, MTP-4 completed three rounds, accepted six drafts, and had no fallback. This closes that
+specific reproduced failure; it does not qualify other acceptance/state boundaries.
+
+The same artifact and prompt were then measured at MAXN with fixed CPU/GPU/EMC clocks of
+2,201.6/1,300.5/3,199 MHz, INT8 KV, a 512 MiB context reservation, 1,024 maximum context, 128
+prefill chunk, CUDA Graphs and prefix reuse disabled, one request, and nine output tokens (eight
+decode tokens). One warmup and three measured repetitions gave MTP-off means of 3.62 prefill /
+1.62 decode tok/s. MTP-4 gave 3.55 / 1.23 tok/s, accepting 5/7 drafts each repetition without
+fallback. The first MTP-4 request in a fresh process measured 2.47 / 1.30 tok/s, 21.48 s to first
+token, and 26.48 GB of expert uploads; warmed repetitions measured 24.07 GB of uploads each.
+Weights used 9.42 GiB and the bounded main-expert cache was 5.27 GiB. This gives a reproducible
+short-run storage benchmark, not a throughput win: MTP-4 was slower than MTP-off for this prompt
+and workload, and the upload counters do not isolate sustained drive bandwidth.
 
 The disk schedule runs eagerly: CUDA Graph capture is disabled for this route until stable
 cache contents and graph replay are supported. Numerical comparison of a real layer against
