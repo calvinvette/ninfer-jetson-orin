@@ -238,6 +238,14 @@ work. Command:
   /home/calvin/models/Qwen3.8-Flash-Next-NInfer/qwen3_8_flash_next.ninfer 2 5
 ```
 
+The public Engine also completed a mixed image/video request with CUDA Graphs enabled after the
+file-backed Graph integration. The smoke input used a resized 224x224 image and a two-second
+84x56 video fixture, producing 156 prompt tokens and one output token. On AGX Orin with CUDA 12.6
+and `jetson_clocks` (CPU 2.201 GHz, GPU 1.298 GHz, EMC 3.199 GHz), prefill took 36.9 s and the
+Vision stream interval was 48.2 ms. Graph calibration took 5.6 s. This verifies the Graph route
+across mixed media; one run at this short horizon does not isolate expert-storage latency or serve
+as a performance benchmark.
+
 A focused CUDA cache test captures a consumer against the stable expert-cache view, stages two
 different file-backed expert IDs into the cache, and verifies graph replay reads each updated expert
 exactly. The file-backed schedule now captures routing separately from expert compute: the route
