@@ -1,3 +1,8 @@
 add_executable(ninfer_ple_disk_prepare_bench "${CMAKE_CURRENT_LIST_DIR}/ple/disk_prepare.cpp")
 ninfer_internal_includes(ninfer_ple_disk_prepare_bench)
 target_link_libraries(ninfer_ple_disk_prepare_bench PRIVATE ninfer_model_execution)
+
+add_executable(ninfer_qwen4_exp_vision_bench "${CMAKE_CURRENT_LIST_DIR}/vision_encoder.cpp")
+ninfer_internal_includes(ninfer_qwen4_exp_vision_bench)
+target_link_libraries(ninfer_qwen4_exp_vision_bench PRIVATE
+  ninfer_model_execution ninfer_model_loading ninfer_core)

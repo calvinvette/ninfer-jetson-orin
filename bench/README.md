@@ -94,6 +94,14 @@ GDN 的 stage/crossover 诊断保留其明确例外，prepare、recurrence 或�
 | 路由分布、expert TP/EP、完整 MoE | [MoE](ops/moe/) |
 | 模型组件与资源成本 | [Model benches](models/)、[Context cost](context_cost/) |
 
+### Qwen4Exp Vision encoder
+
+`ninfer_qwen4_exp_vision_bench ARTIFACT [WARMUP=2] [REPETITIONS=5]` loads the artifact's
+registered Vision weights and times the production `VisionContext` encoder for 1, 4, and 16
+four-patch features. Patch values and position metadata are deterministic inputs; image decode,
+patch preprocessing, Text execution, and expert streaming are outside this encoder measurement.
+The output reports median CUDA-stream and synchronized wall time plus wall-time patch throughput.
+
 ## Hardware references
 
 [roofline.h](common/roofline.h)维护编译目标的硬件参照，新增来源或校准只在该处及必要依据中记录。
