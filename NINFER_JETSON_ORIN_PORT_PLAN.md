@@ -710,8 +710,10 @@ matched 32-token benchmark showed a 19% median decode gain over MTP off in this
 single workload. File-backed CUDA Graph routing and expert compute now pass a
 real NVFP4 MoE oracle and a public Engine mixed-media Decode smoke. Graph-enabled
 serial/MTP parity passes for text at 8 and 32 output tokens, a two-request
-cohort, and short image- and video-conditioned runs. These checks extend
-qualification; they do not close longer media horizons, cohorts larger than two,
+cohort, image-conditioned output through 32 tokens, and video-conditioned output through 32
+tokens. The video 32-token case matched exactly (41 drafts, 20 accepted, 11 rounds, no fallback),
+though it was slower than serial in this run. These checks extend qualification; they do not close
+longer media horizons, cohorts larger than two,
 stable cold/warm storage measurements, or physical SSD/controller cache
 characterization. CUDA 12.6 remains the required toolchain; JP7/CUDA 13
 qualification awaits that environment. Scope and run details are recorded in

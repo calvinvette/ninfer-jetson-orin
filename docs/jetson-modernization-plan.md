@@ -221,10 +221,13 @@ A real-artifact image-conditioned MTP comparison also passed on the public Engin
 enabled: one resized 224x224 image, 83 prompt tokens, greedy output horizon 8, and draft window 4.
 Serial and MTP generated token IDs matched exactly; MTP drafted 8 tokens, accepted 3, and took one
 fallback across three rounds. The Vision stream was 35.4 ms. This qualifies one image-conditioned
-accept/commit path. A video-only comparison also matched serial token IDs for four greedy output
+accept/commit path. A video-only comparison matched serial token IDs for four greedy output
 tokens on a 49-token prompt with Graphs enabled and MTP-4; MTP accepted two drafts in one round
-without fallback, and the Vision stream was 16.2 ms. Video-conditioned MTP now has a short
-accept/commit smoke result; longer Vision/MTP horizons remain open.
+without fallback, and the Vision stream was 16.2 ms. The same video prompt also matched through 32
+greedy output tokens with Graphs and MTP-4 enabled: MTP drafted 41 tokens, accepted 20 across 11
+rounds, and had no fallback. The serial run took 39.3 s and the MTP run 70.4 s, so this establishes
+state correctness at a longer media horizon, not a speedup. Longer Vision/MTP horizons and cohorts
+larger than two remain open.
 
 The public Engine completes a single-image request, a mixed image/video fixture (1,615 prompt
 tokens, output `NIFER-9`), text prefix reuse, and repeated image prefix reuse. The mixed-media
@@ -284,7 +287,8 @@ schedule/oracle run.
 
 - Extend MTP state qualification to longer Vision/video horizons and cohorts larger than two. Text
   Graph/MTP has exact serial parity through 128 output tokens, fallback cases, and a two-request
-  decode cohort; image/video-conditioned runs currently cover short horizons.
+  decode cohort; image-conditioned runs cover 8 and 32 tokens, and video-conditioned runs cover 4
+  and 32 tokens.
 - Repeat the public mixed-media/ExpertCache breakdown under stable storage conditions. The current
   mixed-media Graph report is one diagnostic sample with NVMe timeouts; Vision numerical and
   encoder-throughput qualification covers artifact weights at up to 64 patches.
