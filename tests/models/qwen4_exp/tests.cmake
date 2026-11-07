@@ -47,6 +47,10 @@ ninfer_add_test(ninfer_qwen4_exp_vision_oracle_test
   LIBRARIES ninfer_model_execution)
 set_tests_properties(ninfer_qwen4_exp_vision_oracle_test PROPERTIES
   SKIP_RETURN_CODE 77 RUN_SERIAL TRUE LABELS "gpu")
+add_test(NAME ninfer_qwen4_exp_vision_artifact_oracle_test
+  COMMAND ninfer_qwen4_exp_vision_oracle_test --artifact)
+set_tests_properties(ninfer_qwen4_exp_vision_artifact_oracle_test PROPERTIES
+  SKIP_RETURN_CODE 77 RUN_SERIAL TRUE LABELS "gpu;real")
 
 ninfer_add_test(ninfer_qwen4_exp_reclaim_real_test
   SOURCES "${CMAKE_CURRENT_LIST_DIR}/test_reclaim_real.cpp"
