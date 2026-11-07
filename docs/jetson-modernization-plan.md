@@ -201,17 +201,20 @@ no fallback). Other prompts and horizons above 256 remain unqualified.
 
 The public Engine completes a single-image request, a mixed image/video fixture (1,615 prompt
 tokens, output `NIFER-9`), text prefix reuse, and repeated image prefix reuse. The mixed-media
-request took 413.1 s and exercised six Vision stream intervals totaling 1.20 s. This is a
-functionality smoke, not a Vision numerical-oracle or throughput qualification. File-backed expert
-execution still disables CUDA Graph capture because its host-side expert selection/cache updates
-lack a supported captured-address update path. Graph replay for this route remains open.
+request took 413.1 s and exercised six Vision stream intervals totaling 1.20 s. Five focused CUDA
+oracle suites now pass on Orin for Vision constituent Ops, including packed BF16 attention at
+head-dimension 72 / 16 heads, 2D RoPE with the same geometry, 1152-wide position interpolation,
+1152-wide layer normalization, and GELU. This does not verify the composed Qwen Vision encoder
+against an independent oracle or qualify Vision throughput. File-backed expert execution still
+disables CUDA Graph capture because its host-side expert selection/cache updates lack a supported
+captured-address update path. Graph replay for this route remains open.
 
 ### Remaining gates
 
 - Qualify broader MTP acceptance/commit and state restoration across prompts, output horizons,
   fallback boundaries, Vision, and larger concurrent cohorts.
-- Establish Vision numerical evidence at model-relevant shapes and measure the mixed-media path
-  separately from expert-storage latency.
+- Compare the composed Qwen Vision encoder against an independent numerical oracle and measure
+  the mixed-media path separately from expert-storage latency.
 - Distinguish SSD/controller cache state for physical cold/warm storage measurements; `O_DIRECT`
   isolates requests from the host page cache but does not flush or measure device caches.
 - Implement or otherwise qualify a stable CUDA Graph update route for file-backed expert staging,
