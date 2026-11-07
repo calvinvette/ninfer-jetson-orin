@@ -470,6 +470,19 @@ on the supplied artifact in 96.4 s. The matched sequences were
 11/5 and accepted 4/5 for the respective rows. This protects the reproduced multi-row path, not
 general multi-request state restoration or all acceptance boundaries.
 
+An extended public-Engine check with prompt `hi`, greedy seed 0, INT8 KV, 1 GiB Device context,
+1,024 max context, 128-token prefill chunks, graphs and prefix reuse disabled, and a 16-token
+output budget found a later continuation mismatch. MTP-off emits
+`1596 1144 310 5707 310 1156 328 5834 3158 8722 40719 13 12650 61446 11321 13`; MTP-4 emits
+`1596 1144 310 5707 310 1156 328 5834 3158 8722 40719 13 14235 1534 61446 13`. The first
+divergence is the thirteenth emitted token, after three MTP-4 rounds each accepted three drafts;
+the run reports 15 drafted, 11 accepted (`3,3,3,2` by position), and no fallback. MTP-2 also
+diverges at that same token, reporting 11 drafted, eight accepted (`4,4` by position), and one
+fallback. Both used the same real Flash-Next artifact on SM87/JP6 CUDA 12.6. This points to a
+continuation/state error after repeated accepted commits, not one draft-window-specific verify
+shape. The multi-request short test remains passing; long-horizon MTP state and verify correctness
+remain open and must be fixed before qualifying MTP.
+
 The same artifact and prompt were then measured at MAXN with fixed CPU/GPU/EMC clocks of
 2,201.6/1,300.5/3,199 MHz, INT8 KV, a 512 MiB context reservation, 1,024 maximum context, 128
 prefill chunk, CUDA Graphs and prefix reuse disabled, one request, and nine output tokens (eight
