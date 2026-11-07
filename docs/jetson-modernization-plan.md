@@ -225,15 +225,14 @@ accepts `NINFER_TEST_CUDA_GRAPH=1` to run these parity cases with the production
 supersedes that result.
 
 A follow-up four-request, 16-token cohort exposed a deterministic parity failure at generated token
-14 for the second prompt: serial cohort token 4145 versus MTP token 2716. It reproduced with Graphs
-both enabled and disabled, and with draft windows two and four. The same prompt passed a single-row
-serial/MTP comparison through 16 tokens (draft window two; 11 drafted, 9 accepted, no fallback),
-so the current evidence isolates the divergence to batched execution but does not yet identify
-whether it is MTP state handling or a batch-shape numerical difference. The single-row serial and
-MTP outputs both produced 2716 at that position, while the ordinary four-row serial cohort produced
-4145; this narrows the discrepancy to batched execution but does not yet distinguish a batch-shape
-numerical change from a state/dispatch defect. Four-row cohort support remains unqualified pending
-that diagnosis; three-row parity remains the largest passing cohort.
+14 for the second prompt: ordinary cohort decode produced 4145 while MTP produced 2716. It
+reproduced with Graphs both enabled and disabled, and with draft windows two and four. A three-row,
+16-token run reproduced the same mismatch at the same prompt/token. The same prompt passed a
+single-row serial/MTP comparison through 16 tokens (draft window two; 11 drafted, 9 accepted, no
+fallback); both single-row outputs produced 2716, while the ordinary three- and four-row cohorts
+produced 4145. This narrows the discrepancy to batched execution but does not distinguish a
+batch-shape numerical change from a state/dispatch defect. Cohort parity is established only through
+three rows at the previously tested eight-token horizon; longer cohort decoding remains unqualified.
 
 A real-artifact image-conditioned MTP comparison also passed on the public Engine with Graphs
 enabled: one resized 224x224 image, 83 prompt tokens, greedy output horizon 8, and draft window 4.
@@ -306,10 +305,12 @@ schedule/oracle run.
 
 ### Remaining gates
 
-- Resolve the reproducible four-row MTP parity mismatch before qualifying larger cohorts. Text
-  Graph/MTP has exact serial parity through 128 output tokens, fallback cases, and exact cohort
-  parity through three requests; a four-request, 16-token run diverged on row two at output token 14
-  with or without Graphs, while that prompt passed single-row serial/MTP comparison. Continue longer
+- Resolve the reproducible long-horizon cohort parity mismatch before qualifying longer cohort
+  decoding. Text Graph/MTP has exact single-request serial parity through 128 output tokens and
+  exact cohort parity through three requests at an eight-token horizon. At 16 tokens, three- and
+  four-request cohorts diverged on row two at output token 14 with or without Graphs; that prompt
+  passed single-row serial/MTP comparison, whose output at that position matched cohort MTP. This
+  suggests a batched execution difference but does not identify its source. Continue longer
   Vision/video horizon qualification after resolving this issue. Image-conditioned runs cover 8 and 32 tokens, and
   video-conditioned runs cover 4, 32, and 35 generated tokens (the last run ended on the stop token
   with a 64-token cap).
