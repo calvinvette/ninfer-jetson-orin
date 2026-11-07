@@ -523,11 +523,11 @@ independent mathematical oracle and includes exact serial-column parity for a fi
 the fixture weights do not replace real-artifact weight qualification.
 The SM87 `ninfer_ple_test` also passed in 50.81 s. The real-artifact streaming loading test now
 reports `PASS Flash-Next real PLE gate FP64 oracle` and
-`PASS Flash-Next real PLE convolution FP64 oracle`, followed by an exact comparison of the
-accepted PLE record transition into next state; its separate real NVFP4 MoE oracle still passes.
-This chains the real-weight gate, convolution, and state-extract Ops at T=3, B=1 with initialized
-history. The full model-route committed-state comparison and the reproduced long-horizon MTP state
-divergence remain open.
+`PASS Flash-Next real PLE convolution FP64 oracle`, followed by exact next-state comparisons for
+accepted extents 0 through 3; its separate real NVFP4 MoE oracle still passes. This chains the
+real-weight gate, convolution, and state-extract Ops at T=3, B=1 with initialized history and
+covers empty, partial, and full accepted prefixes. The full model-route committed-state comparison
+and the reproduced long-horizon MTP state divergence remain open.
 The BF16 linear projection oracle case for the exact PLE geometry (N=12,800, K=2,560, M=8) passed
 in 1.25 s. A separate FP64 calculation over the actual artifact input/weights/output passed for
 both M=1 and M=5 as described above.
