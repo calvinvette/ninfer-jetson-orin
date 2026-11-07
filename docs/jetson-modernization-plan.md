@@ -501,17 +501,20 @@ difference 0.0078125). The corresponding state-1 output difference is downstream
 Earlier unsynchronized GDN/QSA diagnostic copies are discarded. A broader text-boundary capture
 initially used a faulty token/stream stride when extracting four-stream tensors; those comparisons
 are discarded. After correcting the extraction, the stem and layer-0 boundaries are bit-identical
-through token 310 at position 55, as is layer-1's normalized input. The first observed difference
-is the layer-1 HC mix output supplied to GDN: 26 bytes differ in the 2,560-element BF16 input
-vector (maximum absolute difference 0.0078125, mean 6.91e-6). The GDN output then differs in 791
-BF16 words (maximum absolute difference 0.001953125). This localizes the first captured divergence
-to the HC mix boundary but does not establish an Op correctness failure: comparison of both
-batch-shape routes against the independent oracle with the real artifact weights remains open.
-The verify-logit and committed-state boundary also remain open.
+through token 310 at position 55. The configured PLE transition is between text layers 0 and 1;
+layer 1's normalized input (the PLE output) is the first captured tensor to differ there. The
+layer-1 HC mix output supplied to GDN then differs in 26 BF16 words of 2,560 (maximum absolute
+difference 0.0078125, mean 6.91e-6), and the GDN output differs in 791 BF16 words (maximum
+absolute difference 0.001953125). This localizes the first captured divergence to PLE processing,
+but does not distinguish its input/state/record transition or establish an Op correctness failure.
+Real-artifact PLE state and record comparison, verify-logit comparison, and committed-state
+comparison remain open.
 
 The existing SM87 `ninfer_gated_residual_test` passed in 315.69 s. It checks HC Mix against its
 independent mathematical oracle and includes exact serial-column parity for a five-column fixture;
 the fixture weights do not replace real-artifact weight qualification.
+The SM87 `ninfer_ple_test` also passed in 50.81 s; real-artifact PLE state/record qualification
+remains open.
 
 The same artifact and prompt were then measured at MAXN with fixed CPU/GPU/EMC clocks of
 2,201.6/1,300.5/3,199 MHz, INT8 KV, a 512 MiB context reservation, 1,024 maximum context, 128
