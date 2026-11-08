@@ -319,13 +319,15 @@ an early numerical difference but aligning those PLE routes is insufficient to r
 cohort mismatch. Both temporary route changes were reverted; the next unresolved captured boundary
 is GDN layer-1 QKV projection/convolution after its input, control, and z values matched.
 
-The Q8 GDN route was then temporarily extended so the three-row, nine-token verify window used a
-row-aligned fused GEMV tile instead of materialize-then-convolve. The existing width-9, batch-3 Q8
-record fixture passed. The real 16-token cohort still failed at row 1, token 14; this route change
-flipped the close argmax ordering in one run but did not establish parity. Combining the Q8 route
-with the temporary PLE projection/Conv+Norm alignments also failed the same cohort. These source
-changes were reverted after the experiments; Q8 output and PLE history still need a same-input,
-same-source-state comparison before choosing a production dispatch.
+The Q8 GDN route was extended so long aggregate verify windows use a row-aligned fused GEMV tile,
+matching ordinary decode's per-token arithmetic. A new same-input, same-state operator comparison
+reproduced the prior route difference in Q/K/V and published convolution history (Z already
+matched); after the change all first-token outputs and published history compare exactly. The
+existing width-9, batch-3 Q8 record fixture also passes. The real 16-token cohort still fails at
+row 1, token 14 (ordinary token 4145, MTP token 2716), so the operator alignment is a confirmed
+correction but not a cohort-parity fix. The PLE projection/Conv+Norm alignment experiments remain
+insufficient and were reverted. The next investigation should capture the remaining state and
+logit differences at the failing position with the production Q8 route retained.
 
 A real-artifact image-conditioned MTP comparison also passed on the public Engine with Graphs
 enabled: one resized 224x224 image, 83 prompt tokens, greedy output horizon 8, and draft window 4.
