@@ -610,6 +610,15 @@ happens before capture, which is required by CUDA 12.6's `cudaStreamGetFlags` be
   to find whether the new divergence begins in another operator or in the commit decision. The
   temporary route edits and tracing were removed; rebuilding the unmodified JP6 tree is the next
   validation step.
+- A 2026-11-08 rerun with the Orin QSA split policy and per-column PLE/QSA projections reaches
+  decode batch 8 but still fails row 0 at output token 21 (serial 874, MTP 6157; 13 drafts,
+  9 accepted, one fallback). At the matching token 28320 / position 77, layer-3 sparse-attention
+  output is bit-identical and layer-4 GDN mixer input fingerprints match. Layer 4 uses a 2,560-wide
+  control projection: ordinary decode has 8 columns and Verify has 16, both on the same Tiled GEMV
+  route. GDN control G/Beta and Q/K/V/Z fingerprints nevertheless differ. A one-column control
+  recomputation reproduces each execution's own batched first-column result, so the observed
+  difference is not caused by a batch-kernel-only output path. The remaining GDN operand/state
+  discrepancy is unresolved; the full-width cohort is still not qualified.
 - A focused Op probe compared the identical first eight BF16 columns at the T=8 GEMV and T=9 MMA
   seam. The G and Beta values differed in 123/384 and 80/384 entries respectively, with maximum
   absolute differences of `3.58e-7` and `1.20e-7`. The full GDN control suite passes its independent
