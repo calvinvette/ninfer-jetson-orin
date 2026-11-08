@@ -603,9 +603,13 @@ happens before capture, which is required by CUDA 12.6's `cudaStreamGetFlags` be
   but the public integration test failed its full-width gate: the workload only reached decode
   batch 7, not the requested batch 8. This is useful parity evidence through the observed widths,
   but does not qualify the eight-row Verify path or establish that the route change is robust; no
-  production change was retained. The next useful check must keep all eight requests decode-ready
-  through a measured eight-row Verify round, then compare parity and performance under that exact
-  workload. Temporary tracing was removed and the full JP6 build passes.
+  production change was retained. Extending that same experiment to 24 output tokens did reach
+  decode batch 8, but row 1 diverged at output token 14 (serial 4145, MTP 2716; 12 drafts, 11
+  accepted, no fallback). The candidate route alignment therefore is not a full-width parity fix.
+  The next trace should follow row 1 through the first differing Verify round and its target logits
+  to find whether the new divergence begins in another operator or in the commit decision. The
+  temporary route edits and tracing were removed; rebuilding the unmodified JP6 tree is the next
+  validation step.
 - A focused Op probe compared the identical first eight BF16 columns at the T=8 GEMV and T=9 MMA
   seam. The G and Beta values differed in 123/384 and 80/384 entries respectively, with maximum
   absolute differences of `3.58e-7` and `1.20e-7`. The full GDN control suite passes its independent
