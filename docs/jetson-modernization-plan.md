@@ -576,8 +576,8 @@ happens before capture, which is required by CUDA 12.6's `cudaStreamGetFlags` be
   bit-for-bit. The first difference is the layer-1 `mixer_input`, after the layer-1 attention HC
   mix; this places the divergence after layer-0 state/output and before layer-1 GDN/QSA. The latest
   traced cohort again reached batch 7 and failed row 4 at output token 13, with all six drafts
-  accepted and one fallback. Next, reproduce the layer-1 HC mix difference using the captured real
-  activation/weights and compare the flattened serial/cohort column routes; then qualify the fix
+  accepted and one fallback. Next, capture the real activation/weights and reproduce the layer-1 HC
+  mix difference while comparing the flattened serial/cohort column routes; then qualify the fix
   and rerun the real cohort. Trace instrumentation is temporary and must be removed after diagnosis.
 - A focused Op probe compared the identical first eight BF16 columns at the T=8 GEMV and T=9 MMA
   seam. The G and Beta values differed in 123/384 and 80/384 entries respectively, with maximum
