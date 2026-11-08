@@ -338,11 +338,19 @@ earlier temporary route experiments.
 A temporary same-position trace at input token 14862 / position 71 narrowed the first observed
 post-mixer difference to layer 1 MoE. Its 2,560-value BF16 hidden input matched bitwise between
 ordinary batch decode (3 router columns) and MTP verify (10 router columns). The matching input
-selected the same top-10 expert IDs in both routes. The post-MoE BF16 output differed in 1,192 of
-2,560 values (relative L2 0.00288, maximum absolute difference 0.00390625). The diagnostic printed
-route coefficients to six decimal places only, so coefficient equality is not established; expert
-partial outputs and exact coefficients remain to be compared. The temporary activation/router
-capture was removed, and the full JP6 build passed after cleanup.
+had the same top-10 IDs in the file-cache prefetch route. This did not compare the router used by
+expert execution: SM87 NVFP4 dispatch slices MoE execution to one-token vector calls, while the
+file-cache scheduler had routed the full 3- or 10-column tensor at once. Cache route planning now
+uses the same one-token slices and aligned scratch outputs as the registered executor. The real
+cohort test still fails at row 1, token 14 (ordinary 4145, MTP 2716), so this cache-route correction
+does not close parity. The traced post-MoE BF16 output differed in 1,192 of 2,560 values (relative
+L2 0.00288, maximum absolute difference 0.00390625). The trace printed route coefficients to six
+decimal places only; exact execution coefficients and expert contributions remain unverified. The
+temporary activation/router capture was removed, and the full JP6 build passed after cleanup.
+The real-artifact loading/stream-one-layer test passed on JP6 after the cache-route change, including
+the file-backed NVFP4 MoE execution and its decoded-weight oracle. The source fix is committed on the
+local Orin branch; pushing that branch is still rejected by GitHub with HTTP 403 for the configured
+identity.
 
 A real-artifact image-conditioned MTP comparison also passed on the public Engine with Graphs
 enabled: one resized 224x224 image, 83 prompt tokens, greedy output horizon 8, and draft window 4.
