@@ -532,6 +532,11 @@ happens before capture, which is required by CUDA 12.6's `cudaStreamGetFlags` be
   Vision/video horizon qualification after resolving this issue. Image-conditioned runs cover 8 and 32 tokens, and
   video-conditioned runs cover 4, 32, and 35 generated tokens (the last run ended on the stop token
   with a 64-token cap).
+- An eight-request, 16-token cohort was repeated with `max_context=256`, a 4 GiB context reservation,
+  and CUDA Graphs disabled to see whether a smaller logical context enabled wider decode batches.
+  It still reached only `largest_decode_batch=4` and failed exact parity on rows 1 (first difference
+  at output token 14) and 4 (token 13). The run exercised draft and acceptance work without fallback.
+  This context setting did not qualify eight-row batching; retain the original test configuration.
 - Repeat the public mixed-media/ExpertCache breakdown under stable storage conditions. The current
   mixed-media Graph report is one diagnostic sample with NVMe timeouts; Vision numerical and
   encoder-throughput qualification covers artifact weights at up to 64 patches.
