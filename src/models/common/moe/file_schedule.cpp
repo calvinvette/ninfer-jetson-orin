@@ -371,9 +371,39 @@ void FileSchedule::route_only(ExpertBankId bank, const Tensor& hidden,
     {
         auto scope = workspace.scope();
         const auto bytes = ops::topk_softmax_route_workspace_capacity_bytes(route, columns, columns);
-        MemoryArena scratch(workspace.alloc_bytes(bytes));
+        MemoryArena scratch(workspace.alloc_bytes(bytes + 768));
         ops::ExpertRoutes routes{ids, coefficients};
-        ops::topk_softmax_route(hidden, route, p.control, routes, shared, scratch, cuda);
+#if NINFER_TARGET_JETSON_ORIN
+        // The registered Orin NVFP4 expert path routes one token at a time. Use the
+        // same route slices for file-cache planning so its expert set matches execution.
+        if (p.profile.routed.ffn.gate_up_type == QType::NVFP4) {
+            auto column_ids = scratch.alloc(DType::I32, {top_k_, 1});
+            auto column_coefficients = scratch.alloc(DType::FP32, {top_k_, 1});
+            auto column_shared = scratch.alloc(DType::FP32, {1});
+            for (int column = 0; column < columns; ++column) {
+                ops::ExpertRoutes column_routes{column_ids, column_coefficients};
+                ops::topk_softmax_route(
+                    hidden.slice(1, column, 1), route, p.control, column_routes, column_shared,
+                    scratch, cuda);
+                const auto ids_column = ids.slice(1, column, 1);
+                const auto coefficients_column = coefficients.slice(1, column, 1);
+                const auto shared_column = shared.slice(0, column, 1);
+                copy_bytes_async({ids_column.data, ids_column.bytes(), ids_column.device},
+                                 {column_ids.data, column_ids.bytes(), column_ids.device}, cuda);
+                copy_bytes_async(
+                    {coefficients_column.data, coefficients_column.bytes(),
+                     coefficients_column.device},
+                    {column_coefficients.data, column_coefficients.bytes(),
+                     column_coefficients.device}, cuda);
+                copy_bytes_async({shared_column.data, shared_column.bytes(), shared_column.device},
+                                 {column_shared.data, column_shared.bytes(), column_shared.device},
+                                 cuda);
+            }
+        } else
+#endif
+        {
+            ops::topk_softmax_route(hidden, route, p.control, routes, shared, scratch, cuda);
+        }
     }
 }
 
