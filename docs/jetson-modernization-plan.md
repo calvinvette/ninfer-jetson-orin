@@ -363,6 +363,17 @@ the one-row, eight-token route passed. The candidate was reverted without perfor
 Next, compare PLE record generation and accepted-prefix state extraction by column to find where
 the accumulated history drift first enters, then rerun the 16-token gate.
 
+A follow-up capture tested whether routing single-column PLE projections through the same MMA path
+as multi-column decode removes the record-generation difference. At token 760 / position 64 and
+token 14862 / position 71, the paired ordinary and MTP PLE residual input, projection, gated value,
+and newly generated record were bitwise equal. At the later anchor, accumulated source history still
+differed in 347/10,240 values of one plane. The three-request, 16-token cohort continued to diverge
+at output token 14. This route alignment therefore removes the sampled PLE record difference but
+does not explain or fix the cohort failure; it is not retained. The capture does not establish
+whether the remaining history difference comes from an earlier unsampled record or accepted-prefix
+state publication. Temporary capture code and the MMA selector experiment were removed, and the
+clean JP6 build completed successfully.
+
 A real-artifact image-conditioned MTP comparison also passed on the public Engine with Graphs
 enabled: one resized 224x224 image, 83 prompt tokens, greedy output horizon 8, and draft window 4.
 Serial and MTP generated token IDs matched exactly; MTP drafted 8 tokens, accepted 3, and took one
