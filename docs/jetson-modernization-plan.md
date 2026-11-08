@@ -586,9 +586,26 @@ happens before capture, which is required by CUDA 12.6's `cudaStreamGetFlags` be
   well as verify. For the matched row/token, the PLE embedding, residual input, incoming state,
   projection, gate, residual output, and normalized output fingerprints then matched exactly, but
   the end-to-end cohort still differed at output token 13. The PLE projection route is a real
-  numerical seam, but correcting it does not resolve the remaining mismatch; no production route
-  change was retained. The next trace must follow that same request/lane through layer 1 and the
-  target logits/fallback decision. Temporary tracing was removed and the full JP6 build passes.
+  numerical seam, but correcting it alone does not resolve the remaining mismatch; no production
+  route change was retained.
+- A separate eight-request, draft-1 experiment forced per-column QSA input projection on ordinary
+  decode, matching Verify while leaving PLE unchanged. The mismatch moved to row 7 at output token
+  4 (the original route mismatched row 4 at token 13), so this route change alone is not a fix and
+  was removed. It confirms that projection-route changes can move greedy cohort divergence; the
+  combined-route experiment below identifies the projected query as the first QSA stage difference
+  for the original row-4 mismatch.
+- With ordinary decode and verify both using per-column PLE projection, the same row-4/token-13
+  trace shows bit-identical layer-1 QSA input. The first divergence inside QSA is its projected
+  query: serial decode uses the batched `linear_split` route while Verify uses the per-column route.
+  The hashes already differ at projected query, before QSA preparation, block selection, sparse
+  attention, or output projection. A combined PLE+QSA per-column route experiment then produced
+  exact generated-token parity for all eight 14-token requests (six drafts accepted per request),
+  but the public integration test failed its full-width gate: the workload only reached decode
+  batch 7, not the requested batch 8. This is useful parity evidence through the observed widths,
+  but does not qualify the eight-row Verify path or establish that the route change is robust; no
+  production change was retained. The next useful check must keep all eight requests decode-ready
+  through a measured eight-row Verify round, then compare parity and performance under that exact
+  workload. Temporary tracing was removed and the full JP6 build passes.
 - A focused Op probe compared the identical first eight BF16 columns at the T=8 GEMV and T=9 MMA
   seam. The G and Beta values differed in 123/384 and 80/384 entries respectively, with maximum
   absolute differences of `3.58e-7` and `1.20e-7`. The full GDN control suite passes its independent
