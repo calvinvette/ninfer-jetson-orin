@@ -374,6 +374,24 @@ whether the remaining history difference comes from an earlier unsampled record 
 state publication. Temporary capture code and the MMA selector experiment were removed, and the
 clean JP6 build completed successfully.
 
+A stream-synchronized capture at the adjacent token 1324 / position 65 anchor refined the PLE and
+layer-0 attribution. Host and device PLE lookup embeddings matched exactly between ordinary and MTP.
+The PLE input residual differed in 577/10,240 BF16 values. Temporarily using per-column PLE
+projection made the projected values match exactly; the PLE convolution record still differed in
+347/10,240 values. Layer-0 residual and normalized inputs, and its GDN input, matched exactly.
+GDN Q/K/V and Z also matched, while control projections G/Beta differed in 28/96 and 19/96 values;
+the recurrent output differed in 2/6,144 and the GDN output in 17/2,560. This places the first
+observed layer-0 difference at GDN control projection for this anchor.
+
+An Orin-only experiment extended the tiled-GEMV GDN control route across 1-48 columns, covering
+both ordinary decode and the supported 8-request by 6-column verify extent. At the captured
+position-65 row, G/Beta, Q/K/V, Z, recurrent, normalized, and GDN output then matched bitwise. In the
+three-request, 16-token cohort, the original row-1 token-14 mismatch disappeared, but row 0 newly
+diverged at output token 7 (ordinary 3296, MTP 3134). Restoring batched PLE projection did not
+remove that row-0 failure. The route change is not retained because the cohort gate still fails;
+the first differing operator for row 0 remains to be captured. All diagnostic and route experiments
+were removed, and the restored JP6 build completed successfully.
+
 A real-artifact image-conditioned MTP comparison also passed on the public Engine with Graphs
 enabled: one resized 224x224 image, 83 prompt tokens, greedy output horizon 8, and draft window 4.
 Serial and MTP generated token IDs matched exactly; MTP drafted 8 tokens, accepted 3, and took one
