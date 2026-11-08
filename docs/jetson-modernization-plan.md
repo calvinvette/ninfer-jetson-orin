@@ -576,13 +576,15 @@ happens before capture, which is required by CUDA 12.6's `cudaStreamGetFlags` be
   mix as a single-column operation from each run's actual input and weights. In both serial and MTP
   verify, the single-column output hash equals that run's ordinary batched output hash, while the
   serial and verify input hashes differ. The indexed stage trace confirms layer-0 combined state is
-  bit-identical for the selected row, but the layer-1 HC-mix input differs, locating the change
-  between those adjacent layer calls. This rules out the HC-mix output route for the observed token
-  and points to an intervening state/workspace mutation or lifetime issue. The latest cohort again
-  reached batch 7 and failed row 4 at output token 13, with all six drafts accepted and one
-  fallback. Next inspect ownership and lifetime across the layer boundary and identify which
-  operation changes the retained normalized tensor; trace instrumentation is temporary and must be
-  removed after diagnosis.
+  bit-identical for the selected row, but the layer-1 HC-mix input differs. This is the expected PLE
+  boundary: the artifact declares `ple_layer_ids: [1]`, the runtime indexes that layer directly,
+  and execution consumes PLE after layer 0 and before layer 1. The discrepancy is therefore in PLE
+  input/state or its projection, gate, convolution, and normalization path; it is not an unexplained
+  workspace mutation and the HC-mix output route is ruled out for this token. The latest cohort
+  again reached batch 7 and failed row 4 at output token 13, with all six drafts accepted and one
+  fallback. Next compare the real PLE embedding, projection, gate, convolution, incoming state, and
+  normalized output for the matched serial/verify row to locate the first differing PLE boundary.
+  Trace instrumentation is temporary and must be removed after diagnosis.
 - A focused Op probe compared the identical first eight BF16 columns at the T=8 GEMV and T=9 MMA
   seam. The G and Beta values differed in 123/384 and 80/384 entries respectively, with maximum
   absolute differences of `3.58e-7` and `1.20e-7`. The full GDN control suite passes its independent
