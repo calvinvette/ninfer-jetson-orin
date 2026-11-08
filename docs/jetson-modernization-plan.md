@@ -548,7 +548,9 @@ happens before capture, which is required by CUDA 12.6's `cudaStreamGetFlags` be
   and tiled GEMV. Extending the tiled GEMV boundary through 48 columns still reached batch 8 but
   failed exact parity on rows 1 (token 14) and 4 (token 13), without fallback. That kernel-family
   boundary is not a sufficient fix; the current production route was restored. The discrepancy
-  still requires a layer-level trace to identify its first divergent state.
+  still requires a layer-level trace to identify its first divergent state. After restoration the
+  full JP6 build and `ninfer_gdn_control_test` passed; the latter checks each selected route against
+  its independent projection oracle, but its existing route-invariance case covers only T=1/T=2.
 - Repeat the public mixed-media/ExpertCache breakdown under stable storage conditions. The current
   mixed-media Graph report is one diagnostic sample with NVMe timeouts; Vision numerical and
   encoder-throughput qualification covers artifact weights at up to 64 patches.
