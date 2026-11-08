@@ -14,23 +14,23 @@ namespace {
 #if NINFER_TARGET_JETSON_ORIN
 int route_invariance(CudaExecutionView execution) {
     const control::Profile profile{48, 2560};
-    control::Fixture single(profile, {1}, false), pair(profile, {2}, false);
-    if (!std::equal(single.x.begin(), single.x.end(), pair.x.begin()) ||
-        single.weights.a != pair.weights.a || single.weights.b != pair.weights.b ||
-        single.a_log != pair.a_log || single.dt_bias != pair.dt_bias) {
+    control::Fixture single(profile, {1}, false), wide(profile, {16}, false);
+    if (!std::equal(single.x.begin(), single.x.end(), wide.x.begin()) ||
+        single.weights.a != wide.weights.a || single.weights.b != wide.weights.b ||
+        single.a_log != wide.a_log || single.dt_bias != wide.dt_bias) {
         std::cerr << "GDN control route-invariance fixtures differ\n";
         return 1;
     }
     single.invoke(single.arena, execution);
-    pair.invoke(pair.arena, execution);
+    wide.invoke(wide.arena, execution);
     cuda_synchronize(execution.stream());
     const auto single_g = from_device<float>(single.g.data(), 48);
-    const auto pair_g   = from_device<float>(pair.g.data(), 96);
+    const auto wide_g   = from_device<float>(wide.g.data(), 48 * 16);
     const auto single_b = from_device<float>(single.beta.data(), 48);
-    const auto pair_b   = from_device<float>(pair.beta.data(), 96);
-    if (!std::equal(single_g.begin(), single_g.end(), pair_g.begin()) ||
-        !std::equal(single_b.begin(), single_b.end(), pair_b.begin())) {
-        std::cerr << "GDN control T=1 differs from the first column at T=2\n";
+    const auto wide_b   = from_device<float>(wide.beta.data(), 48 * 16);
+    if (!std::equal(single_g.begin(), single_g.end(), wide_g.begin()) ||
+        !std::equal(single_b.begin(), single_b.end(), wide_b.begin())) {
+        std::cerr << "GDN control T=1 differs from the first column at T=16\n";
         return 1;
     }
     return 0;
@@ -172,7 +172,7 @@ void add_control_cases(ninfer::test::OpSuite& suite) {
               [] { return run(17, true, true, cuda_environment().context.execution_view()); },
               {{"execution", "graph"}});
 #if NINFER_TARGET_JETSON_ORIN
-    suite.add("gdn_control_proj/48x2560/route_invariance_t1_t2", [] {
+    suite.add("gdn_control_proj/48x2560/route_invariance_t1_t16", [] {
         return route_invariance(cuda_environment().context.execution_view());
     });
 #endif

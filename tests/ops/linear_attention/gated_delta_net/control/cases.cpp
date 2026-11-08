@@ -19,7 +19,7 @@ void unique(std::vector<Case>& cases) {
 } // namespace
 
 std::vector<Case> projection_cases(Profile p) {
-    std::vector<Case> outputs{{1}, {4}, {8}, {64}, {128}};
+    std::vector<Case> outputs{{1}, {4}, {8}, {16}, {64}, {128}};
     if (p.heads == 24) {
         for (int m = 1; m <= 128; ++m) outputs.push_back({m});
         boundaries(outputs, {16, 32, 64, 128, 256, 512, 1024, 2048, 4096});

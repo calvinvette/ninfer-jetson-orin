@@ -1158,9 +1158,10 @@ int q8_sequence_single_step_equivalence(Weights& weights) {
     return failures;
 }
 
-int q8_batched_decode_record_equivalence(Weights& weights) {
-    constexpr int batch = 3, width = 9, hidden = 2560, qk_rows = 2048, value_rows = 6144;
-    constexpr int channels = 2 * qk_rows + value_rows, slots = 2 * batch;
+int q8_batched_decode_record_equivalence(Weights& weights, int batch, int width) {
+    constexpr int hidden = 2560, qk_rows = 2048, value_rows = 6144;
+    constexpr int channels = 2 * qk_rows + value_rows;
+    const int slots = 2 * batch;
     constexpr std::uint32_t seed = 0x7d31U;
     if (weights.profile.format != QType::Q8_G32_FP16 || weights.profile.hidden != hidden ||
         weights.profile.qk_rows != qk_rows)
@@ -1175,9 +1176,11 @@ int q8_batched_decode_record_equivalence(Weights& weights) {
     const auto conv_weight = bf16_bits(make_conv_weight(channels, seed + 1));
     const std::size_t slot_stride = static_cast<std::size_t>(channels) * 3;
     std::vector<std::uint16_t> initial(slot_stride * slots, 0);
-    const std::array<int, batch> source_slots{0, 2, 4};
-    const std::array<int, batch> destination_slots{1, 3, 5};
+    std::vector<int> source_slots(static_cast<std::size_t>(batch));
+    std::vector<int> destination_slots(static_cast<std::size_t>(batch));
     for (int row = 0; row < batch; ++row) {
+        source_slots[row] = 2 * row;
+        destination_slots[row] = source_slots[row] + 1;
         const auto slot = make_state(channels, 1, 0, seed + 2 + row);
         std::copy_n(slot.begin(), slot_stride,
                     initial.begin() + static_cast<std::ptrdiff_t>(source_slots[row] * slot_stride));
@@ -1212,8 +1215,8 @@ int q8_batched_decode_record_equivalence(Weights& weights) {
     GuardedBf16Tensor verify_value(value_rows, width * batch), verify_z(value_rows, width * batch);
     GuardedBf16Tensor conv_record(channels, width * batch);
     Tensor conv_record_tensor = conv_record.tensor().view({channels, width, batch});
-    const auto output = [](GuardedBf16Tensor& q, GuardedBf16Tensor& k,
-                           GuardedBf16Tensor& v, GuardedBf16Tensor& z, int tokens) {
+    const auto output = [batch](GuardedBf16Tensor& q, GuardedBf16Tensor& k,
+                                GuardedBf16Tensor& v, GuardedBf16Tensor& z, int tokens) {
         return ops::GdnConvOutputs{q.tensor().view({q.tensor().ne[0], tokens, batch}),
                                    k.tensor().view({k.tensor().ne[0], tokens, batch}),
                                    v.tensor().view({v.tensor().ne[0], tokens, batch}),

@@ -68,7 +68,7 @@ struct Q8RouteCapture {
 int run_snapshot(Weights& weights, const SnapshotCase& c);
 int q8_first_column_invariance(Weights& weights);
 int q8_sequence_single_step_equivalence(Weights& weights);
-int q8_batched_decode_record_equivalence(Weights& weights);
+int q8_batched_decode_record_equivalence(Weights& weights, int batch = 3, int width = 9);
 int snapshot_capacity_contract();
 int run_record(Weights& weights, const RecordCase& c);
 

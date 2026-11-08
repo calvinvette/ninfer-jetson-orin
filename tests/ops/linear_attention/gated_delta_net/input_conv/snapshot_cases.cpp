@@ -244,6 +244,11 @@ int main(int argc, char** argv) {
                 Weights weights(profile, true);
                 return q8_batched_decode_record_equivalence(weights) + weights.preserved();
             });
+            suite.add("gdn_input_snapshot/q8/flash_next/b8_decode_vs_t2_record", [=] {
+                Weights weights(profile, true);
+                return q8_batched_decode_record_equivalence(weights, 8, 2) +
+                       weights.preserved();
+            });
         }
         const auto tests = cases(profile);
         std::vector<OpCase> catalogue;
