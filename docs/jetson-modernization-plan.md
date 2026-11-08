@@ -571,14 +571,16 @@ happens before capture, which is required by CUDA 12.6's `cudaStreamGetFlags` be
   run. Earlier route settings fixed different rows, so full cohort parity remains unqualified and
   scheduling-sensitive. A four-token stage trace reached only batch 2 and showed exact row-7 GDN
   stage fingerprints there; it does not cover the failing batch width. A synchronized eight-request
-  draft-1 trace now matches the failing row-4 token (ID 13, absolute position 68) against serial
-  decode by exact prompt-token-vector hash. Its layer-0 combined output and post-mixer state match
-  bit-for-bit. The first difference is the layer-1 `mixer_input`, after the layer-1 attention HC
-  mix; this places the divergence after layer-0 state/output and before layer-1 GDN/QSA. The latest
-  traced cohort again reached batch 7 and failed row 4 at output token 13, with all six drafts
-  accepted and one fallback. Next, capture the real activation/weights and reproduce the layer-1 HC
-  mix difference while comparing the flattened serial/cohort column routes; then qualify the fix
-  and rerun the real cohort. Trace instrumentation is temporary and must be removed after diagnosis.
+  draft-1 trace matches the failing row-4 token (ID 13, absolute position 68) against serial decode
+  by exact prompt-token-vector hash. A follow-up real-artifact probe recomputed layer-1 attention HC
+  mix as a single-column operation from each run's actual input and weights. In both serial and MTP
+  verify, the single-column output hash equals that run's ordinary batched output hash, while the
+  serial and verify input hashes differ. This rules out the HC-mix output route for the observed
+  token and places the divergence upstream of layer 1's attention HC mix. The earlier trace's
+  apparent layer-0 equality was not reproduced by the follow-up, so trace the first divergent
+  boundary again with request and flattened-column identity recorded correctly. The latest cohort
+  again reached batch 7 and failed row 4 at output token 13, with all six drafts accepted and one
+  fallback. Trace instrumentation is temporary and must be removed after diagnosis.
 - A focused Op probe compared the identical first eight BF16 columns at the T=8 GEMV and T=9 MMA
   seam. The G and Beta values differed in 123/384 and 80/384 entries respectively, with maximum
   absolute differences of `3.58e-7` and `1.20e-7`. The full GDN control suite passes its independent
