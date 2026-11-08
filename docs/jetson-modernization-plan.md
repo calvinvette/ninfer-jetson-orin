@@ -337,21 +337,18 @@ earlier temporary route experiments.
 
 A temporary same-position trace at input token 14862 / position 71 narrowed the first observed
 post-mixer difference to layer 1 MoE. Its 2,560-value BF16 hidden input matched bitwise between
-ordinary batch decode (3 router columns) and MTP verify (10 router columns). The matching input
-had the same top-10 IDs in the file-cache prefetch route. This did not compare the router used by
-expert execution: SM87 NVFP4 dispatch slices MoE execution to one-token vector calls, while the
-file-cache scheduler had routed the full 3- or 10-column tensor at once. Cache route planning now
-uses the same one-token slices and aligned scratch outputs as the registered executor. The real
-cohort test still fails at row 1, token 14 (ordinary 4145, MTP 2716), so this cache-route correction
-does not close parity. The traced post-MoE BF16 output differed in 1,192 of 2,560 values (relative
-L2 0.00288, maximum absolute difference 0.00390625). The trace printed route coefficients to six
-decimal places only; exact execution coefficients and expert contributions remain unverified. The
-temporary activation/router capture was removed, and the full JP6 build passed after cleanup.
-The real-artifact loading/stream-one-layer test passed on JP6 after the cache-route change, including
-the file-backed NVFP4 MoE execution and its decoded-weight oracle. The source fix is committed on the
+ordinary batch decode (3 router columns) and MTP verify (10 router columns). Cache route planning
+was aligned to the registered SM87 NVFP4 executor's one-token slices. A synchronized capture then
+reproduced that exact input in ordinary and MTP execution: the router control-weight hash, route
+IDs, coefficient bits, shared coefficient, and all 2,560 BF16 MoE outputs matched exactly. The
+previous report of 1,192 differing outputs came from an unsynchronized device-to-host diagnostic
+and is invalid. The three-request cohort still fails at row 1, token 14 (ordinary 4145, MTP 2716),
+so layer 1 MoE is ruled out for the matched input; the source of the remaining state/decode
+difference remains unresolved. Temporary activation/router capture code was removed. The real-
+artifact loading/stream-one-layer test passed on JP6 after the cache-route change, including the
+file-backed NVFP4 MoE execution and its decoded-weight oracle. The source fix is committed on the
 local Orin branch; pushing that branch is still rejected by GitHub with HTTP 403 for the configured
 identity.
-
 A real-artifact image-conditioned MTP comparison also passed on the public Engine with Graphs
 enabled: one resized 224x224 image, 83 prompt tokens, greedy output horizon 8, and draft window 4.
 Serial and MTP generated token IDs matched exactly; MTP drafted 8 tokens, accepted 3, and took one
