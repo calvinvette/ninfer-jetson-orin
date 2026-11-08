@@ -301,6 +301,16 @@ enters between layer-0 and layer-1 GDN, in the intervening transformer path. The
 token IDs still matched exactly for this ten-token horizon. Temporary capture code was removed, and
 the full restored JP6 build completed successfully.
 
+The transformer-boundary trace showed layer 0's post-combine residual was still bitwise equal, while
+layer 1 entered with 8 differing BF16 values. A follow-up capture around PLE on the same position-64
+anchor confirmed its residual, normalized input, and embedding were equal before PLE. The first PLE
+output difference was its batched projection (13/12,800 BF16 values), followed by the gate
+(47/10,240); the convolution/norm residual differed in 72/10,240 values and normalized output in
+109/10,240. The three-row, ten-token run with MTP-4 passed exact token parity and exercised decode
+batch size three. This places the first observed divergence at ordinary batched PLE projection versus
+MTP's per-column projection; later PLE state/convolution arithmetic also accumulates the difference.
+All capture code was removed and the JP6 tree rebuilt.
+
 A real-artifact image-conditioned MTP comparison also passed on the public Engine with Graphs
 enabled: one resized 224x224 image, 83 prompt tokens, greedy output horizon 8, and draft window 4.
 Serial and MTP generated token IDs matched exactly; MTP drafted 8 tokens, accepted 3, and took one
