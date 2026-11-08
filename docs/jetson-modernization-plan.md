@@ -551,13 +551,19 @@ happens before capture, which is required by CUDA 12.6's `cudaStreamGetFlags` be
   still requires a layer-level trace to identify its first divergent state. After restoration the
   full JP6 build and `ninfer_gdn_control_test` passed; the latter checks each selected route against
   its independent projection oracle, but its existing route-invariance case covers only T=1/T=2.
-- A temporary layer-0 trace during the draft-1 cohort found a GDN control-route discontinuity at
-  flattened verify width 9: an input with the same 64-bit fingerprint produced the same G/B output
-  fingerprints through the tiled-GEMV route (up to width 8), then different fingerprints after
-  width 9 selected MMA. This matches the actual cohort path (2 tokens × 8 rows = 16 columns).
-  The widened-GEMV experiment did not restore token parity, so this is a confirmed numerical route
-  difference but not yet the complete cause or fix. Trace instrumentation was removed and the clean
-  baseline was rebuilt; the next diagnostic must compare downstream GDN state and main-model logits.
+- Temporary layer-0 traces now align the real serial and eight-row draft-1 cohort by engine lane
+  and absolute token position. The 16-token, graphs-off run again reached decode batch 8 and failed
+  row 4 at output token 12, with one fallback. Across every lane, GDN control G/Beta output
+  fingerprints differ at positions where the layer input fingerprint is identical between serial
+  and cohort execution. For row 4, control fingerprints first differ at position 56 while the
+  layer input remains identical; the first input fingerprint difference is position 68, aligned
+  with the observed token-12 mismatch. This confirms a shape-dependent GDN control-projection
+  difference feeds later hidden-state divergence, but hashes do not measure its numerical size and
+  the widened-GEMV experiment shows it is not by itself a sufficient parity fix. The next
+  diagnostic must quantify the control/state deltas and trace the post-GDN/main-model logits at
+  the first divergent position. The instrumentation was temporary and has been removed; the full
+  JP6 build passed with it enabled, and the real-artifact parity test completed with its expected
+  failure.
 - A focused Op probe compared the identical first eight BF16 columns at the T=8 GEMV and T=9 MMA
   seam. The G and Beta values differed in 123/384 and 80/384 entries respectively, with maximum
   absolute differences of `3.58e-7` and `1.20e-7`. The full GDN control suite passes its independent
