@@ -392,6 +392,15 @@ remove that row-0 failure. The route change is not retained because the cohort g
 the first differing operator for row 0 remains to be captured. All diagnostic and route experiments
 were removed, and the restored JP6 build completed successfully.
 
+Rechecking that control-route experiment with the original batched PLE on the current source
+changed the three-request, 16-token result: exact parity passed twice, once with targeted GDN
+tracing and once with tracing disabled. This does not reproduce the earlier row-0 token-7 failure.
+The eight-request, 16-token run still failed under the widened route: row 1 at output token 14, and
+rows 4 and 7 at token 2. Its largest measured decode batch was four. The experiment therefore does
+not establish the supported 1-8-request cohort gate and is not retained. Trace-enabled GDN layer-0
+row-0 values at token 4145 / position 63 matched from input through output, which leaves the
+eight-request divergences unattributed.
+
 A fresh trace on the unmodified Orin route reproduced the three-request, 16-token row-1 mismatch at
 output token 14 (serial 4145, MTP 2716; 13 drafts, 11 accepted, no fallback). At layer 0 and matching
 row-1 token positions 58-67, the input to GDN and its Q/K/V/Z projections matched bitwise, but the
