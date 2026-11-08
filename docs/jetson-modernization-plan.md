@@ -582,9 +582,13 @@ happens before capture, which is required by CUDA 12.6's `cudaStreamGetFlags` be
   input/state or its projection, gate, convolution, and normalization path; it is not an unexplained
   workspace mutation and the HC-mix output route is ruled out for this token. The latest cohort
   again reached batch 7 and failed row 4 at output token 13, with all six drafts accepted and one
-  fallback. Next compare the real PLE embedding, projection, gate, convolution, incoming state, and
-  normalized output for the matched serial/verify row to locate the first differing PLE boundary.
-  Trace instrumentation is temporary and must be removed after diagnosis.
+  fallback. A temporary route experiment used per-column PLE projection for ordinary decode as
+  well as verify. For the matched row/token, the PLE embedding, residual input, incoming state,
+  projection, gate, residual output, and normalized output fingerprints then matched exactly, but
+  the end-to-end cohort still differed at output token 13. The PLE projection route is a real
+  numerical seam, but correcting it does not resolve the remaining mismatch; no production route
+  change was retained. The next trace must follow that same request/lane through layer 1 and the
+  target logits/fallback decision. Temporary tracing was removed and the full JP6 build passes.
 - A focused Op probe compared the identical first eight BF16 columns at the T=8 GEMV and T=9 MMA
   seam. The G and Beta values differed in 123/384 and 80/384 entries respectively, with maximum
   absolute differences of `3.58e-7` and `1.20e-7`. The full GDN control suite passes its independent
