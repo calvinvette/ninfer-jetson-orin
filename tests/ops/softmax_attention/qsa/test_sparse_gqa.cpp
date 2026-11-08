@@ -145,10 +145,51 @@ int serial_window_parity(DeviceContext& device, KvCacheStorage storage) {
     const std::size_t column_size = 256 * serial.q_heads;
     const auto mismatch = std::mismatch(expected.begin(), expected.begin() + column_size,
                                         actual.begin());
-    if (mismatch.first == expected.begin() + column_size) return 0;
-    std::cerr << "serial-window QSA parity differs at BF16 element "
-              << std::distance(expected.begin(), mismatch.first) << '\n';
-    return 1;
+    int failures = 0;
+    if (mismatch.first != expected.begin() + column_size) {
+        std::cerr << "serial-window QSA parity differs at BF16 element "
+                  << std::distance(expected.begin(), mismatch.first) << '\n';
+        ++failures;
+    }
+
+    // Match the Orin serving shape at a history long enough to select different split counts
+    // under the old T*B policy: decode T=1,B=8 versus the same query in verify T=2,B=8.
+    Fixture serial8(1, 8, 72, false, storage);
+    Fixture verify8(2, 8, 72, false, storage);
+    serial8.reset();
+    verify8.reset();
+    share_prefix_cache(serial8);
+    share_prefix_cache(verify8);
+    const auto target_size = std::size_t(256 * serial8.q_heads);
+    for (std::size_t i = 0; i < target_size; ++i) {
+        const auto q = f32_to_bf16(sample(static_cast<std::uint32_t>(i + 711)));
+        const auto g = f32_to_bf16(sample(static_cast<std::uint32_t>(i + 129)) * 4);
+        serial8.qhost[i] = verify8.qhost[target_size + i] = q;
+        serial8.ghost[i] = verify8.ghost[target_size + i] = g;
+    }
+    for (int g = 0; g < 18; ++g) {
+        serial8.ids[g] = g;
+        verify8.ids[512 + g] = g;
+    }
+    serial8.counts[0] = verify8.counts[1] = 18;
+    for (auto* f : {&serial8, &verify8}) {
+        f->q.copy_from_host(f->qhost.data(), f->qhost.size() * sizeof(std::uint16_t));
+        f->gate.copy_from_host(f->ghost.data(), f->ghost.size() * sizeof(std::uint16_t));
+        f->selections.copy_from_host(f->ids.data(), f->ids.size() * sizeof(int));
+        f->sizes.copy_from_host(f->counts.data(), f->counts.size() * sizeof(int));
+        CUDA_CHECK(cudaStreamSynchronize(nullptr));
+    }
+    const auto serial_wide = launch(serial8);
+    const auto verify_wide = launch(verify8);
+    const auto wide_mismatch = std::mismatch(
+        serial_wide.begin(), serial_wide.begin() + target_size,
+        verify_wide.begin() + target_size);
+    if (wide_mismatch.first != serial_wide.begin() + target_size) {
+        std::cerr << "B=8 serial-window QSA parity differs at BF16 element "
+                  << std::distance(serial_wide.begin(), wide_mismatch.first) << '\n';
+        ++failures;
+    }
+    return failures;
 }
 
 int gate_rounding(DeviceContext& device, KvCacheStorage storage = KvCacheStorage::BFloat16,

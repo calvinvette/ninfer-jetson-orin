@@ -13,8 +13,17 @@ SparseGqaPlan select_sparse_gqa_plan(KvCacheStorage, int tokens, int batch, int 
                                : SparseGqaPlan{32, 1, SparseGqaInstance::Mma, false};
     // Budget parallel partitions independently of history. The envelope only bounds the
     // selected support and admits a short-context arithmetic schedule.
+#if defined(NINFER_TARGET_JETSON_ORIN)
+    // Keep each query's reduction partitioning stable when a verify window adds token columns.
+    // The decode round and the verifier can contain the same logical query with different T but
+    // the same request batch; deriving this from T*B changes the split reduction tree and can
+    // change the BF16 attention output before the target argmax.
+    const auto target =
+        std::max<std::int64_t>(1, (std::int64_t(sms) * 3 / 4 + batch - 1) / batch);
+#else
     const auto target =
         std::max<std::int64_t>(1, (std::int64_t(sms) * 3 / 4 + queries - 1) / queries);
+#endif
     int splits = 1;
     while (splits < target && splits < 32) splits *= 2;
     const int tiles = std::max(1, (int(std::min(visible, 2051u)) + 31) / 32);
