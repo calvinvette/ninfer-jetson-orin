@@ -392,6 +392,17 @@ remove that row-0 failure. The route change is not retained because the cohort g
 the first differing operator for row 0 remains to be captured. All diagnostic and route experiments
 were removed, and the restored JP6 build completed successfully.
 
+A fresh trace on the unmodified Orin route reproduced the three-request, 16-token row-1 mismatch at
+output token 14 (serial 4145, MTP 2716; 13 drafts, 11 accepted, no fallback). At layer 0 and matching
+row-1 token positions 58-67, the input to GDN and its Q/K/V/Z projections matched bitwise, but the
+control projections differed: G differed in 27-35 of 48 FP32 values and Beta in 19-33 of 48. The
+recurrent output differed in only 1-2 of 3,072 FP32 values at positions 61, 62, 64, and 65; the
+BF16 GDN output differed in 3 of 2,560 values at position 61 and 17 at position 65. At position
+68, the GDN input already differed substantially, so this capture does not attribute later layers
+or establish that the control-projection drift alone causes the token mismatch. A three-request,
+eight-token cohort on the same unmodified route passed exact token parity. Temporary tracing was
+removed and the clean JP6 build completed successfully.
+
 A real-artifact image-conditioned MTP comparison also passed on the public Engine with Graphs
 enabled: one resized 224x224 image, 83 prompt tokens, greedy output horizon 8, and draft window 4.
 Serial and MTP generated token IDs matched exactly; MTP drafted 8 tokens, accepted 3, and took one
