@@ -9,7 +9,7 @@ ProjectionPlan select_projection_plan(const WeightProfile& weights, std::int32_t
     if (weights.format == Format::Fp8 && allows_a8(weights.policy) && columns >= 17)
         return {Compute::A8};
 #endif
-#if !defined(NINFER_DISABLE_NVFP4_A4)
+#if !defined(NINFER_DISABLE_NVFP4_A4) && !defined(NINFER_TARGET_JETSON_ORIN)
     if (weights.format == Format::Nvfp4 && allows_a4(weights.policy)) return {Compute::A4};
 #endif
     return {Compute::A16};

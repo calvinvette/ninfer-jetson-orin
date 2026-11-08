@@ -168,6 +168,19 @@ int snapshot_capacity_contract() {
         ops::SingleProjectionWeight{capacity_weight(QType::NVFP4, 16384, 5120),
                                     ops::LinearPolicy::AllowA4},
         1, 4, 4);
+#if defined(NINFER_DISABLE_NVFP4_A4)
+    if (ops::gdn_input_proj_conv_snapshot_workspace_capacity_bytes(
+            ops::SingleProjectionWeight{capacity_weight(QType::NVFP4, 16384, 5120),
+                                        ops::LinearPolicy::A16Only},
+            1, 1, 16) != 0 ||
+        ops::gdn_input_proj_conv_snapshot_workspace_capacity_bytes(
+            ops::SingleProjectionWeight{capacity_weight(QType::NVFP4, 16384, 5120),
+                                        ops::LinearPolicy::AllowA4},
+            1, 1, 16) != 0) {
+        std::cerr << "disabled NVFP4 A4 GDN routing allocated projection scratch\n";
+        ++failures;
+    }
+#else
     if (ops::gdn_input_proj_conv_snapshot_workspace_capacity_bytes(
             ops::SingleProjectionWeight{capacity_weight(QType::NVFP4, 16384, 5120),
                                         ops::LinearPolicy::A16Only},
@@ -184,6 +197,7 @@ int snapshot_capacity_contract() {
         std::cerr << "NVFP4 snapshot interval did not preserve its A16/A4 route boundary\n";
         ++failures;
     }
+#endif
     const auto fp8_snapshot_capacity = [](ops::LinearPolicy policy, std::int32_t batch,
                                           std::int32_t min_width, std::int32_t max_width) {
         return ops::gdn_input_proj_conv_snapshot_workspace_capacity_bytes(

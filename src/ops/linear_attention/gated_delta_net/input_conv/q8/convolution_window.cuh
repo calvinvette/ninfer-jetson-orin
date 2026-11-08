@@ -5,8 +5,10 @@
 #include "ops/linear_attention/gated_delta_net/input_conv/kernels/output.cuh"
 #include "ops/linear/kernels/q8/q8_gemv_launch.cuh"
 #include "ops/linear/kernels/q8/q8_sliced_k_launch.cuh"
+
 #include <array>
 #include <stdexcept>
+#include <string>
 #include <utility>
 
 namespace ninfer::ops::detail {
@@ -157,7 +159,9 @@ void dispatch(const Tensor& x, const Weight& weight, const Tensor& conv_weight,
     if (x.ne[1] < 1 || x.ne[1] > 16 || x.ne[2] < 1 || x.ne[2] > 8 ||
         (aggregate && (x.ne[1] > 16 || x.ne[1] * x.ne[2] > AggregateColumns)) ||
         (!aggregate && x.ne[2] != 1))
-        throw std::invalid_argument("Q8 fused convolution: invalid temporal tile");
+        throw std::invalid_argument(
+            "Q8 fused convolution: invalid temporal tile T=" + std::to_string(x.ne[1]) +
+            " B=" + std::to_string(x.ne[2]) + " aggregate=" + std::to_string(aggregate));
     static constexpr auto launches =
         window_launchers<ConvGeometry, Gemv, KWarps, AggregateColumns, Publish>(
             std::make_index_sequence<16>{});
