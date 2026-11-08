@@ -283,6 +283,17 @@ capture does not distinguish raw QKV projection arithmetic from convolution-hist
 record behavior. Both route experiments and all diagnostics were removed, and the restored JP6
 tree built successfully. No performance qualification was made for either experiment.
 
+A final state capture at the same position-65 anchor compared each GDN layer's convolution source
+history. The MTP verifier starts one token earlier than ordinary decode, as expected: at layer 0,
+ordinary history planes 0 and 1 matched MTP planes 1 and 2 bitwise across all 10,240 channels. At
+layer 1 those shifted planes matched only 10,006/10,240 and 8,096/10,240 values, showing that its
+history had already diverged before the current token. The MTP record for the preceding token at
+position 64 was also captured; its layer-1 projected-convolution input matched ordinary decode's
+committed newest plane in 8,252/10,240 values. This localizes accumulated history drift to before
+the position-65 layer-1 transition, but does not yet distinguish a layer-1 input difference at
+position 64 from its projection/convolution route. That is the next useful anchor to capture. The
+diagnostic was removed and the restored JP6 build passed.
+
 A real-artifact image-conditioned MTP comparison also passed on the public Engine with Graphs
 enabled: one resized 224x224 image, 83 prompt tokens, greedy output horizon 8, and draft window 4.
 Serial and MTP generated token IDs matched exactly; MTP drafted 8 tokens, accepted 3, and took one
