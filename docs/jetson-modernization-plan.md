@@ -329,6 +329,12 @@ correction but not a cohort-parity fix. The PLE projection/Conv+Norm alignment e
 insufficient and were reverted. The next investigation should capture the remaining state and
 logit differences at the failing position with the production Q8 route retained.
 
+The three-request, 16-token failure was rerun against the committed Q8 route with CUDA Graphs off:
+row 1 matched through token 13, then ordinary decode chose 4145 while MTP chose 2716 at token 14;
+all three requests completed and the MTP execution exercised decode batch size three. This confirms
+the remaining mismatch is reproducible with the production Q8 correction and is not limited to the
+earlier temporary route experiments.
+
 A real-artifact image-conditioned MTP comparison also passed on the public Engine with Graphs
 enabled: one resized 224x224 image, 83 prompt tokens, greedy output horizon 8, and draft window 4.
 Serial and MTP generated token IDs matched exactly; MTP drafted 8 tokens, accepted 3, and took one
