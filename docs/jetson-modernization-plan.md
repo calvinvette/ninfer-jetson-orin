@@ -270,6 +270,19 @@ of the later position-71 mismatch. A second temporary attempt to capture GDN sub
 produce those captures, so control projection, recurrent update, normalization, and output
 projection remain unlocalized. No code change was retained, and the source worktree is clean.
 
+A further Orin-only route experiment tested that attribution on the same real artifact. For a
+three-row ordinary decode, GDN control projection used tiled GEMV at three columns; MTP verification
+used merged MMA at nine columns. Temporarily selecting merged MMA for both made GDN layer 0 match
+bitwise through its output at the position-65 anchor, but the 16-token cohort still diverged at
+output token 14, with the close-logit ordering reversed. A second temporary NVFP4 A16 GDN input
+projection schedule alignment (same sliced-K schedule for three and nine columns) also left that
+token mismatch unchanged. With both alignments, layer 1's input, control values, and z projection
+matched bitwise, while q/k/v differed in 258/2,048, 494/2,048, and 1,317/6,144 BF16 values. The
+first remaining difference is therefore at the layer-1 projected/convolved QKV boundary; the
+capture does not distinguish raw QKV projection arithmetic from convolution-history/update versus
+record behavior. Both route experiments and all diagnostics were removed, and the restored JP6
+tree built successfully. No performance qualification was made for either experiment.
+
 A real-artifact image-conditioned MTP comparison also passed on the public Engine with Graphs
 enabled: one resized 224x224 image, 83 prompt tokens, greedy output horizon 8, and draft window 4.
 Serial and MTP generated token IDs matched exactly; MTP drafted 8 tokens, accepted 3, and took one
