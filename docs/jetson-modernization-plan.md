@@ -558,6 +558,10 @@ happens before capture, which is required by CUDA 12.6's `cudaStreamGetFlags` be
   The widened-GEMV experiment did not restore token parity, so this is a confirmed numerical route
   difference but not yet the complete cause or fix. Trace instrumentation was removed and the clean
   baseline was rebuilt; the next diagnostic must compare downstream GDN state and main-model logits.
+- A focused Op probe compared the identical first eight BF16 columns at the T=8 GEMV and T=9 MMA
+  seam. The G and Beta values differed in 123/384 and 80/384 entries respectively, with maximum
+  absolute differences of `3.58e-7` and `1.20e-7`. The full GDN control suite passes its independent
+  projection oracle at both T=8 and T=9. The temporary probe was removed after measurement.
 - Repeat the public mixed-media/ExpertCache breakdown under stable storage conditions. The current
   mixed-media Graph report is one diagnostic sample with NVMe timeouts; Vision numerical and
   encoder-throughput qualification covers artifact weights at up to 64 patches.
