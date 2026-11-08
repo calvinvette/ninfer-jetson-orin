@@ -551,6 +551,13 @@ happens before capture, which is required by CUDA 12.6's `cudaStreamGetFlags` be
   still requires a layer-level trace to identify its first divergent state. After restoration the
   full JP6 build and `ninfer_gdn_control_test` passed; the latter checks each selected route against
   its independent projection oracle, but its existing route-invariance case covers only T=1/T=2.
+- A temporary layer-0 trace during the draft-1 cohort found a GDN control-route discontinuity at
+  flattened verify width 9: an input with the same 64-bit fingerprint produced the same G/B output
+  fingerprints through the tiled-GEMV route (up to width 8), then different fingerprints after
+  width 9 selected MMA. This matches the actual cohort path (2 tokens × 8 rows = 16 columns).
+  The widened-GEMV experiment did not restore token parity, so this is a confirmed numerical route
+  difference but not yet the complete cause or fix. Trace instrumentation was removed and the clean
+  baseline was rebuilt; the next diagnostic must compare downstream GDN state and main-model logits.
 - Repeat the public mixed-media/ExpertCache breakdown under stable storage conditions. The current
   mixed-media Graph report is one diagnostic sample with NVMe timeouts; Vision numerical and
   encoder-throughput qualification covers artifact weights at up to 64 patches.
