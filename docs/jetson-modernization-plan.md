@@ -335,6 +335,15 @@ all three requests completed and the MTP execution exercised decode batch size t
 the remaining mismatch is reproducible with the production Q8 correction and is not limited to the
 earlier temporary route experiments.
 
+A temporary same-position trace at input token 14862 / position 71 narrowed the first observed
+post-mixer difference to layer 1 MoE. Its 2,560-value BF16 hidden input matched bitwise between
+ordinary batch decode (3 router columns) and MTP verify (10 router columns). The matching input
+selected the same top-10 expert IDs in both routes. The post-MoE BF16 output differed in 1,192 of
+2,560 values (relative L2 0.00288, maximum absolute difference 0.00390625). The diagnostic printed
+route coefficients to six decimal places only, so coefficient equality is not established; expert
+partial outputs and exact coefficients remain to be compared. The temporary activation/router
+capture was removed, and the full JP6 build passed after cleanup.
+
 A real-artifact image-conditioned MTP comparison also passed on the public Engine with Graphs
 enabled: one resized 224x224 image, 83 prompt tokens, greedy output horizon 8, and draft window 4.
 Serial and MTP generated token IDs matched exactly; MTP drafted 8 tokens, accepted 3, and took one
