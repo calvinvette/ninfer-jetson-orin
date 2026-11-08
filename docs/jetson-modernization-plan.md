@@ -537,6 +537,18 @@ happens before capture, which is required by CUDA 12.6's `cudaStreamGetFlags` be
   It still reached only `largest_decode_batch=4` and failed exact parity on rows 1 (first difference
   at output token 14) and 4 (token 13). The run exercised draft and acceptance work without fallback.
   This context setting did not qualify eight-row batching; retain the original test configuration.
+- Repeating the eight-request, 16-token cohort with MTP draft width 1 reached
+  `largest_decode_batch=8` under the original 1,024-token context and 4 GiB reservation, with Graphs
+  disabled. Exact parity still failed on row 4 at output token 12; this run recorded one fallback
+  step. Thus the prior batch-4 ceiling was workload timing (the one-prefill-per-cycle scheduler let
+  MTP-3 rows finish before all prompts became decode-ready), while the numerical cohort mismatch
+  remains. A single-request serial/MTP comparison of the exact row-4 prompt passed for 16 tokens
+  with draft width 1, confirming that this mismatch requires batched execution. For the eight-row
+  verify, 16 flattened control columns select GDN control MMA; the single-row verify uses 2 columns
+  and tiled GEMV. Extending the tiled GEMV boundary through 48 columns still reached batch 8 but
+  failed exact parity on rows 1 (token 14) and 4 (token 13), without fallback. That kernel-family
+  boundary is not a sufficient fix; the current production route was restored. The discrepancy
+  still requires a layer-level trace to identify its first divergent state.
 - Repeat the public mixed-media/ExpertCache breakdown under stable storage conditions. The current
   mixed-media Graph report is one diagnostic sample with NVMe timeouts; Vision numerical and
   encoder-throughput qualification covers artifact weights at up to 64 patches.
