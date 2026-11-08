@@ -570,9 +570,15 @@ happens before capture, which is required by CUDA 12.6's `cudaStreamGetFlags` be
   now differs only on row 4, first at output token 13, with no fallback. Rows 1 and 7 match in this
   run. Earlier route settings fixed different rows, so full cohort parity remains unqualified and
   scheduling-sensitive. A four-token stage trace reached only batch 2 and showed exact row-7 GDN
-  stage fingerprints there; it does not cover the failing batch width. Continue with a trace of the
-  first main-model projection/attention output divergence under batch 8, then quantify and measure
-  the selected routes. All temporary tracing was removed and the full JP6 build was restored.
+  stage fingerprints there; it does not cover the failing batch width. A synchronized eight-request
+  draft-1 trace now matches the failing row-4 token (ID 13, absolute position 68) against serial
+  decode by exact prompt-token-vector hash. Its layer-0 combined output and post-mixer state match
+  bit-for-bit. The first difference is the layer-1 `mixer_input`, after the layer-1 attention HC
+  mix; this places the divergence after layer-0 state/output and before layer-1 GDN/QSA. The latest
+  traced cohort again reached batch 7 and failed row 4 at output token 13, with all six drafts
+  accepted and one fallback. Next, reproduce the layer-1 HC mix difference using the captured real
+  activation/weights and compare the flattened serial/cohort column routes; then qualify the fix
+  and rerun the real cohort. Trace instrumentation is temporary and must be removed after diagnosis.
 - A focused Op probe compared the identical first eight BF16 columns at the T=8 GEMV and T=9 MMA
   seam. The G and Beta values differed in 123/384 and 80/384 entries respectively, with maximum
   absolute differences of `3.58e-7` and `1.20e-7`. The full GDN control suite passes its independent
