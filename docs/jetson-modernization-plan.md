@@ -128,7 +128,7 @@ that a discrete-GPU host/device cache policy is efficient on shared LPDDR.
 
 ## Delivery sequence and acceptance gates
 
-## Current execution status (2026-11-07)
+## Current execution status (2026-11-08)
 
 ### Milestone 1: Modern JP6 platform and original models
 
@@ -349,6 +349,20 @@ artifact loading/stream-one-layer test passed on JP6 after the cache-route chang
 file-backed NVFP4 MoE execution and its decoded-weight oracle. The source fix is committed on the
 local Orin branch; pushing that branch is still rejected by GitHub with HTTP 403 for the configured
 identity.
+
+A direct PLE capture on the same real-artifact 16-token cohort compared the ordinary row with its
+matching MTP verify column at token 14862 / position 71. The nine-column PLE source history differs
+in 548/92,160 BF16 values; per-plane differences from oldest to newest are
+7, 38, 47, 347, 21, 29, 24, 19, and 16. The plane for position 64 differs in 47 values, exactly
+matching the 47-value PLE gate difference captured at token 760 / position 64. This ties the earlier
+projection/gate arithmetic difference to persisted PLE history at the failing position. The PLE
+projection differs in 17/12,800 values and its gate in 92/10,240 at the later anchor; convolution
+output and normalization differ in 20/10,240 and 21/10,240. A temporary MTP route that grouped
+candidate projections by request row still failed the three-row, 16-token parity case at token 14;
+the one-row, eight-token route passed. The candidate was reverted without performance qualification.
+Next, compare PLE record generation and accepted-prefix state extraction by column to find where
+the accumulated history drift first enters, then rerun the 16-token gate.
+
 A real-artifact image-conditioned MTP comparison also passed on the public Engine with Graphs
 enabled: one resized 224x224 image, 83 prompt tokens, greedy output horizon 8, and draft window 4.
 Serial and MTP generated token IDs matched exactly; MTP drafted 8 tokens, accepted 3, and took one

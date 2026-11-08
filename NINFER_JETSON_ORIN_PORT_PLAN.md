@@ -709,15 +709,20 @@ parity on the supplied V3 artifact with serial-shaped PLE/QSA projections; its
 matched 32-token benchmark showed a 19% median decode gain over MTP off in this
 single workload. File-backed CUDA Graph routing and expert compute now pass a
 real NVFP4 MoE oracle and a public Engine mixed-media Decode smoke. Graph-enabled
-serial/MTP parity passes for text at 8 and 32 output tokens, three-request cohorts, image-conditioned
-output through 32 tokens, and video-conditioned output through 32 tokens and a 64-token-cap run that
-ended at 35 tokens. The video 32-token case matched exactly (41 drafts, 20 accepted, 11 rounds, no
-fallback); the 35-token run also matched exactly (44 drafts, 23 accepted, 11 rounds, no fallback).
-The three-row cohort matched all request token IDs exactly (draft/accept counts 9/4, 5/5, and 5/5)
-and exercised a three-row decode batch. An eight-request cohort attempt timed out after ten minutes
-amid NVMe I/O timeouts and remains unqualified. Supporting the verified three-row cohort required
-slicing Orin FP8 and NVFP4 MoE inputs at their qualified per-kernel row limits. These are parity
-results rather than performance claims. These checks extend qualification; they do not close longer
+serial/MTP parity passes for one-request text at 8 and 32 output tokens, three-request cohorts
+through 8 output tokens, image-conditioned output through 32 tokens, and video-conditioned output
+through 32 tokens and a 64-token-cap run that ended at 35 tokens. The video 32-token case matched
+exactly (41 drafts, 20 accepted, 11 rounds, no fallback); the 35-token run also matched exactly
+(44 drafts, 23 accepted, 11 rounds, no fallback).
+The three-row, eight-token cohort matched all request token IDs exactly (draft/accept counts 9/4,
+5/5, and 5/5) and exercised a three-row decode batch. A graph-disabled three-row, 16-token rerun
+matched through token 13, then diverged at row 1, token 14 (ordinary 4145, MTP 2716). A PLE trace
+ties earlier gate differences to persistent history at this anchor; see the modernization plan for
+the per-plane capture. The cohort parity gate remains open. An eight-request cohort attempt timed
+out after ten minutes amid NVMe I/O timeouts and remains unqualified. Supporting the verified
+three-row cohort required slicing Orin FP8 and NVFP4 MoE inputs at their qualified per-kernel row
+limits. These are parity results rather than performance claims. These checks extend qualification;
+they do not close longer
 media horizons, larger cohorts,
 stable cold/warm storage measurements, or physical SSD/controller cache
 characterization. CUDA 12.6 remains the required toolchain; JP7/CUDA 13
