@@ -418,6 +418,46 @@ initialization, and one-token generation with Graphs enabled: 53 prompt tokens, 
 Both runs used the local V3 artifact, CUDA 12.6, and AGX Orin; `jetson_clocks` was enabled for the
 schedule/oracle run.
 
+### JP6 original-model and Flash-Next baselines (2026-11-07)
+
+The local Qwen3.8-27B groupwise-int artifact is already V3. The pinned Qwen3.6-35B-A3B V2
+artifact was upgraded to a separate V3 path with `tools/upgrade_ninfer_v2_to_v3.py`; the original
+remains intact. Direct SHA-256 comparison of every unchanged object payload passed for all 939
+objects. The maintained Qwen chat template is intentionally replaced by the upgrader. The real
+Qwen3.5-family loader passed on both artifacts with MTP enabled: Qwen3.8-27B materialized 17.54 GiB
+of device weights in 3.16 s, and 35B-A3B materialized 21.94 GiB in 4.08 s. The Qwen3.8-Flash-Next
+V3 artifact also passed its learned Vision-weight oracle and the public Engine benchmarks below.
+
+The six `ninfer_bench` runs used the same 33-token prompt, no thinking, 32-token output budget,
+INT8 KV, 1,024-token context, CUDA Graphs, prefix reuse off, one warm-up, and three measured
+repetitions. The public Engine ran on AGX Orin / CUDA 12.6 in MAXN with `jetson_clocks`; the
+reported locked clocks were CPU 2.2016 GHz, GPU 1.3005 GHz, and EMC 3.199 GHz. Values below are
+medians across the three repetitions; `wall tok/s` includes prefill and request overhead.
+
+| Artifact | Speculation | Prefill tok/s | Decode tok/s | Wall tok/s | Wall s | Draft accepted |
+|---|---:|---:|---:|---:|---:|---:|
+| Qwen3.8-27B groupwise-int V3 | off | 62.06 | 7.29 | 6.68 | 4.79 | — |
+| Qwen3.8-27B groupwise-int V3 | MTP-3 | 61.77 | 9.36 | 8.32 | 3.85 | 18 / 36 (50.0%) |
+| Qwen3.6-35B-A3B groupwise-int, migrated V3 | off | 122.97 | 36.52 | 28.60 | 1.12 | — |
+| Qwen3.6-35B-A3B groupwise-int, migrated V3 | MTP-3 | 122.67 | 45.54 | 33.65 | 0.95 | 20 / 32 (62.5%) |
+| Qwen3.8-Flash-Next V3 | off | 2.63 | 1.46 | 0.95 | 33.54 | — |
+| Qwen3.8-Flash-Next V3 | MTP-3 | 2.58 | 1.38 | 0.91 | 35.19 | 19 / 32 (59.4%) |
+
+The two groupwise-int targets improved on this short MTP-3 workload. Flash-Next did not: its
+file-backed MoE route remains storage-bound in these measurements. These are focused baseline
+points, not the long-corpus/performance-qualification matrix. The full JP6 build passed, as did
+artifact framing/materialization, OpenAI/Anthropic schema, Qwen3.5 runtime-mechanism, GDN snapshot,
+Qwen4Exp loading/state/Vision, and both real-model loading checks. The generic expert-parallel Op
+test still reports eight NVFP4/FP8 cases for which the Orin target deliberately has no
+`routed_swiglu` block-scaled kernel; the registered Flash-Next Engine uses its separate supported
+complete-MoE path.
+
+The GDN snapshot suite also found and now covers two Orin issues: NVFP4 A4 scratch must remain
+disabled when the target compiles without that implementation, and Q8 fused aggregation must not
+select its 16-token window kernel for a 17-token single-row input. The Q8 route now falls back to
+the materialized path at that boundary. Stream validation in the CUDA-graph snapshot test now
+happens before capture, which is required by CUDA 12.6's `cudaStreamGetFlags` behavior.
+
 ### Remaining gates
 
 - Resolve the reproducible long-horizon cohort parity mismatch before qualifying longer cohort
