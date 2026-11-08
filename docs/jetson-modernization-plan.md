@@ -311,6 +311,14 @@ batch size three. This places the first observed divergence at ordinary batched 
 MTP's per-column projection; later PLE state/convolution arithmetic also accumulates the difference.
 All capture code was removed and the JP6 tree rebuilt.
 
+A controlled route-alignment experiment then forced ordinary PLE projection to use the per-column
+route and selected the same paired 256-thread Conv+Norm block for low-column decode as for MTP
+verification. The three-row, 16-token real-artifact test still reproduced the same row-1 token-14
+argmax mismatch (serial 2716, cohort MTP 4145), with a three-row decode batch. Thus PLE contributes
+an early numerical difference but aligning those PLE routes is insufficient to resolve the longer
+cohort mismatch. Both temporary route changes were reverted; the next unresolved captured boundary
+is GDN layer-1 QKV projection/convolution after its input, control, and z values matched.
+
 A real-artifact image-conditioned MTP comparison also passed on the public Engine with Graphs
 enabled: one resized 224x224 image, 83 prompt tokens, greedy output horizon 8, and draft window 4.
 Serial and MTP generated token IDs matched exactly; MTP drafted 8 tokens, accepted 3, and took one
