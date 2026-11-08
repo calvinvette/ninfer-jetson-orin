@@ -1156,4 +1156,119 @@ int q8_sequence_single_step_equivalence(Weights& weights) {
     }
     return failures;
 }
+
+int q8_batched_decode_record_equivalence(Weights& weights) {
+    constexpr int batch = 3, width = 9, hidden = 2560, qk_rows = 2048, value_rows = 6144;
+    constexpr int channels = 2 * qk_rows + value_rows, slots = 2 * batch;
+    constexpr std::uint32_t seed = 0x7d31U;
+    if (weights.profile.format != QType::Q8_G32_FP16 || weights.profile.hidden != hidden ||
+        weights.profile.qk_rows != qk_rows)
+        throw std::invalid_argument("Q8 route comparison requires the Flash-Next projection shape");
+
+    const auto projection = weights.projection(ops::LinearPolicy::A16Only);
+    const auto verify_activation = bf16_bits(make_bf16_activation(hidden, batch * width, seed));
+    std::vector<std::uint16_t> update_activation(static_cast<std::size_t>(hidden) * batch);
+    for (int row = 0; row < batch; ++row)
+        std::copy_n(verify_activation.begin() + static_cast<std::ptrdiff_t>(row * width * hidden),
+                    hidden, update_activation.begin() + static_cast<std::ptrdiff_t>(row * hidden));
+    const auto conv_weight = bf16_bits(make_conv_weight(channels, seed + 1));
+    const std::size_t slot_stride = static_cast<std::size_t>(channels) * 3;
+    std::vector<std::uint16_t> initial(slot_stride * slots, 0);
+    const std::array<int, batch> source_slots{0, 2, 4};
+    const std::array<int, batch> destination_slots{1, 3, 5};
+    for (int row = 0; row < batch; ++row) {
+        const auto slot = make_state(channels, 1, 0, seed + 2 + row);
+        std::copy_n(slot.begin(), slot_stride,
+                    initial.begin() + static_cast<std::ptrdiff_t>(source_slots[row] * slot_stride));
+    }
+
+    DeviceBuffer update_x_device = to_device(update_activation);
+    DeviceBuffer verify_x_device = to_device(verify_activation);
+    DeviceBuffer conv_device = to_device(conv_weight);
+    DeviceBuffer valid_update_device = to_device(std::vector<int>(batch, 1));
+    DeviceBuffer valid_verify_device = to_device(std::vector<int>(batch, width));
+    GuardedBf16Tensor state(channels * 3, slots);
+    state.copy_from_bits(initial);
+    Tensor state_tensor = state.tensor().view({channels, 3, slots});
+    RecordStateFixture history(state_tensor, 2);
+    const auto source_bytes = history.record_offsets(source_slots);
+    const auto destination_bytes = history.record_offsets(destination_slots);
+    DeviceBuffer source_device = to_device(source_bytes);
+    DeviceBuffer destination_device = to_device(destination_bytes);
+    Tensor source_offsets(source_device.span(), DType::I64, {batch});
+    Tensor destination_offsets(destination_device.span(), DType::I64, {batch});
+    const auto source = history.view(source_offsets);
+    const auto destination = history.view(destination_offsets);
+    Tensor valid_update(valid_update_device.span(), DType::I32, {batch});
+    Tensor valid_verify(valid_verify_device.span(), DType::I32, {batch});
+    Tensor x_update(update_x_device.span(), DType::BF16, {hidden, 1, batch});
+    Tensor x_verify(verify_x_device.span(), DType::BF16, {hidden, width, batch});
+    Tensor conv(conv_device.span(), DType::BF16, {channels, 4});
+
+    GuardedBf16Tensor update_query(qk_rows, batch), update_key(qk_rows, batch);
+    GuardedBf16Tensor update_value(value_rows, batch), update_z(value_rows, batch);
+    GuardedBf16Tensor verify_query(qk_rows, width * batch), verify_key(qk_rows, width * batch);
+    GuardedBf16Tensor verify_value(value_rows, width * batch), verify_z(value_rows, width * batch);
+    GuardedBf16Tensor conv_record(channels, width * batch);
+    Tensor conv_record_tensor = conv_record.tensor().view({channels, width, batch});
+    const auto output = [](GuardedBf16Tensor& q, GuardedBf16Tensor& k,
+                           GuardedBf16Tensor& v, GuardedBf16Tensor& z, int tokens) {
+        return ops::GdnConvOutputs{q.tensor().view({q.tensor().ne[0], tokens, batch}),
+                                   k.tensor().view({k.tensor().ne[0], tokens, batch}),
+                                   v.tensor().view({v.tensor().ne[0], tokens, batch}),
+                                   z.tensor().view({z.tensor().ne[0], tokens, batch})};
+    };
+    const auto exec = cuda_environment().default_execution;
+    DeviceBuffer update_workspace_storage(
+        cuda_environment().context.device(),
+        std::max<std::size_t>(256, ops::gdn_input_proj_conv_snapshot_workspace_capacity_bytes(
+                                      projection, batch, 1, 1)));
+    DeviceBuffer record_workspace_storage(
+        cuda_environment().context.device(),
+        std::max<std::size_t>(256, ops::gdn_input_proj_conv_record_workspace_capacity_bytes(
+                                      projection, batch, width, width)));
+    MemoryArena update_workspace(update_workspace_storage.span());
+    MemoryArena record_workspace(record_workspace_storage.span());
+
+    ops::gdn_input_proj_conv_update(x_update, projection, conv, source, destination,
+                                    valid_update, output(update_query, update_key, update_value,
+                                                        update_z, 1),
+                                    update_workspace, exec);
+    ops::gdn_input_proj_conv_record(x_verify, projection, conv, source, valid_verify,
+                                   output(verify_query, verify_key, verify_value, verify_z, width),
+                                   conv_record_tensor, record_workspace, exec);
+    cuda_synchronize();
+
+    int failures = 0;
+    const auto compare_first = [&](const char* label, const GuardedBf16Tensor& ordinary,
+                                   const GuardedBf16Tensor& verify, int rows) {
+        const auto a = ordinary.bits(), b = verify.bits();
+        for (int row = 0; row < batch; ++row) {
+            const auto ai = a.begin() + static_cast<std::ptrdiff_t>(row * rows);
+            const auto bi = b.begin() + static_cast<std::ptrdiff_t>(row * width * rows);
+            if (!std::equal(ai, ai + rows, bi)) {
+                ++failures;
+                std::cerr << "Q8 identical-input route mismatch " << label << " row=" << row << '\n';
+            }
+        }
+    };
+    compare_first("query", update_query, verify_query, qk_rows);
+    compare_first("key", update_key, verify_key, qk_rows);
+    compare_first("value", update_value, verify_value, value_rows);
+    compare_first("z", update_z, verify_z, value_rows);
+    history.copy_back();
+    const auto state_after = state.bits(), record_bits = conv_record.bits();
+    for (int row = 0; row < batch; ++row) {
+        const auto state_base = static_cast<std::size_t>(destination_slots[row]) * slot_stride +
+                                2ULL * channels;
+        const auto record_base = static_cast<std::size_t>(row * width) * channels;
+        if (!std::equal(state_after.begin() + static_cast<std::ptrdiff_t>(state_base),
+                        state_after.begin() + static_cast<std::ptrdiff_t>(state_base + channels),
+                        record_bits.begin() + static_cast<std::ptrdiff_t>(record_base))) {
+            ++failures;
+            std::cerr << "Q8 identical-input route mismatch convolution state row=" << row << '\n';
+        }
+    }
+    return failures;
+}
 } // namespace ninfer::test::gdn_input_conv

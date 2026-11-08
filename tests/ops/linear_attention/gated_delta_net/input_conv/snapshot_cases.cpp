@@ -226,6 +226,10 @@ int main(int argc, char** argv) {
                 Weights weights(profile, false);
                 return q8_sequence_single_step_equivalence(weights) + weights.preserved();
             });
+            suite.add("gdn_input_snapshot/q8/flash_next/b3_decode_vs_t9_record", [=] {
+                Weights weights(profile, true);
+                return q8_batched_decode_record_equivalence(weights) + weights.preserved();
+            });
         }
         const auto tests = cases(profile);
         std::vector<OpCase> catalogue;

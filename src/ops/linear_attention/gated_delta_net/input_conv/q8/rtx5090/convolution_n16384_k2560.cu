@@ -12,7 +12,7 @@ void launch_q8_gdn_conv_n16384_k2560_snapshot(const Tensor& x, const Weight& wei
                                               const gdn_input::HistoryDestination& destination,
                                               Tensor& query, Tensor& key, Tensor& value, Tensor& z,
                                               gdn_input::ConvKernel kernel, cudaStream_t stream) {
-    gdn_q8_window::dispatch<ConvGeometry, Gemv>(
+    gdn_q8_window::dispatch<ConvGeometry, Gemv, 8, gdn_input::kQ8AggregateColumns>(
         x, weight, conv_weight, states, valid, query, key, value, z,
         make_snapshot_history_publish(destination, ConvGeometry::channels),
         kernel == gdn_input::ConvKernel::Q8Aggregate, stream);
@@ -24,7 +24,7 @@ void launch_q8_gdn_conv_n16384_k2560_record(const Tensor& x, const Weight& weigh
                                             Tensor& records, Tensor& query, Tensor& key,
                                             Tensor& value, Tensor& z, gdn_input::ConvKernel kernel,
                                             cudaStream_t stream) {
-    gdn_q8_window::dispatch<ConvGeometry, Gemv>(
+    gdn_q8_window::dispatch<ConvGeometry, Gemv, 8, gdn_input::kQ8AggregateColumns>(
         x, weight, conv_weight, states, valid, query, key, value, z,
         RecordColumnPublish{static_cast<__nv_bfloat16*>(records.data), ConvGeometry::channels,
                             x.ne[1]},

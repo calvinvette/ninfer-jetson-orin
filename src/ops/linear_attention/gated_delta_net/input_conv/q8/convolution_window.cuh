@@ -106,10 +106,14 @@ void launch_window(const Tensor& x, const Weight& weight, const Tensor& conv_wei
     }
 #if defined(NINFER_TARGET_JETSON_ORIN)
     if constexpr (Width <= 8) {
-        // Several short sequences share this projection. Tile the flattened columns in complete
-        // convolution windows; the largest supported tile is a multiple of Width.
+        // Several short sequences share this projection. Keep tiles aligned to full windows.
         constexpr int TileTokens = Width == 1 ? 8 : (8 / Width) * Width;
         using GemvTile = Q8A16GemvTileSchedule<TileTokens, 8, 1, 2, 2560, 8>;
+        launch_q8_a16_gemv<GemvTile>(operands, output, epilogue, stream);
+        return;
+    } else if (aggregate) {
+        // Keep longer batched verify windows on decode's per-token GEMV arithmetic.
+        using GemvTile = Q8A16GemvTileSchedule<Width, 8, 1, 2, 2560, 8>;
         launch_q8_a16_gemv<GemvTile>(operands, output, epilogue, stream);
         return;
     }
@@ -151,7 +155,7 @@ void dispatch(const Tensor& x, const Weight& weight, const Tensor& conv_weight,
               const ConstStateFieldView& states, const Tensor& valid, Tensor& query, Tensor& key,
               Tensor& value, Tensor& z, Publish publish, bool aggregate, cudaStream_t stream) {
     if (x.ne[1] < 1 || x.ne[1] > 16 || x.ne[2] < 1 || x.ne[2] > 8 ||
-        (aggregate && (x.ne[1] > 8 || x.ne[1] * x.ne[2] > AggregateColumns)) ||
+        (aggregate && (x.ne[1] > 16 || x.ne[1] * x.ne[2] > AggregateColumns)) ||
         (!aggregate && x.ne[2] != 1))
         throw std::invalid_argument("Q8 fused convolution: invalid temporal tile");
     static constexpr auto launches =

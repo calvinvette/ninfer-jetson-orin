@@ -58,7 +58,7 @@ template <int Tokens, int BlockRows, int WarpsPerRow, int MinBlocksPerSm, int St
           int Unroll = 4>
 struct Q8A16GemvTileSchedule
     : Q8A16GemvSchedule<BlockRows, WarpsPerRow, MinBlocksPerSm, StaticK, Unroll> {
-    static_assert(Tokens > 1 && Tokens <= 8);
+    static_assert(Tokens > 1 && Tokens <= 16);
     static constexpr int kBlockTokens = Tokens;
 };
 
