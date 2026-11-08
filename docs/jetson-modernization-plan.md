@@ -613,12 +613,20 @@ happens before capture, which is required by CUDA 12.6's `cudaStreamGetFlags` be
 - A 2026-11-08 rerun with the Orin QSA split policy and per-column PLE/QSA projections reaches
   decode batch 8 but still fails row 0 at output token 21 (serial 874, MTP 6157; 13 drafts,
   9 accepted, one fallback). At the matching token 28320 / position 77, layer-3 sparse-attention
-  output is bit-identical and layer-4 GDN mixer input fingerprints match. Layer 4 uses a 2,560-wide
-  control projection: ordinary decode has 8 columns and Verify has 16, both on the same Tiled GEMV
-  route. GDN control G/Beta and Q/K/V/Z fingerprints nevertheless differ. A one-column control
-  recomputation reproduces each execution's own batched first-column result, so the observed
-  difference is not caused by a batch-kernel-only output path. The remaining GDN operand/state
-  discrepancy is unresolved; the full-width cohort is still not qualified.
+  output is bit-identical. An initial trace appeared to show matching layer-4 GDN input, but a
+  same-run capture at the exact `TextRun::local_mixer` / GDN-entry boundary disproves that match:
+  both captures use the same BF16 tensor address and shape, host thread, and CUDA stream, yet the
+  first column's byte hash changes between calls. The earlier layer-4 input comparison is
+  therefore invalid or misattributed. Layer 4 uses a 2,560-wide control projection: ordinary
+  decode has 8 columns and Verify has 16, both on the same Tiled GEMV route. GDN control G/Beta
+  and Q/K/V/Z fingerprints differ as well. A one-column control recomputation reproduces each
+  execution's own batched first-column result, so the observed difference is not caused by a
+  batch-kernel-only output path. The trace-enabled cohort passed exact token parity, but the trace
+  synchronizes the CUDA stream at both boundaries and changes timing. Repeating the same 8-row,
+  22-token cohort with tracing disabled reproduced row 0's first mismatch at token 21 (serial 874,
+  MTP 6157; 11 drafts, 9 accepted, one fallback). The traced pass therefore does not qualify the
+  route; the intermittent boundary change and parity failure remain unresolved. The full-width
+  cohort is not qualified.
 - A focused Op probe compared the identical first eight BF16 columns at the T=8 GEMV and T=9 MMA
   seam. The G and Beta values differed in 123/384 and 80/384 entries respectively, with maximum
   absolute differences of `3.58e-7` and `1.20e-7`. The full GDN control suite passes its independent
