@@ -291,8 +291,15 @@ history had already diverged before the current token. The MTP record for the pr
 position 64 was also captured; its layer-1 projected-convolution input matched ordinary decode's
 committed newest plane in 8,252/10,240 values. This localizes accumulated history drift to before
 the position-65 layer-1 transition, but does not yet distinguish a layer-1 input difference at
-position 64 from its projection/convolution route. That is the next useful anchor to capture. The
-diagnostic was removed and the restored JP6 build passed.
+position 64 from its projection/convolution route.
+
+A follow-up three-row, ten-token run captured the same position-64 input token (760) at every GDN
+layer. Layer-0 input and output matched bitwise between ordinary decode and MTP verification; layer-1
+input already differed in 196 of 2,560 BF16 values, and its convolution source state differed in
+5,420 of 30,720. Thus layer-0 GDN is not the first divergence at this earlier anchor: the mismatch
+enters between layer-0 and layer-1 GDN, in the intervening transformer path. The cohort's generated
+token IDs still matched exactly for this ten-token horizon. Temporary capture code was removed, and
+the full restored JP6 build completed successfully.
 
 A real-artifact image-conditioned MTP comparison also passed on the public Engine with Graphs
 enabled: one resized 224x224 image, 83 prompt tokens, greedy output horizon 8, and draft window 4.
