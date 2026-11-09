@@ -740,6 +740,15 @@ Flash-Next performance qualification. Reports: `/tmp/ninfer-post-qsa-fix-flash-n
 - Repeat the public mixed-media/ExpertCache breakdown under stable storage conditions. The current
   mixed-media Graph report is one diagnostic sample with NVMe timeouts; Vision numerical and
   encoder-throughput qualification covers artifact weights at up to 64 patches.
+- A 2026-11-09 real-artifact route trace found the PLE gate consistently selected paired
+  `320x8` for both ordinary Step and Verify at the observed decode shapes; convolution selected
+  `512x2` for both. These selections do not explain the earlier Step/Verify arithmetic difference
+  for this cohort. With the committed runtime and CUDA Graphs off, the three-request, 16-token,
+  draft-1 cohort passed exact token parity three consecutive times, each reaching decode batch 3;
+  the prior row-1 token-14 mismatch was not reproduced. The first traced pass overlapped a kernel
+  NVMe timeout, so it does not qualify storage reliability. The eight-request full-width parity
+  gate remains open. The route logger was removed and the unmodified JP6 build and PLE Op suite
+  passed after cleanup.
 - Distinguish SSD/controller cache state for physical cold/warm storage measurements; `O_DIRECT`
   isolates requests from the host page cache but does not flush or measure device caches.
 - Storage diagnosis: the 4 TB Seagate FireCuda 530 ZP4000GM30023 (`SU6SM001`, active slot 1)
