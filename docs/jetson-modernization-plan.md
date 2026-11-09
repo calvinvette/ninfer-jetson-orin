@@ -180,6 +180,18 @@ parity evidence for that candidate. A common batched PLE candidate instead faile
 gate at row 0, output token 7. Both PLE route experiments were reverted; the common batched QSA
 route remains the only retained correction, and the eight-request gate remains unresolved.
 
+The eight-request test was repeated on 2026-11-09 with the pinned liburing runtime from
+`~/workspace/ninfer/.agent-tmp/jetson-orin-deps/install/lib` explicitly first in
+`LD_LIBRARY_PATH`. A prior invocation had selected the system liburing instead; its ring reported
+zero SQ entries and its PLE admission failure is invalid test evidence. With the pinned runtime,
+the `16-token`, draft-1, graphs-off cohort completed and again failed exact parity at row 1/output
+token 14 (`4145` serial vs. `2716` MTP) and row 7/output token 4 (`25` serial vs. `579` MTP);
+the largest decode batch was eight. A one-request run of row 1's prompt completed all 16 tokens
+with exact serial/MTP parity. Thus the mismatch is specific to batched execution in this workload.
+The activation trace associates row 1's `14862` with serial Step position 71 and a Verify input at
+position 72, but the current trace does not yet prove the sequence-row mapping or the cause. The
+eight-request gate remains open; no speculative reader or arithmetic change was retained.
+
 ### Milestone 1: Modern JP6 platform and original models
 
 The modern Orin source branch `feat/jetson-orin-sm87-jp6-sync` is based on the original NInfer
