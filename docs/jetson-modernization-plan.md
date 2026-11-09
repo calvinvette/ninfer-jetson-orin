@@ -757,6 +757,14 @@ Flash-Next performance qualification. Reports: `/tmp/ninfer-post-qsa-fix-flash-n
   the same rows and first-difference positions still failed. Thus the earlier `T=2,B=8`
   `norm-256x2-conv` selection was not sufficient to explain the full-width mismatch. The
   experiment and route logger were removed; this candidate did not establish a production fix.
+- A temporary BF16 target-logit probe was built into the JP6 real-artifact test path. In the serial
+  row-1 decode trace, the step producing token `4145` ranked it at `23.25` and token `2716` at
+  `23.0`, a narrow `0.25` margin. The probe captured 20 serial row-1 decisions and 16 MTP Verify
+  columns (eight rounds), but the MTP run hit its 600-second timeout while a file-backed artifact
+  `pread64` remained blocked and NVMe timeouts recurred. The captured MTP columns could not be
+  aligned conclusively to the serial near-tie position, so this does not establish whether target
+  logits or acceptance first diverge. The temporary probe was removed; a repeat needs a completed
+  real-artifact run with row/position inputs attached to each logit snapshot.
 - Distinguish SSD/controller cache state for physical cold/warm storage measurements; `O_DIRECT`
   isolates requests from the host page cache but does not flush or measure device caches.
 - Storage diagnosis: the 4 TB Seagate FireCuda 530 ZP4000GM30023 (`SU6SM001`, active slot 1)
