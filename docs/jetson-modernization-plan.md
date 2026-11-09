@@ -748,7 +748,14 @@ Flash-Next performance qualification. Reports: `/tmp/ninfer-post-qsa-fix-flash-n
   transition table have been restored. In that run the 64-token text parity case passed, then one
   three-request cohort submission expired while waiting for admission after an NVMe timeout. APST
   alone therefore does not explain the storage stalls, and the cohort result remains qualified by
-  its earlier successful run rather than this repeat. The timeout source is still unidentified.
+  its earlier successful run rather than this repeat. A later eight-row Flash-Next cohort read again
+  entered uninterruptible block I/O while the kernel logged repeated NVMe request timeouts; that
+  run was terminated without a parity result. Read-only follow-up showed 0% drive wear, 47 C, 100%
+  spare, 0 media errors, and no critical warning. The endpoint and root port report 16 GT/s ×4,
+  ASPM disabled, and clear Device Status/AER error bits. APST is currently enabled with the
+  controller's 100 ms transitions to PS3 and 2 s transition to PS4. These checks show that the
+  observed stalls are not accompanied by SMART media-health or current PCIe error indicators; the
+  timeout source is still unidentified.
 - Graph execution beyond the one-token smoke is now verified with text MTP through 128 tokens,
   image MTP through 32 tokens, video MTP through 35 generated tokens, a three-request MTP cohort,
   and a file-backed mixed-media Decode step. These are correctness/smoke checks; stable end-to-end
