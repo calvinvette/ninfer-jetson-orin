@@ -749,6 +749,14 @@ Flash-Next performance qualification. Reports: `/tmp/ninfer-post-qsa-fix-flash-n
   NVMe timeout, so it does not qualify storage reliability. The eight-request full-width parity
   gate remains open. The route logger was removed and the unmodified JP6 build and PLE Op suite
   passed after cleanup.
+- A follow-up eight-request, 24-token, draft-1, graphs-off run reached decode batch 8 and failed
+  exact parity on rows 1 (first difference at output token 14), 3 (token 18), and 7 (token 4).
+  The route trace showed ordinary Step at `T=1,B=8` and Verify at `T=2,B=8` both using the same
+  PLE convolution `norm-512x2-conv` and gate `320x8` routes. A temporary selector experiment
+  forced `norm-512x2-conv` for all `T=2,B=2..8` verification batches, aligning them with Step;
+  the same rows and first-difference positions still failed. Thus the earlier `T=2,B=8`
+  `norm-256x2-conv` selection was not sufficient to explain the full-width mismatch. The
+  experiment and route logger were removed; this candidate did not establish a production fix.
 - Distinguish SSD/controller cache state for physical cold/warm storage measurements; `O_DIRECT`
   isolates requests from the host page cache but does not flush or measure device caches.
 - Storage diagnosis: the 4 TB Seagate FireCuda 530 ZP4000GM30023 (`SU6SM001`, active slot 1)
