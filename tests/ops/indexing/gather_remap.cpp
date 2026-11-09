@@ -146,9 +146,68 @@ int remap_case(int token_count) {
     return failures;
 }
 
+int batch_token_reorder_case(int tokens, int batch) {
+    constexpr int rows = 520;
+    std::vector<std::uint16_t> host_source(static_cast<std::size_t>(rows) * tokens * batch);
+    for (std::size_t i = 0; i < host_source.size(); ++i)
+        host_source[i] = static_cast<std::uint16_t>((i * 263u + i / rows * 97u) & 0xffffu);
+    auto input = to_device(host_source);
+    GuardedDeviceBuffer gathered(static_cast<std::size_t>(rows) * batch * sizeof(std::uint16_t));
+    std::vector<std::uint16_t> host_destination(host_source.size(), 0xdead);
+    GuardedDeviceBuffer destination(host_destination.size() * sizeof(std::uint16_t));
+    destination.copy_from_host(host_destination.data(), destination.bytes());
+    Tensor source(input.span(), DType::BF16, {rows, tokens, batch});
+    Tensor out(gathered.span(), DType::BF16, {rows, batch});
+    Tensor dst(destination.span(), DType::BF16, {rows, tokens, batch});
+    DeviceContext context;
+    const auto execution = context.execution_view();
+    DecodeGraphDefinition definition;
+    DecodeGraphExecutable graph;
+    if (tokens == 2 && batch == 8) {
+        definition.capture(context.stream(), [&] {
+            ops::gather_bf16_token_batch(source, 0, out, execution);
+            ops::scatter_bf16_token_batch(out, 0, dst, execution);
+        });
+        graph.instantiate(definition);
+    }
+    int failures = 0;
+    for (int token = 0; token < tokens; ++token) {
+        if (token == 0 && graph.ready())
+            graph.launch(context.stream());
+        else {
+            ops::gather_bf16_token_batch(source, token, out, execution);
+            ops::scatter_bf16_token_batch(out, token, dst, execution);
+        }
+        context.synchronize();
+        auto expected_selected =
+            std::vector<std::uint16_t>(static_cast<std::size_t>(rows) * batch);
+        auto expected_destination = host_destination;
+        for (int b = 0; b < batch; ++b)
+            for (int d = 0; d < rows; ++d) {
+                const auto index = (static_cast<std::size_t>(b) * tokens + token) * rows + d;
+                expected_selected[static_cast<std::size_t>(b) * rows + d] = host_source[index];
+                expected_destination[index] = host_source[index];
+            }
+        failures += verify_exact(
+            "batch token gather",
+            from_device<std::uint16_t>(gathered.data(), expected_selected.size()),
+            expected_selected);
+        failures += verify_exact(
+            "batch token scatter",
+            from_device<std::uint16_t>(destination.data(), expected_destination.size()),
+            expected_destination);
+        host_destination = std::move(expected_destination);
+    }
+    failures += verify_exact("batch token source unchanged",
+                             from_device<std::uint16_t>(input, host_source.size()), host_source);
+    return failures + destination.verify_guards("batch token destination");
+}
+
 } // namespace
 
 void add_gather_remap_cases(ninfer::test::OpSuite& suite) {
+    suite.add("batch_token_reorder/t2/b8", [] { return batch_token_reorder_case(2, 8); });
+    suite.add("batch_token_reorder/t4/b3", [] { return batch_token_reorder_case(4, 3); });
     for (int width = 2; width <= 16; ++width)
         for (int batch : {1, 8})
             suite.add("gather_columns/w" + std::to_string(width) + "/b" + std::to_string(batch),

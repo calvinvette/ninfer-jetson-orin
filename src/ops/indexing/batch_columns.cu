@@ -37,6 +37,26 @@ __global__ void gather_bf16_batch_columns_kernel(const __nv_bfloat16* source,
         source[(static_cast<std::int64_t>(batch) * cols + col) * rows + row];
 }
 
+__global__ void gather_bf16_token_batch_kernel(const __nv_bfloat16* source,
+                                              __nv_bfloat16* out, int rows, int tokens,
+                                              int token) {
+    const int b = static_cast<int>(blockIdx.y);
+    for (int row = blockIdx.x * blockDim.x + threadIdx.x; row < rows;
+         row += blockDim.x * gridDim.x)
+        out[static_cast<std::int64_t>(b) * rows + row] =
+            source[(static_cast<std::int64_t>(b) * tokens + token) * rows + row];
+}
+
+__global__ void scatter_bf16_token_batch_kernel(const __nv_bfloat16* source,
+                                               __nv_bfloat16* destination, int rows, int tokens,
+                                               int token) {
+    const int b = static_cast<int>(blockIdx.y);
+    for (int row = blockIdx.x * blockDim.x + threadIdx.x; row < rows;
+         row += blockDim.x * gridDim.x)
+        destination[(static_cast<std::int64_t>(b) * tokens + token) * rows + row] =
+            source[static_cast<std::int64_t>(b) * rows + row];
+}
+
 __global__ void remap_ids_inplace_kernel(std::int32_t* ids, std::int32_t count,
                                          const std::int32_t* id_map, std::int32_t n) {
     const int i = blockIdx.x * blockDim.x + threadIdx.x;
@@ -89,6 +109,55 @@ void gather_bf16_batch_columns(const Tensor& source, const Tensor& selectors, Te
         throw std::invalid_argument("gather_bf16_batch_columns: invalid output shape");
     }
     gather_bf16_batch_columns_launch(source, selectors, out, stream);
+}
+
+void gather_bf16_token_batch(const Tensor& source, std::int32_t token, Tensor& out,
+                             CudaExecutionView execution) {
+    constexpr const char* op = "gather_bf16_token_batch";
+    common::operand::dtype(source, DType::BF16, op, "source");
+    common::operand::contiguous_nonnull(source, op, "source", execution.device());
+    if (source.ne[0] <= 0 || source.ne[1] <= 0 || source.ne[2] <= 0 || source.ne[3] != 1 ||
+        token < 0 || token >= source.ne[1])
+        throw std::invalid_argument("gather_bf16_token_batch: invalid source or token");
+    common::operand::dtype(out, DType::BF16, op, "out");
+    common::operand::contiguous_nonnull(out, op, "out", execution.device());
+    if (out.ne[0] != source.ne[0] || out.ne[1] != source.ne[2] || out.ne[2] != 1 ||
+        out.ne[3] != 1)
+        throw std::invalid_argument("gather_bf16_token_batch: invalid output shape");
+    common::operand::disjoint(common::operand::range(source, op),
+                              common::operand::range(out, op), op);
+    constexpr int block = 256;
+    const dim3 grid(static_cast<unsigned int>(std::max(1, div_up(source.ne[0], block))),
+                    static_cast<unsigned int>(source.ne[2]));
+    gather_bf16_token_batch_kernel<<<grid, block, 0, execution.stream()>>>(
+        static_cast<const __nv_bfloat16*>(source.data), static_cast<__nv_bfloat16*>(out.data),
+        source.ne[0], source.ne[1], token);
+    CUDA_CHECK(cudaGetLastError());
+}
+
+void scatter_bf16_token_batch(const Tensor& source, std::int32_t token, Tensor& destination,
+                             CudaExecutionView execution) {
+    constexpr const char* op = "scatter_bf16_token_batch";
+    common::operand::dtype(source, DType::BF16, op, "source");
+    common::operand::contiguous_nonnull(source, op, "source", execution.device());
+    if (source.ne[0] <= 0 || source.ne[1] <= 0 || source.ne[2] != 1 || source.ne[3] != 1)
+        throw std::invalid_argument("scatter_bf16_token_batch: invalid source shape");
+    common::operand::dtype(destination, DType::BF16, op, "destination");
+    common::operand::contiguous_nonnull(destination, op, "destination", execution.device());
+    if (destination.ne[0] != source.ne[0] || destination.ne[1] <= 0 ||
+        destination.ne[2] != source.ne[1] || destination.ne[3] != 1 || token < 0 ||
+        token >= destination.ne[1])
+        throw std::invalid_argument("scatter_bf16_token_batch: invalid destination or token");
+    common::operand::disjoint(common::operand::range(source, op),
+                              common::operand::range(destination, op), op);
+    constexpr int block = 256;
+    const dim3 grid(static_cast<unsigned int>(std::max(1, div_up(source.ne[0], block))),
+                    static_cast<unsigned int>(source.ne[1]));
+    scatter_bf16_token_batch_kernel<<<grid, block, 0, execution.stream()>>>(
+        static_cast<const __nv_bfloat16*>(source.data),
+        static_cast<__nv_bfloat16*>(destination.data), source.ne[0], destination.ne[1],
+        token);
+    CUDA_CHECK(cudaGetLastError());
 }
 
 void remap_ids_inplace(Tensor& ids, const std::int32_t* id_map, std::int32_t n,

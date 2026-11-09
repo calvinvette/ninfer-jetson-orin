@@ -58,6 +58,17 @@ void extract_bf16_features(const Tensor& source, std::int32_t feature_offset, Te
 void gather_bf16_batch_columns(const Tensor& source, const Tensor& selectors, Tensor& out,
                                CudaExecutionView execution);
 
+// out[:,b] = source[:,token,b]. Source is contiguous BF16 [D,T,B] and out is
+// distinct contiguous BF16 [D,B]. Copies BF16 bits exactly and supports graph replay.
+void gather_bf16_token_batch(const Tensor& source, std::int32_t token, Tensor& out,
+                             CudaExecutionView execution);
+
+// destination[:,token,b] = source[:,b]. Source is contiguous BF16 [D,B] and
+// destination is distinct contiguous BF16 [D,T,B]. Copies BF16 bits exactly and supports graph
+// replay.
+void scatter_bf16_token_batch(const Tensor& source, std::int32_t token, Tensor& destination,
+                             CudaExecutionView execution);
+
 // out[:,t,b] = source[:,t,rows[b]], or represented zero when rows[b]==-1.
 // Source [D,T,S] and out [D,T,B] are contiguous BF16, I32 or I64 with positive extents;
 // rows is contiguous Device I32 [B], with values in {-1} union [0,S). Read rows may repeat.

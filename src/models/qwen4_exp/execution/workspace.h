@@ -98,16 +98,23 @@ QsaHistoryBuffers qsa_history(Arena& a, const QsaConfig& c, std::int32_t m) {
 }
 
 struct PleBuffers {
-    Tensor projection, gated, records;
+    Tensor projection, gated, records, grouped_projection_input, grouped_projection_output;
 };
 
 template <class Arena>
-PleBuffers ple(Arena& a, const TextConfig& c, std::int32_t m, bool prefill) {
+PleBuffers ple(Arena& a, const TextConfig& c, std::int32_t m, bool prefill,
+               std::int32_t grouped_batch = 0) {
     const auto h = dimension(c.hidden), streams = dimension(c.hc.streams);
     const auto channels = dimension(c.residual_width());
     return {a.alloc(DType::BF16, {dimension(c.residual_width() + c.hidden), m}),
             a.alloc(DType::BF16, {h, streams, m}),
-            prefill ? a.alloc(DType::BF16, {channels, m}) : Tensor{}};
+            prefill ? a.alloc(DType::BF16, {channels, m}) : Tensor{},
+            grouped_batch > 0 ? a.alloc(DType::BF16, {dimension(c.ple.embedding), grouped_batch})
+                             : Tensor{},
+            grouped_batch > 0
+                ? a.alloc(DType::BF16,
+                          {dimension(c.residual_width() + c.hidden), grouped_batch})
+                : Tensor{}};
 }
 
 struct ScoreBuffers {

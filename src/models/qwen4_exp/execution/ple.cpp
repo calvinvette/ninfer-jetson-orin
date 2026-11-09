@@ -2,6 +2,7 @@
 #include "models/qwen4_exp/execution/workspace.h"
 
 #include "ninfer/ops/linear.h"
+#include "ninfer/ops/indexing.h"
 
 namespace ninfer::models::qwen4_exp::execution {
 
@@ -14,20 +15,31 @@ void ple(const Tensor& embedding, const TextConfig& c, const PleParameters& p,
     const auto channels = dimension(c.residual_width());
     auto scope          = arena.scope();
     const auto t = batch.tokens, b = batch.batch, m = t * b;
-    auto buffers = workspace::ple(arena, c, m, !records.values.data);
+    const bool grouped_projection = serial_projection_columns && t > 1;
+    auto buffers = workspace::ple(arena, c, m, !records.values.data,
+                                  grouped_projection ? b : 0);
     if (!records.values.data)
         records = {buffers.records.view({channels, t, b}), batch.record_offsets};
     {
         auto scratch = arena.scope();
-        if (!serial_projection_columns) {
+        if (!grouped_projection) {
             ops::linear(embedding.view({dimension(c.ple.embedding), m}), p.projection.weight,
                         buffers.projection, p.projection.policy, arena, cuda);
         } else {
-            for (int col = 0; col < m; ++col) {
-                const auto x = embedding.view({dimension(c.ple.embedding), m}).slice(1, col, 1);
-                auto y = buffers.projection.view({dimension(c.residual_width() + c.hidden), m})
-                             .slice(1, col, 1);
-                ops::linear(x, p.projection.weight, y, p.projection.policy, arena, cuda);
+            const auto input = embedding.view({dimension(c.ple.embedding), t, b});
+            auto projection = buffers.projection.view(
+                {dimension(c.residual_width() + c.hidden), t, b});
+            for (int token = 0; token < t; ++token) {
+                ops::gather_bf16_token_batch(input, token, buffers.grouped_projection_input,
+                                             cuda);
+                {
+                    auto projection_scratch = arena.scope();
+                    ops::linear(buffers.grouped_projection_input, p.projection.weight,
+                                buffers.grouped_projection_output, p.projection.policy, arena,
+                                cuda);
+                }
+                ops::scatter_bf16_token_batch(buffers.grouped_projection_output, token,
+                                              projection, cuda);
             }
         }
     }

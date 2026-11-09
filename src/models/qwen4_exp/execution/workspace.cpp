@@ -36,8 +36,10 @@ std::size_t body(const ModelProfile& p, const EngineOptions& options, int first,
                        dimension(std::uint64_t(p.config.text.hc.streams) * columns)));
     } else {
         auto scope = a.scope();
-        (void)workspace::ple(a, p.config.text, columns, prefill);
+        const auto grouped_batch = !prefill && last > 1 ? batch : 0;
+        (void)workspace::ple(a, p.config.text, columns, prefill, grouped_batch);
         scratch(linear(p.text.ple, minimum, columns));
+        if (grouped_batch > 0) scratch(linear(p.text.ple, grouped_batch, grouped_batch));
     }
     const auto layer = [&](const BlockProfile& layer) {
         scratch(ops::hc_mix_workspace_capacity_bytes(layer.attention_hc, minimum, columns));
