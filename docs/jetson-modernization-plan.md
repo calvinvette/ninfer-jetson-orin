@@ -163,6 +163,14 @@ The exhaustive sparse-GQA executable was stopped after running for over four min
 returning; sparse-GQA arithmetic itself was not changed. Post-fix end-to-end Flash-Next measurements
 are recorded below.
 
+The eight-request, 16-token, draft-1, graphs-off real-artifact rerun reached decode batch 8 but did
+not pass exact parity: row 1 first differed at output token 14 (one fallback-free mismatch), and
+row 7 first differed at output token 4 (one fallback). The other six rows matched. An eight-row,
+repeated-prompt, eight-token follow-up could not start inference because Engine startup reported
+`Device budget cannot hold model weights and required execution resources`; a concurrent unrelated
+CUDA build was consuming substantial host CPU and memory, so this is not evidence for or against
+same-history parity. The eight-row gate remains open.
+
 ### Milestone 1: Modern JP6 platform and original models
 
 The modern Orin source branch `feat/jetson-orin-sm87-jp6-sync` is based on the original NInfer
