@@ -772,6 +772,13 @@ Flash-Next performance qualification. Reports: `/tmp/ninfer-post-qsa-fix-flash-n
   row-1 token-14 mismatch (`4145` serial, `2716` MTP) and row-7 token-4 mismatch. Matching the
   target-head route alone is therefore insufficient; the temporary route was removed and the clean
   JP6 build passed. NVMe timeouts also recurred during the run.
+- A temporary acceptance trace identified the failing request by its matching history. At frontier
+  70, with current input `3158`, Verify target argmaxes were `14862,4222` while the draft was
+  `14235`; greedy acceptance rejected that draft and emitted target `14862`. This confirms the
+  preceding rejection/commit decision is correct and the serial/MTP histories still match at that
+  boundary. The next Verify round, which would test the `14862` context and resolve the `4145` vs
+  `2716` target-logit question, did not run before the 900-second test timeout amid NVMe `pread64`
+  stalls. The diagnostic trace was removed and the clean JP6 build passed.
 - Distinguish SSD/controller cache state for physical cold/warm storage measurements; `O_DIRECT`
   isolates requests from the host page cache but does not flush or measure device caches.
 - Storage diagnosis: the 4 TB Seagate FireCuda 530 ZP4000GM30023 (`SU6SM001`, active slot 1)
