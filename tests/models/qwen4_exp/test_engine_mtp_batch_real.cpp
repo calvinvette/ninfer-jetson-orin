@@ -54,14 +54,16 @@ Run run(const std::string& artifact, bool mtp, std::uint32_t cohort_size,
         "Water freezes at zero degrees", "Two plus two equals",
         "The color of a clear daytime sky is", "An example of a mammal is",
         "The first month of the year is"};
+    const char* repeated_prompt = std::getenv("NINFER_TEST_COHORT_PROMPT");
     for (auto text : std::span(prompts).first(cohort_size)) {
         RequestOptions request;
         request.execution.requested_output_tokens = output_tokens;
         request.execution.sampling.temperature     = 0.0F;
         request.execution.sampling.seed            = 0;
         request.stop.include_model_defaults       = false;
-        handles.push_back(
-            engine.submit(engine.prepare(prompt(std::string(text))), std::move(request)));
+        const std::string request_prompt =
+            repeated_prompt ? repeated_prompt : std::string(text);
+        handles.push_back(engine.submit(engine.prepare(prompt(request_prompt)), std::move(request)));
     }
 
     Run result;
