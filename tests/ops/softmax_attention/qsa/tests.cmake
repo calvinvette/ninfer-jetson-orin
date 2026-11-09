@@ -2,9 +2,16 @@ ninfer_add_op_test(ninfer_qsa_tail_extract_test
   SOURCES "${CMAKE_CURRENT_LIST_DIR}/test_tail_extract.cpp"
   LIBRARIES ninfer_ops)
 
-ninfer_add_op_test(ninfer_qsa_prepare_test
-  SOURCES "${CMAKE_CURRENT_LIST_DIR}/test_prepare.cpp"
-  LIBRARIES ninfer_ops)
+if(NINFER_TARGET STREQUAL "jetson_orin")
+  ninfer_add_op_test(ninfer_qsa_prepare_test
+    SOURCES "${CMAKE_CURRENT_LIST_DIR}/test_prepare.cpp"
+    LIBRARIES ninfer_ops
+    FORMATS bf16 int8)
+else()
+  ninfer_add_op_test(ninfer_qsa_prepare_test
+    SOURCES "${CMAKE_CURRENT_LIST_DIR}/test_prepare.cpp"
+    LIBRARIES ninfer_ops)
+endif()
 
 ninfer_add_op_test(ninfer_qsa_indexer_test
   SOURCES "${CMAKE_CURRENT_LIST_DIR}/test_indexer.cpp"
