@@ -776,9 +776,15 @@ Flash-Next performance qualification. Reports: `/tmp/ninfer-post-qsa-fix-flash-n
   70, with current input `3158`, Verify target argmaxes were `14862,4222` while the draft was
   `14235`; greedy acceptance rejected that draft and emitted target `14862`. This confirms the
   preceding rejection/commit decision is correct and the serial/MTP histories still match at that
-  boundary. The next Verify round, which would test the `14862` context and resolve the `4145` vs
-  `2716` target-logit question, did not run before the 900-second test timeout amid NVMe `pread64`
-  stalls. The diagnostic trace was removed and the clean JP6 build passed.
+  boundary. That paired run timed out before the next Verify round amid NVMe `pread64` stalls.
+- A follow-up MTP-only 8-request, 16-token, draft-1, graphs-off real-artifact run avoided reloading
+  the model for serial comparison and completed with `largest_decode_batch=8`. At the same request
+  and context boundary (sequence 2, frontier 71, input `14862`), Verify target argmaxes were
+  `2716,13`; draft `2716` matched and was accepted. Serial decode at this context selects `4145`
+  (its target logits rank `4145` at `23.25` and `2716` at `23.0`). This resolves the acceptance
+  question: the divergence exists in the target forward/logits before acceptance or commit. It does
+  not identify the first differing hidden-state/operator boundary. The MTP-only harness branch and
+  acceptance trace were removed; the clean JP6 build passed.
 - Distinguish SSD/controller cache state for physical cold/warm storage measurements; `O_DIRECT`
   isolates requests from the host page cache but does not flush or measure device caches.
 - Storage diagnosis: the 4 TB Seagate FireCuda 530 ZP4000GM30023 (`SU6SM001`, active slot 1)
