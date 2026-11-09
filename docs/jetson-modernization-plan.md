@@ -610,23 +610,20 @@ happens before capture, which is required by CUDA 12.6's `cudaStreamGetFlags` be
   to find whether the new divergence begins in another operator or in the commit decision. The
   temporary route edits and tracing were removed; rebuilding the unmodified JP6 tree is the next
   validation step.
-- A 2026-11-08 rerun with the Orin QSA split policy and per-column PLE/QSA projections reaches
-  decode batch 8 but still fails row 0 at output token 21 (serial 874, MTP 6157; 13 drafts,
-  9 accepted, one fallback). At the matching token 28320 / position 77, layer-3 sparse-attention
-  output is bit-identical. An initial trace appeared to show matching layer-4 GDN input, but a
-  same-run capture at the exact `TextRun::local_mixer` / GDN-entry boundary disproves that match:
-  both captures use the same BF16 tensor address and shape, host thread, and CUDA stream, yet the
-  first column's byte hash changes between calls. The earlier layer-4 input comparison is
-  therefore invalid or misattributed. Layer 4 uses a 2,560-wide control projection: ordinary
-  decode has 8 columns and Verify has 16, both on the same Tiled GEMV route. GDN control G/Beta
-  and Q/K/V/Z fingerprints differ as well. A one-column control recomputation reproduces each
-  execution's own batched first-column result, so the observed difference is not caused by a
-  batch-kernel-only output path. The trace-enabled cohort passed exact token parity, but the trace
-  synchronizes the CUDA stream at both boundaries and changes timing. Repeating the same 8-row,
-  22-token cohort with tracing disabled reproduced row 0's first mismatch at token 21 (serial 874,
-  MTP 6157; 11 drafts, 9 accepted, one fallback). The traced pass therefore does not qualify the
-  route; the intermittent boundary change and parity failure remain unresolved. The full-width
-  cohort is not qualified.
+- A 2026-11-08 asynchronous same-stream snapshot trace corrects the earlier synchronous-boundary
+  interpretation. At token 28320 / position 77, two queued device-to-host snapshots agree within
+  each call at layer-4 GDN entry (ordinary `9e84eff2c131b124`, Verify `e3119eb860107278`), so the
+  earlier apparent within-call mutation was a synchronization/timing artifact. Ordinary and
+  Verify layer-0 block outputs are bit-identical; the first observed difference is immediately
+  after PLE (`ple_residual`: `488223a1b0d5aa9d` vs `f6cda9f022751963`; `ple_normalized`:
+  `01e086a57495d5f1` vs `bed4f421d847171c`). The source currently uses batched PLE projection for
+  ordinary Step and per-column projection for Verify. A temporary change aligned both decode
+  routes to per-column projection while keeping prefill batched, but the same 8-request, 22-token,
+  draft-1 real-artifact cohort still failed exact parity (row 0 first differed at token 21,
+  serial 874 vs MTP 6157; row 2 first differed at token 2). The route change was reverted. This
+  identifies PLE as the earliest observed divergence but does not establish projection as its
+  cause; full-width MTP parity remains unresolved and unqualified. The next trace should separate
+  PLE projection, gate, convolution record, and state inputs/outputs for the first divergent row.
 - A focused Op probe compared the identical first eight BF16 columns at the T=8 GEMV and T=9 MMA
   seam. The G and Beta values differed in 123/384 and 80/384 entries respectively, with maximum
   absolute differences of `3.58e-7` and `1.20e-7`. The full GDN control suite passes its independent
