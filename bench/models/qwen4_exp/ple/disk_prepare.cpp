@@ -18,7 +18,7 @@ using Clock = std::chrono::steady_clock;
 struct Options {
     std::string artifact, corpus, dump;
     std::uint32_t batch, tokens, iterations, cache_mib;
-    std::uint32_t incremental_us = 0, work = 0;
+    std::uint32_t incremental_us = 0, work = 0, io_depth = 128;
     std::uint64_t budget = 512ULL * 1024 * 1024;
 };
 
@@ -26,7 +26,8 @@ Options options(int argc, char** argv) {
     if (argc < 7)
         throw std::invalid_argument(
             "usage: ninfer_ple_disk_prepare_bench ARTIFACT CORPUS B T ITERATIONS CACHE_MIB "
-            "[--read-budget-mib N] [--incremental-us N] [--overlap N] [--dump PATH]");
+            "[--read-budget-mib N] [--io-depth N] [--incremental-us N] "
+            "[--overlap N] [--dump PATH]");
     Options o{argv[1],
               argv[2],
               {},
@@ -39,6 +40,8 @@ Options options(int argc, char** argv) {
         const std::string_view flag = argv[i];
         if (flag == "--read-budget-mib")
             o.budget = std::stoull(argv[i + 1]) * 1024 * 1024;
+        else if (flag == "--io-depth")
+            o.io_depth = std::stoul(argv[i + 1]);
         else if (flag == "--incremental-us")
             o.incremental_us = std::stoul(argv[i + 1]);
         else if (flag == "--overlap")
@@ -48,7 +51,7 @@ Options options(int argc, char** argv) {
         else
             throw std::invalid_argument("unknown option");
     }
-    if (!o.batch || o.batch > 8 || !o.tokens || !o.iterations ||
+    if (!o.batch || o.batch > 8 || !o.tokens || !o.iterations || !o.io_depth ||
         std::uint64_t(o.batch) * o.tokens > std::uint32_t(INT32_MAX) / 2560)
         throw std::invalid_argument("invalid workload");
     return o;
@@ -110,14 +113,14 @@ void run(const Options& o) {
     UploadSlots uploads(context, positions, 2);
     disk::PrepareService service(table, eos,
                                  {.max_positions = positions,
-                                  .io_depth      = 128,
+                                  .io_depth      = o.io_depth,
                                   .cache_bytes   = std::size_t(o.cache_mib) * 1024 * 1024},
                                  uploads.host_slots());
     const auto memory = uploads.memory();
     std::cerr << "device=" << context.properties().name
               << " ordinary_host=" << memory.ordinary_host_bytes + service.memory_bytes()
               << " pinned_host=" << memory.pinned_host_bytes << " device_E=" << memory.device_bytes
-              << " read_budget=" << o.budget << '\n';
+              << " read_budget=" << o.budget << " io_depth=" << o.io_depth << '\n';
 
     std::optional<artifact::MaterializedArtifact> weights;
     Weight projection;
@@ -255,6 +258,7 @@ int main(int argc, char** argv) {
         std::cout
             << "ninfer_ple_disk_prepare_bench ARTIFACT CORPUS B T ITERATIONS CACHE_MIB\n"
                "  --read-budget-mib N  Bound PLE requested bytes (default 512 MiB)\n"
+               "  --io-depth N         Bound outstanding direct reads (default 128)\n"
                "  --incremental-us N   Append each next token column after this delay\n"
                "  --overlap N          Run N independent real K/V projections, then consume E\n"
                "  --dump PATH          Dump first input/Host E/Device E (and overlap projection)\n";
