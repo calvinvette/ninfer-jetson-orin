@@ -200,6 +200,11 @@ reader/backing/materialization, serving schema, and public Engine checks passed 
 Orin routes. The compressed FP8, NVFP4, and K8V4 KV-cache consumers remain unavailable on Orin;
 the target rejects them explicitly. The supported paged KV path is BF16 and INT8-G64.
 
+The QSA preparation Op suite is registered on Orin for BF16 and INT8-G64 KV only; other targets
+retain the full cache-format matrix. Both supported-format suites pass (65 BF16 cases and 50
+INT8-G64 cases), as do PLE disk preparation host/GPU/pair tests, Qwen4Exp state, and GDN control.
+This prevents explicitly unsupported KV formats from being reported as Orin CTest regressions.
+
 The real-artifact QSA planner had a serial-versus-MTP discrepancy at the 64/65-token boundary:
 serial decode selected short-context SIMT, while a verify window containing the next position
 selected MMA. The Orin build now retains MMA for short contexts; the RTX 5090 route is unchanged.
