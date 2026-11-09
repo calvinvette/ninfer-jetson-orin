@@ -867,9 +867,10 @@ Flash-Next performance qualification. Reports: `/tmp/ninfer-post-qsa-fix-flash-n
   Graph performance remains unmeasured under the current storage conditions.
 - Re-run CUDA 12.6 regression after changes and qualify JP7/CUDA 13 when that environment becomes
   available.
-- Submit source changes upstream when a repository with push access is available. The local source
-  branch is `feat/jetson-orin-sm87-jp6-sync`; authenticated GitHub permissions report push access
-  disabled for both `Neroued/ninfer` and `Don-Chad/ninfer-3090`. The documentation-plan branch is
+- Submit source changes upstream when a repository with push access is available. Authenticated
+  Git pushes to `Neroued/ninfer` and `Don-Chad/ninfer-3090` are denied for the configured identity.
+  The implementation branch `feat/jetson-orin-sm87-jp6-sync` is published in
+  `calvinvette/ninfer-jetson-orin` at `c38b8468b` for review; the documentation-plan branch is
   pushed separately.
 
 ### 1. Modern JP6 platform and original models
