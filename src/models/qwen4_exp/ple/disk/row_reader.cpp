@@ -5,6 +5,7 @@
 
 #include <algorithm>
 #include <bit>
+#include <chrono>
 #include <cstring>
 #include <limits>
 #include <numeric>
@@ -106,6 +107,7 @@ struct RowReader::Impl {
     struct Page {
         std::uint64_t offset = 0;
         std::uint32_t file = 0, head = none, previous = none, next = none;
+        std::chrono::steady_clock::time_point submitted_at{};
         bool queued = false, required = false;
     };
 
@@ -336,6 +338,15 @@ struct RowReader::Impl {
             const auto& c = completions[i];
             const auto id = inflight[c.buffer_index];
             if (id == none || c.tag != id) throw std::logic_error("unmatched PLE page completion");
+            const auto& page = pages[id];
+            const auto age = std::chrono::duration<double, std::milli>(
+                                 std::chrono::steady_clock::now() - page.submitted_at)
+                                 .count();
+            if (age > stats.slowest_page_ms) {
+                stats.slowest_page_ms = age;
+                stats.slowest_file_index = page.file;
+                stats.slowest_file_offset = page.offset;
+            }
             stats.read_bytes += c.bytes;
             finish_page(id, static_cast<const std::byte*>(buffers[c.buffer_index].data), c.bytes,
                         c.error ? std::make_exception_ptr(std::system_error(
@@ -359,6 +370,7 @@ struct RowReader::Impl {
                 if (queue->try_enqueue({p.file, buffer, p.offset, read_bytes, id}) !=
                     io::ReadAdmission::Accepted)
                     throw std::logic_error("PLE read slot admission failed");
+                pages[id].submitted_at = std::chrono::steady_clock::now();
                 inflight[buffer] = id;
                 ++stats.reads;
                 break;
@@ -562,7 +574,22 @@ bool RowReader::drained(std::uint32_t owner) const { return impl_->owner(owner).
 
 std::exception_ptr RowReader::error(std::uint32_t owner) const { return impl_->owner(owner).error; }
 
-ReadStats RowReader::stats() const noexcept { return impl_->stats; }
+ReadStats RowReader::stats() const noexcept {
+    auto out = impl_->stats;
+    const auto now = std::chrono::steady_clock::now();
+    for (const auto id : impl_->inflight) {
+        if (id == none) continue;
+        ++out.in_flight_pages;
+        const auto& page = impl_->pages[id];
+        const auto age = std::chrono::duration<double, std::milli>(now - page.submitted_at).count();
+        if (age > out.slowest_page_ms) {
+            out.slowest_page_ms = age;
+            out.slowest_file_index = page.file;
+            out.slowest_file_offset = page.offset;
+        }
+    }
+    return out;
+}
 
 std::size_t RowReader::memory_bytes() const noexcept {
     const auto& p = *impl_;

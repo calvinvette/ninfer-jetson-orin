@@ -18,7 +18,7 @@ using Clock = std::chrono::steady_clock;
 struct Options {
     std::string artifact, corpus, dump;
     std::uint32_t batch, tokens, iterations, cache_mib;
-    std::uint32_t incremental_us = 0, work = 0, io_depth = 128;
+    std::uint32_t incremental_us = 0, work = 0, io_depth = 128, start_sample = 0;
     std::uint64_t budget = 512ULL * 1024 * 1024;
 };
 
@@ -26,7 +26,7 @@ Options options(int argc, char** argv) {
     if (argc < 7)
         throw std::invalid_argument(
             "usage: ninfer_ple_disk_prepare_bench ARTIFACT CORPUS B T ITERATIONS CACHE_MIB "
-            "[--read-budget-mib N] [--io-depth N] [--incremental-us N] "
+            "[--read-budget-mib N] [--io-depth N] [--start-sample N] [--incremental-us N] "
             "[--overlap N] [--dump PATH]");
     Options o{argv[1],
               argv[2],
@@ -42,6 +42,8 @@ Options options(int argc, char** argv) {
             o.budget = std::stoull(argv[i + 1]) * 1024 * 1024;
         else if (flag == "--io-depth")
             o.io_depth = std::stoul(argv[i + 1]);
+        else if (flag == "--start-sample")
+            o.start_sample = std::stoul(argv[i + 1]);
         else if (flag == "--incremental-us")
             o.incremental_us = std::stoul(argv[i + 1]);
         else if (flag == "--overlap")
@@ -104,7 +106,7 @@ void run(const Options& o) {
     input.seekg(0);
     input.read(reinterpret_cast<char*>(corpus.data()), corpus.size() * 4);
     if (!input || std::uint64_t(2 + 100000) + (o.batch - 1) * 100003ULL +
-                          std::uint64_t(o.iterations) * o.tokens >
+                          (std::uint64_t(o.start_sample) + o.iterations) * o.tokens >
                       corpus.size())
         throw std::invalid_argument("corpus does not cover workload");
 
@@ -157,7 +159,8 @@ void run(const Options& o) {
     CudaEventTimer work_time(context, context.stream()), exposed_time(context, context.stream());
     std::vector<std::uint16_t> downloaded(std::size_t(positions) * 2560);
     std::cout << "sample,batch,tokens,cache_mib,host_ms,device_ms,last_ids_to_ready_ms,reads,read_"
-                 "MiB,cache_hits,shared_rows,work_ms,exposed_ms\n";
+                 "MiB,cache_hits,shared_rows,work_ms,exposed_ms,slowest_page_ms,slowest_file,"
+                 "slowest_offset\n";
     for (std::uint32_t sample = 0; sample < o.iterations; ++sample) {
         if (service.stats().reads * 4096 + window_bound > o.budget) {
             std::cerr << "read budget reached after " << sample << " samples\n";
@@ -166,10 +169,11 @@ void run(const Options& o) {
         std::array<InputRow, 8> rows;
         std::array<std::span<const std::int32_t>, 8> ids;
         std::array<std::uint32_t, 8> lengths;
+        const auto sample_index = std::uint64_t(o.start_sample) + sample;
         for (std::uint32_t b = 0; b < o.batch; ++b) {
-            const auto start = 2 + 100000 + b * 100003ULL + sample * o.tokens;
+            const auto start = 2 + 100000 + b * 100003ULL + sample_index * o.tokens;
             ids[b]           = std::span(corpus).subspan(start, o.tokens);
-            rows[b]          = {{b, sample, start, {corpus[start - 2], corpus[start - 1]}},
+            rows[b]          = {{b, sample_index, start, {corpus[start - 2], corpus[start - 1]}},
                        o.incremental_us ? ids[b].first(1) : ids[b]};
             lengths[b]       = o.tokens;
         }
@@ -194,11 +198,22 @@ void run(const Options& o) {
         }
         const auto last_ids = o.incremental_us ? Clock::now() : start;
         service.seal(*ticket, std::span(lengths).first(o.batch));
-        until([&] {
-            const auto state = service.poll(*ticket);
-            if (state.error) std::rethrow_exception(state.error);
-            return state.status == disk::PrepareStatus::HostReady;
-        });
+        try {
+            until([&] {
+                const auto state = service.poll(*ticket);
+                if (state.error) std::rethrow_exception(state.error);
+                return state.status == disk::PrepareStatus::HostReady;
+            });
+        } catch (...) {
+            const auto pending = service.stats();
+            std::cerr << "PLE readiness failed sample=" << sample_index
+                      << " reads=" << pending.reads << " completed_bytes=" << pending.read_bytes
+                      << " in_flight=" << pending.in_flight_pages
+                      << " oldest_ms=" << pending.slowest_page_ms
+                      << " oldest_file=" << pending.slowest_file_index
+                      << " oldest_offset=" << pending.slowest_file_offset << '\n';
+            throw;
+        }
         const auto host_ready = Clock::now();
         uploads.upload(service.embedding(*ticket), context.transfer_view());
         if (o.work) {
@@ -241,14 +256,15 @@ void run(const Options& o) {
         }
         until([&] { return service.poll(*ticket).drained && uploads.try_release(*ticket); });
         service.release(*ticket);
-        std::cout << sample << ',' << o.batch << ',' << o.tokens << ',' << o.cache_mib << ','
+        std::cout << sample_index << ',' << o.batch << ',' << o.tokens << ',' << o.cache_mib << ','
                   << ms(start, host_ready) << ',' << ms(start, device_ready) << ','
                   << ms(last_ids, device_ready) << ',' << after.reads - before.reads << ','
                   << double(after.read_bytes - before.read_bytes) / (1024 * 1024) << ','
                   << after.cache_hits - before.cache_hits << ','
                   << after.shared_rows - before.shared_rows << ','
                   << (o.work ? work_time.elapsed_ms() : 0) << ','
-                  << (o.work ? exposed_time.elapsed_ms() : 0) << '\n';
+                  << (o.work ? exposed_time.elapsed_ms() : 0) << ',' << after.slowest_page_ms << ','
+                  << after.slowest_file_index << ',' << after.slowest_file_offset << '\n';
     }
 }
 } // namespace
@@ -259,6 +275,7 @@ int main(int argc, char** argv) {
             << "ninfer_ple_disk_prepare_bench ARTIFACT CORPUS B T ITERATIONS CACHE_MIB\n"
                "  --read-budget-mib N  Bound PLE requested bytes (default 512 MiB)\n"
                "  --io-depth N         Bound outstanding direct reads (default 128)\n"
+               "  --start-sample N     Start from a repeatable corpus window (default 0)\n"
                "  --incremental-us N   Append each next token column after this delay\n"
                "  --overlap N          Run N independent real K/V projections, then consume E\n"
                "  --dump PATH          Dump first input/Host E/Device E (and overlap projection)\n";

@@ -13,6 +13,10 @@ struct ReadStats {
     std::uint64_t shared_pages = 0; // Fragments joining an already queued/in-flight page.
     std::uint64_t reads        = 0;
     std::uint64_t read_bytes   = 0; // Actual returned bytes, including alignment overhead.
+    std::uint32_t in_flight_pages    = 0;
+    std::uint32_t slowest_file_index = ~std::uint32_t{};
+    std::uint64_t slowest_file_offset  = 0;
+    double slowest_page_ms             = 0;
 };
 
 // Single-threaded row preparation mechanism. Each owner borrows a contiguous BF16 output;
