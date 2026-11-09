@@ -136,14 +136,32 @@ fields while taking upstream's newer benchmark warmup and runtime scheduling cha
 JP6/SM87 build passed (1,012 targets). Focused bench-report, Qwen4Exp state, GDN control, and QSA
 BF16/INT8 tests passed. The first CTest invocation lacked the Jetson dependency library path and
 could not start the real-artifact executable; rerunning it directly with that path loaded the V3
-artifact. A three-request, 16-token, draft-1, graphs-off cohort reached decode batch three but still
-failed exact token parity at row 2, output token 2; rows 0 and 1 matched. The upstream runtime sync
-therefore preserves the build and supported Op checks but does not close the known cohort gate.
-The 2026-11-08 four-token repeat also reproduced row 2's first difference at output token 2 and
-reached decode batch two. A temporary layer-0 trace found matching GDN controls and projected
-Q/K/V/Z for rows carrying the same current token ID and position, but the fixture uses three
-different prompts; cross-row recurrent-state hashes therefore do not localize the mismatch. The
-next trace must follow the same prompt through its serial and MTP executions.
+artifact. The initial three-request, 16-token, draft-1, graphs-off cohort reached decode batch three
+but failed exact token parity at row 2, output token 2; rows 0 and 1 matched. A four-token repeat
+also reproduced the mismatch and reached decode batch two. The repeated-prompt trace and correction
+are recorded below.
+
+The `NINFER_TEST_COHORT_PROMPT` diagnostic override now repeats one prompt across the cohort. With
+`The largest ocean on Earth is`, a four-token, three-request, graphs-off, draft-1 public-Engine
+comparison reproduced the mismatch on all rows at output token 2 (serial `1596 1144 4087 1156`,
+MTP `1596 1144 310 4087`); the largest decode batch was two. Thus different prompt histories are
+not required for this failure. The test harness change compiled and this real-artifact run reached
+the expected parity assertion; a layer trace using the repeated-prompt case is the next diagnostic.
+That trace now follows the same prompt and pins the first mismatch to QSA layer 23, an indexed
+attention layer. For input token 1144 at position 59, Step and Verify matched at the layer input,
+query/gate/value/index-key projections, and prepared query; the projected key differed in one of
+512 BF16 values (maximum absolute difference `9.765625e-4`, relative L2 `7.42e-5`). The sparse
+attention result then differed in 1,055 values (relative L2 `2.16e-3`). The cause was the Verify
+path projecting each column separately while decode projected the two-column batch together.
+QSA now uses the common batched projection association for Verify. After this change, the original
+three-prompt, 16-token, draft-1 cohort passed exact parity at decode batch 3 with Graphs off; the
+repeated-prompt eight-token cohort passed at batch 3 both with Graphs off and Graphs on. Focused
+QSA prepare tests passed for BF16 (65 cases) and INT8 (50 cases), the QSA indexer suite passed
+(59 cases), and the Qwen4Exp state suite passed. A post-fix rerun of the original three-prompt,
+16-token, draft-1, graphs-off real-artifact cohort again passed exact parity at decode batch 3.
+The exhaustive sparse-GQA executable was stopped after running for over four minutes without
+returning; sparse-GQA arithmetic itself was not changed. Post-fix end-to-end Flash-Next measurements
+are recorded below.
 
 ### Milestone 1: Modern JP6 platform and original models
 
@@ -569,15 +587,34 @@ count does not imply a speedup. The earlier 2026-11-07 table is a separate short
 Per-repetition reports are in `/tmp/ninfer-post-rebase-*.json`; temperature was not logged during
 this measurement series.
 
+### Flash-Next performance after QSA cohort fix (2026-11-08)
+
+After making QSA Verify use the same batched projection association as Step, the public Engine
+benchmark was repeated on the supplied Flash-Next V3 artifact. Both runs used the 53-token `hi`
+input, 10-token output limit, BF16 KV, 512 MiB context capacity, 4,096-token maximum context,
+128-token prefill chunks, CUDA Graphs, prefix reuse off, one warmup, and three repetitions. The
+AGX Orin remained in MAXN with CPU/GPU/EMC clocks locked at 2.2016/1.3005/3.199 GHz. Values are
+medians; wall time includes prefill and request overhead.
+
+| Artifact | Speculation | Input → output tokens | Prefill tok/s | Decode tok/s | Request wall s | Draft accepted |
+|---|---:|---:|---:|---:|---:|---:|
+| Qwen3.8-Flash-Next V3 | off | 53 → 10 | 2.829 | 1.189 | 26.310 | — |
+| Qwen3.8-Flash-Next V3 | MTP-4 | 53 → 10 | 3.542 | 1.249 | 22.170 | 6 / 9 (66.7%); 0 fallbacks |
+
+This matched post-fix pair shows lower wall time with MTP-4 for this short workload. The serial
+point is slower than the previous post-upstream serial result (21.799 s); the MTP-4 point is close
+to its previous result (22.247 s). The pair is a focused remeasurement, not a stable long-horizon
+Flash-Next performance qualification. Reports: `/tmp/ninfer-post-qsa-fix-flash-none.json` and
+`/tmp/ninfer-post-qsa-fix-flash-mtp4.json`.
+
 ### Remaining gates
 
-- Resolve the reproducible long-horizon cohort parity mismatch before qualifying longer cohort
-  decoding. Text Graph/MTP has exact single-request serial parity through 128 output tokens and
-  exact cohort parity through three requests at an eight-token horizon. At 16 tokens, three- and
-  four-request cohorts diverged on row two at output token 14 with or without Graphs; that prompt
-  passed single-row serial/MTP comparison, whose output at that position matched cohort MTP. This
-  suggests a batched execution difference but does not identify its source. Continue longer
-  Vision/video horizon qualification after resolving this issue. Image-conditioned runs cover 8 and 32 tokens, and
+- The QSA Step/Verify numerical mismatch at layer 23 is fixed by using the same batched projection
+  association for both paths. Exact parity now passes for the three-prompt, 16-token, draft-1 cohort
+  with Graphs off, and for a repeated-prompt, eight-token, three-request cohort with Graphs both on
+  and off. Single-request Text Graph/MTP parity remains exact through 128 output tokens. The
+  separate eight-request, 16-token cohort still fails as described below, so longer cohort decoding
+  remains unqualified. Continue longer Vision/video horizon qualification. Image-conditioned runs cover 8 and 32 tokens, and
   video-conditioned runs cover 4, 32, and 35 generated tokens (the last run ended on the stop token
   with a 64-token cap).
 - An eight-request, 16-token cohort was repeated with `max_context=256`, a 4 GiB context reservation,
