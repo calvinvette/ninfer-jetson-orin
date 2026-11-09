@@ -130,6 +130,16 @@ that a discrete-GPU host/device cache policy is efficient on shared LPDDR.
 
 ## Current execution status (2026-11-08)
 
+The Orin branch was rebased onto the refreshed `origin/dev` tip `41da21f47` after ten upstream
+commits arrived. The merge retained the Orin exact-token benchmark input and expert-cache timing
+fields while taking upstream's newer benchmark warmup and runtime scheduling changes. The complete
+JP6/SM87 build passed (1,012 targets). Focused bench-report, Qwen4Exp state, GDN control, and QSA
+BF16/INT8 tests passed. The first CTest invocation lacked the Jetson dependency library path and
+could not start the real-artifact executable; rerunning it directly with that path loaded the V3
+artifact. A three-request, 16-token, draft-1, graphs-off cohort reached decode batch three but still
+failed exact token parity at row 2, output token 2; rows 0 and 1 matched. The upstream runtime sync
+therefore preserves the build and supported Op checks but does not close the known cohort gate.
+
 ### Milestone 1: Modern JP6 platform and original models
 
 The modern Orin source branch `feat/jetson-orin-sm87-jp6-sync` is based on the original NInfer
