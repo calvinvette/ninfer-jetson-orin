@@ -1049,9 +1049,12 @@ Grouped buffers and `kv_index` linear workspace are included in the Qwen4Exp wor
 On the supplied Qwen3.8-Flash-Next V3 artifact, exact serial/MTP token parity passes for a
 three-request, 16-output, draft-1 cohort with CUDA Graphs off; a three-request, eight-output
 cohort passes with Graphs both off and on. Layer outputs at positions 57–59 match bit-for-bit in
-the traced candidate. The full JP6 build and Qwen4Exp state test pass. Eight-request parity and
-long-horizon Flash-Next qualification remain open because real-artifact reads continue to hit
-NVMe timeouts.
+the traced candidate. The full JP6 build and Qwen4Exp state test pass. An eight-request, eight-
+output draft-1 run produced exact serial/MTP token parity for all rows, including a repeated-prompt
+cohort, but the largest observed decode batch was four, so it did not cover an eight-row Verify.
+The test's 4 GiB context pool allowed execution; an 8 GiB pool was rejected by the device budget
+before execution. Full eight-row Verify coverage and long-horizon qualification remain open, and
+real-artifact reads continue to hit NVMe timeouts.
 
 The public-Engine benchmark reuses the 53-token `hi` input, 10-token budget, BF16 KV, 4,096-token
 max context, 128-token prefill chunks, 512 MiB context capacity and headroom, Graphs on, prefix
