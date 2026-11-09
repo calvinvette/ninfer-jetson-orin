@@ -139,6 +139,11 @@ could not start the real-artifact executable; rerunning it directly with that pa
 artifact. A three-request, 16-token, draft-1, graphs-off cohort reached decode batch three but still
 failed exact token parity at row 2, output token 2; rows 0 and 1 matched. The upstream runtime sync
 therefore preserves the build and supported Op checks but does not close the known cohort gate.
+The 2026-11-08 four-token repeat also reproduced row 2's first difference at output token 2 and
+reached decode batch two. A temporary layer-0 trace found matching GDN controls and projected
+Q/K/V/Z for rows carrying the same current token ID and position, but the fixture uses three
+different prompts; cross-row recurrent-state hashes therefore do not localize the mismatch. The
+next trace must follow the same prompt through its serial and MTP executions.
 
 ### Milestone 1: Modern JP6 platform and original models
 
