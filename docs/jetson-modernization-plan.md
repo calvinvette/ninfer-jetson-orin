@@ -829,6 +829,14 @@ Flash-Next performance qualification. Reports: `/tmp/ninfer-post-qsa-fix-flash-n
   state error. The next check must establish whether that replay reconstructs the serial state at
   the second token, then test a route with one projection association across Step and Verify. The
   PLE-stage trace is temporary and uncommitted.
+- The follow-up state-column trace found that Verify's token at position 61 does not append the same
+  normalized PLE column seen in serial Step: its `context_normalized_out` hash is
+  `ec970fd9bdeb65f`, while the serial state window's newest column is
+  `df4e309d8c6d17ba`. Six earlier columns in the 9-column window shift identically; one prior
+  column already differs before the current position-62 mismatch. This shows the visible state
+  difference is accumulated through earlier PLE computation, rather than proving a bad state-fold
+  or replay index. An eight-output run reproduced row 7 at token 4 and reached batch 4, so it is
+  diagnostic only; the full-width 16-output run remains the applicable parity evidence.
 - Distinguish SSD/controller cache state for physical cold/warm storage measurements; `O_DIRECT`
   isolates requests from the host page cache but does not flush or measure device caches.
 - Storage diagnosis: the 4 TB Seagate FireCuda 530 ZP4000GM30023 (`SU6SM001`, active slot 1)
