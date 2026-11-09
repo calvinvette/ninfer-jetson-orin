@@ -766,21 +766,34 @@ Flash-Next performance qualification. Reports: `/tmp/ninfer-post-qsa-fix-flash-n
   both the PLE direct-read path and its overlap with expert-cache I/O before selecting a scheduling
   mitigation.
   A sustained same-artifact overlap probe then ran the PLE reader at batch 8 × 4 positions for
-  5,000 windows with `cache_mib=0` while `fio` issued direct random reads at QD1. The 512 KiB
+  5,000 windows with `cache_mib=0` while `fio` issued direct random reads at QD1. Both earlier
+  `fio` workloads targeted the artifact entry file (`qwen3_8_flash_next.ninfer`), while the PLE
+  table backing uses continuation files; their no-error results were not a same-volume check. The
+  512 KiB
   workload read 11.0 GiB in 10 s at 1.10 GiB/s; all PLE windows completed, but one took 15.76 s
   (median 1.917 ms). The 128 KiB workload read 4.45 GiB in 10 s at 455 MiB/s; all windows
   completed, with one 7.51 s outlier (median 1.914 ms). Neither QD1 run logged a new kernel NVMe
   timeout, despite these PLE stalls. Repeating the 512 KiB overlap at PLE depth 16 timed out in
   the PLE readiness wait after window 1,479 and logged an NVMe timeout; `fio` completed without
   errors. Thus lower PLE depth is not a reliable mitigation, and smaller QD1 reads did not remove
-  the long tail. This reproduces severe PLE latency under concurrent reads of the artifact but
-  does not yet reproduce the precise expert-cache access pattern or identify the controller/queue
-  failure mechanism. A follow-up PLE-only run (same batch/window/depth, no `fio`, cache disabled)
+  the long tail. These runs show PLE stalls while the same SSD handles concurrent direct reads,
+  but did not test contention on the same volume or reproduce the expert-cache access pattern. A
+  follow-up PLE-only run (same batch/window/depth, no `fio`, cache disabled)
   completed windows 0–18 at 3.42–4.01 ms, then hit the 30 s PLE readiness timeout on the next
   window. The kernel logged another NVMe timeout at 23:14:12 (QID 1); SMART then reported 38 C,
   100% spare, 0% wear, and 0 media errors. The external concurrent reader is therefore not
   required to trigger the failure. The remaining evidence points to intermittent direct-read/device
   stalls, with aggregate I/O still a potential aggravating factor rather than an established cause.
+  Added PLE timeout telemetry located a later 30 s stall on backing file 1, byte offset
+  11,561,353,216; mapping the PLE shard order resolves this to
+  `qwen3_8_flash_next.ninfer.part-0003`, object `weight/000222`, shard 124, page 6,444 (row
+  290,001, head 15, batch row 7, token column 3 in sample 632). Replaying that exact input later
+  completed in 2.38 ms. A 10 s registered-file/fixed-buffer `io_uring` QD128 random-read run on
+  part-0003 completed 4.67 GiB at 478 MiB/s (mean completion 1.04 ms, max 7.76 ms); repeatedly
+  reading the exact 4 KiB offset for 10 s also completed without FIO errors (20.1k IOPS, mean
+  latency 6.37 ms, max 12.65 ms). Neither same-volume FIO run added a kernel timeout. The stalled
+  page is therefore readable and the failure is intermittent; the custom PLE workload still
+  differs from these FIO access patterns, and its failure mechanism remains open.
 - Graph execution beyond the one-token smoke is now verified with text MTP through 128 tokens,
   image MTP through 32 tokens, video MTP through 35 generated tokens, a three-request MTP cohort,
   and a file-backed mixed-media Decode step. These are correctness/smoke checks; stable end-to-end
