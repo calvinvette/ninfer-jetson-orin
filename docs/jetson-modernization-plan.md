@@ -764,6 +764,17 @@ Flash-Next performance qualification. Reports: `/tmp/ninfer-post-qsa-fix-flash-n
   Lowering the PLE depth globally would regress this path and has not been adopted. The comparison
   does not exercise simultaneous expert-cache reads; the next storage change must account for
   concurrent PLE and expert-cache I/O as a whole.
+  A sustained same-artifact overlap probe then ran the PLE reader at batch 8 × 4 positions for
+  5,000 windows with `cache_mib=0` while `fio` issued direct random reads at QD1. The 512 KiB
+  workload read 11.0 GiB in 10 s at 1.10 GiB/s; all PLE windows completed, but one took 15.76 s
+  (median 1.917 ms). The 128 KiB workload read 4.45 GiB in 10 s at 455 MiB/s; all windows
+  completed, with one 7.51 s outlier (median 1.914 ms). Neither QD1 run logged a new kernel NVMe
+  timeout, despite these PLE stalls. Repeating the 512 KiB overlap at PLE depth 16 timed out in
+  the PLE readiness wait after window 1,479 and logged an NVMe timeout; `fio` completed without
+  errors. Thus lower PLE depth is not a reliable mitigation, and smaller QD1 reads did not remove
+  the long tail. This reproduces severe PLE latency under concurrent reads of the artifact but
+  does not yet reproduce the precise expert-cache access pattern or identify the controller/queue
+  failure mechanism.
 - Graph execution beyond the one-token smoke is now verified with text MTP through 128 tokens,
   image MTP through 32 tokens, video MTP through 35 generated tokens, a three-request MTP cohort,
   and a file-backed mixed-media Decode step. These are correctness/smoke checks; stable end-to-end
