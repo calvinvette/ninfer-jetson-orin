@@ -829,6 +829,19 @@ Flash-Next performance qualification. Reports: `/tmp/ninfer-post-qsa-fix-flash-n
   state error. The next check must establish whether that replay reconstructs the serial state at
   the second token, then test a route with one projection association across Step and Verify. The
   PLE-stage trace is temporary and uncommitted.
+- A full-width trace with per-plane state fingerprints followed that record history one token
+  earlier. At sequence 8 / position 59 (input token 1596), Step and Verify have identical incoming
+  PLE history, embedding, and residual. Batched Step projection and per-column Verify projection
+  differ; their gate and stored convolution record differ, although the normalized output is
+  bit-identical. The record at this position is exactly the one differing history plane observed
+  at position 61. This pins a real persistent-state drift to PLE record generation, rather than
+  `ple_state_extract` or the normalized output. The Orin candidate now packs each Verify token
+  position across the request batch, applies the same batch-width projection route as ordinary
+  decode, and scatters the projected values back. Exact gather/scatter tests pass at `(T=2,B=8)`
+  and `(T=4,B=3)`, and the full JP6 build plus Qwen4Exp state suite pass. A real-artifact, eight-
+  request candidate run could not reach inference: the worker remained blocked in NVMe block I/O
+  after repeated kernel timeouts and was terminated after 11 minutes. The grouped route remains
+  unqualified for parity and performance; no end-to-end result is claimed.
 - The follow-up state-column trace found that Verify's token at position 61 does not append the same
   normalized PLE column seen in serial Step: its `context_normalized_out` hash is
   `ec970fd9bdeb65f`, while the serial state window's newest column is
