@@ -798,6 +798,14 @@ Flash-Next performance qualification. Reports: `/tmp/ninfer-post-qsa-fix-flash-n
   SMART still reports zero media errors. Its nonzero NVMe error-log entries are `INVALID_FIELD`
   admin-command statuses (the remaining returned entries are successful), not a logged media or
   transport failure; they do not explain the kernel’s timed-out I/O requests.
+  A controlled APST experiment toggled autonomous power-state transitions only for each run and
+  restored the original enabled state afterward. With APST disabled, one matched 5,000-window run
+  completed in 10.98 s (median 1.97 ms, p99 3.55 ms, max 4.21 ms); its repeat timed out at sample
+  163 with one in-flight page at continuation-file index 1, offset 10,108,174,336, and a new kernel
+  timeout. With APST enabled, a matched run timed out at sample 3,067 at file index 0, offset
+  17,103,908,864, again with one page aged 29,998 ms and a new kernel timeout. The APST-off
+  success is not reproducible evidence of a fix: both settings produced stalls, at different offsets.
+  APST is therefore not sufficient to explain or prevent the storage failure.
 - Graph execution beyond the one-token smoke is now verified with text MTP through 128 tokens,
   image MTP through 32 tokens, video MTP through 35 generated tokens, a three-request MTP cohort,
   and a file-backed mixed-media Decode step. These are correctness/smoke checks; stable end-to-end
