@@ -755,7 +755,11 @@ Flash-Next performance qualification. Reports: `/tmp/ninfer-post-qsa-fix-flash-n
   ASPM disabled, and clear Device Status/AER error bits. APST is currently enabled with the
   controller's 100 ms transitions to PS3 and 2 s transition to PS4. These checks show that the
   observed stalls are not accompanied by SMART media-health or current PCIe error indicators; the
-  timeout source is still unidentified.
+  timeout source is still unidentified. An experimental 512 KiB maximum for synchronous
+  file-backed expert reads did not prevent the repeated-prompt cohort from blocking in `pread64`
+  on a 512 KiB request; that run was terminated without a parity result and the generic reader
+  change was removed. Limiting individual request size is therefore insufficient evidence for a
+  fix. The next storage change must account for concurrent PLE and expert-cache I/O as a whole.
 - Graph execution beyond the one-token smoke is now verified with text MTP through 128 tokens,
   image MTP through 32 tokens, video MTP through 35 generated tokens, a three-request MTP cohort,
   and a file-backed mixed-media Decode step. These are correctness/smoke checks; stable end-to-end
