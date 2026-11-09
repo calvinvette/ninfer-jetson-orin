@@ -813,6 +813,13 @@ Flash-Next performance qualification. Reports: `/tmp/ninfer-post-qsa-fix-flash-n
   compacted Verify rows are not stable request identities, so sequence handles are needed to align
   future layer traces. The diagnostic code is temporary and currently uncommitted in
   `ninfer-orin-rebase`; this run does not identify the first differing hidden-state or Op boundary.
+- A follow-up layer-output trace aligned the same full-width cohort's serial and Verify forwards by
+  sequence handle and absolute input position. For both sequence 8 at position 62 and sequence 2 at
+  position 71, the layer-0 mixer output hashes match exactly, and layer-1 mixer outputs are the
+  first mismatch. Artifact configuration places PLE at layer 1, between those mixers, narrowing the
+  divergence to PLE consumption or its inputs/state. The per-layer trace does not yet identify the
+  first differing PLE projection, gate, convolution, or normalization value; it is temporary
+  instrumentation in `ninfer-orin-rebase`.
 - Distinguish SSD/controller cache state for physical cold/warm storage measurements; `O_DIRECT`
   isolates requests from the host page cache but does not flush or measure device caches.
 - Storage diagnosis: the 4 TB Seagate FireCuda 530 ZP4000GM30023 (`SU6SM001`, active slot 1)
