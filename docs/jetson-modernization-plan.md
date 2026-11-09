@@ -803,6 +803,16 @@ Flash-Next performance qualification. Reports: `/tmp/ninfer-post-qsa-fix-flash-n
   question: the divergence exists in the target forward/logits before acceptance or commit. It does
   not identify the first differing hidden-state/operator boundary. The MTP-only harness branch and
   acceptance trace were removed; the clean JP6 build passed.
+- A repeated full serial-plus-MTP 8-request, 16-token, draft-1, graphs-off run added sequence-handle
+  mapping to every Verify input and target decision. It reproduced row 1 at output token 14
+  (`4145` serial, `2716` MTP) and row 7 at output token 4 (`25` serial, `579` MTP), reaching
+  decode batch 8. For row 7 / sequence 8, Verify at frontier 61 targeted `1156,579` and licensed
+  both; serial decode expects `1156,25`. For row 1 / sequence 2, Verify at frontier 71 targeted
+  `2716,13` and licensed both; serial expects `4145` at the corresponding position. This directly
+  confirms the target forward diverges before the acceptance op, including the earlier row-1 case;
+  compacted Verify rows are not stable request identities, so sequence handles are needed to align
+  future layer traces. The diagnostic code is temporary and currently uncommitted in
+  `ninfer-orin-rebase`; this run does not identify the first differing hidden-state or Op boundary.
 - Distinguish SSD/controller cache state for physical cold/warm storage measurements; `O_DIRECT`
   isolates requests from the host page cache but does not flush or measure device caches.
 - Storage diagnosis: the 4 TB Seagate FireCuda 530 ZP4000GM30023 (`SU6SM001`, active slot 1)
