@@ -1033,3 +1033,46 @@ Update active architecture, build, artifact, and product documentation with each
 contract change. Keep this plan as the single temporary coordination document; remove it
 when requirements have been integrated and the requested milestones are complete. Do not
 claim upstream acceptance, JP7 qualification, or Flash-Next support before their gates pass.
+
+### Flash-Next QSA Verify projection parity (2026-11-09)
+
+The grouped PLE projection fixed the earlier PLE record drift but exposed a separate three-row
+MTP mismatch at output token 7. A real-artifact trace at the corresponding input position 57
+showed bit-identical layer-6 output and QSA input, query, and gate projections. The first
+difference was the `index_query` output of QSA's `kv_index` projection when Verify projected two
+token columns together while ordinary Step projected one. Per-column Verify projection was also
+tested and regressed another row. Verify now gathers each token position across the request batch,
+runs only `kv_index` with the same batch width as Step, then scatters key, value, `index_query`,
+and `index_key` results back. The `query_gate` projection stays flat because it already matched.
+Grouped buffers and `kv_index` linear workspace are included in the Qwen4Exp workspace plan.
+
+On the supplied Qwen3.8-Flash-Next V3 artifact, exact serial/MTP token parity passes for a
+three-request, 16-output, draft-1 cohort with CUDA Graphs off; a three-request, eight-output
+cohort passes with Graphs both off and on. Layer outputs at positions 57–59 match bit-for-bit in
+the traced candidate. The full JP6 build and Qwen4Exp state test pass. Eight-request parity and
+long-horizon Flash-Next qualification remain open because real-artifact reads continue to hit
+NVMe timeouts.
+
+The public-Engine benchmark reuses the 53-token `hi` input, 10-token budget, BF16 KV, 4,096-token
+max context, 128-token prefill chunks, 512 MiB context capacity and headroom, Graphs on, prefix
+reuse off, greedy sampling, one warmup, and three repetitions. It ran on AGX Orin / CUDA 12.6 in
+MAXN with `jetson_clocks` (CPU 2.2016 GHz, GPU 1.3005 GHz, EMC 3.199 GHz). Values are medians:
+
+| Qwen3.8-Flash-Next V3 | Speculation | Prefill tok/s | Decode tok/s | Wall tok/s | Request wall s | Draft accepted |
+|---|---:|---:|---:|---:|---:|---:|
+| Current route | Off | 3.489 | 1.598 | 0.480 | 20.825 | — |
+| Current route, latest MTP-4 attempt | MTP-4 | 1.183* | 1.264* | 0.193* | 51.886* | 6 / 9 (66.7%); 0 fallbacks |
+
+An initial grouped-QSA measurement also grouped multi-token prefill, although only Verify had the
+workspace budget for those buffers; it is excluded. The serial row is the latest usable benchmark
+for the narrowed Verify route. The MTP-4 row is the latest candidate run, but repeated NVMe I/O
+timeouts stalled the file-backed workload, so all its throughput and wall-time values are
+unqualified and must not be compared with the serial row. A previous focused run before narrowing
+the Verify projection measured 3.542 prefill / 1.249 decode / 0.451 wall tok/s and 22.170 s, with
+6 / 9 drafts accepted and no fallbacks. Short file-backed measurements varied substantially across
+campaigns and do not establish a general performance effect. Reports: serial
+`/tmp/ninfer-post-verify-groupqsa-flash-none.json`, stalled MTP-4
+`/tmp/ninfer-post-kvindex-groupqsa-flash-mtp4.json`, and prior focused MTP-4
+`/tmp/ninfer-post-qsa-fix-flash-mtp4.json`.
+
+\* NVMe-stalled diagnostic only; not performance-qualified.
