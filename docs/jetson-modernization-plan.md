@@ -171,6 +171,15 @@ repeated-prompt, eight-token follow-up could not start inference because Engine 
 CUDA build was consuming substantial host CPU and memory, so this is not evidence for or against
 same-history parity. The eight-row gate remains open.
 
+A follow-up candidate kept QSA batched for both paths and forced PLE projection to use the same
+per-column association for Step and Verify. Its build passed and the three-request, 16-token,
+draft-1, graphs-off cohort passed exact parity at batch 3. The eight-request, 16-token run entered
+uninterruptible block I/O while reading the file-backed artifact; kernel logs showed recurring
+NVMe request timeouts. After 14 minutes without a result, the test was terminated. This is not
+parity evidence for that candidate. A common batched PLE candidate instead failed the three-request
+gate at row 0, output token 7. Both PLE route experiments were reverted; the common batched QSA
+route remains the only retained correction, and the eight-request gate remains unresolved.
+
 ### Milestone 1: Modern JP6 platform and original models
 
 The modern Orin source branch `feat/jetson-orin-sm87-jp6-sync` is based on the original NInfer
