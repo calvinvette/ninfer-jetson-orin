@@ -90,12 +90,11 @@ void TextRun::local_mixer(std::uint32_t i) {
                                ? std::nullopt
                                : std::optional{execution_.states.main_tail(
                                      state.state_index, batch_.destination_offsets)};
-        // Verify and decode must use the same batched QSA projection association. The
-        // per-column Verify route can round projected BF16 keys differently.
+        // Verify's kv_index projections use the same batch width as decode; their index_query
+        // output can round differently when projected with the full Verify token extent.
         qsa(roots_.input, parameters_.profile->local.qsa, std::get<QsaParameters>(p.mixer), batch_,
             execution_.states.main_tail(state.state_index, batch_.source_offsets), after,
-            execution_.cache.layer(state.state_index), records, roots_.output, arena, cuda_,
-            false);
+            execution_.cache.layer(state.state_index), records, roots_.output, arena, cuda_);
     }
 }
 

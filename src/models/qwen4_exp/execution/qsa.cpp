@@ -1,13 +1,32 @@
 #include "models/qwen4_exp/execution/qsa.h"
 #include "models/qwen4_exp/execution/workspace.h"
+#include "ninfer/ops/indexing.h"
 #include "ninfer/ops/linear_split.h"
+
+#include <span>
 
 namespace ninfer::models::qwen4_exp::execution {
 namespace {
+void grouped_linear_split(const Tensor& input, const ops::ProjectionWeights& weights,
+                          std::span<const Tensor> grouped_outputs,
+                          std::span<const Tensor> outputs, Tensor grouped_input,
+                          std::int32_t tokens, std::int32_t batch, MemoryArena& arena,
+                          CudaExecutionView cuda) {
+    const auto input_batch = input.view({input.ne[0], tokens, batch});
+    for (std::int32_t token = 0; token < tokens; ++token) {
+        ops::gather_bf16_token_batch(input_batch, token, grouped_input, cuda);
+        ops::linear_split(grouped_input, weights, grouped_outputs, arena, cuda);
+        for (std::size_t i = 0; i < outputs.size(); ++i) {
+            auto destination = outputs[i].view({outputs[i].ne[0], tokens, batch});
+            ops::scatter_bf16_token_batch(grouped_outputs[i], token, destination, cuda);
+        }
+    }
+}
+
 void prepare(const Tensor& input, const QsaConfig& c, const QsaParameters& p,
              const BatchView& batch, const ops::QsaTailStateView& before, ops::QsaCacheView cache,
              workspace::QsaBuffers& buffers, ops::QsaRawRecordWriteView& records,
-             MemoryArena& arena, CudaExecutionView cuda, bool serial_projection_columns) {
+             MemoryArena& arena, CudaExecutionView cuda) {
     const auto d = dimension(c.head_dim), qh = dimension(c.query_heads), kh = dimension(c.kv_heads);
     const auto id = dimension(c.index_dim), ih = dimension(c.index_heads);
     const auto qw = dimension(c.query_width()), kw = dimension(c.kv_width());
@@ -19,52 +38,30 @@ void prepare(const Tensor& input, const QsaConfig& c, const QsaParameters& p,
     {
         auto scratch = arena.scope();
         if (const auto* main = std::get_if<MainQsaProjection>(&p.input)) {
-            if (!serial_projection_columns) {
-                const std::array qg{buffers.query.view({qw, m}), buffers.gate.view({qw, m})};
-                ops::linear_split(input, main->query_gate, qg, arena, cuda);
-            } else {
-                for (int col = 0; col < m; ++col) {
-                    const std::array qg{buffers.query.view({qw, m}).slice(1, col, 1),
-                                        buffers.gate.view({qw, m}).slice(1, col, 1)};
-                    ops::linear_split(input.view({input.ne[0], m}).slice(1, col, 1),
-                                      main->query_gate, qg, arena, cuda);
-                }
-            }
+            const std::array qg{buffers.query.view({qw, m}), buffers.gate.view({qw, m})};
+            ops::linear_split(input, main->query_gate, qg, arena, cuda);
         } else {
             const std::array all{buffers.key.view({kw, m}),  buffers.value.view({kw, m}),
                                  buffers.index_key,          buffers.query.view({qw, m}),
                                  buffers.gate.view({qw, m}), buffers.index_query.view({iq, m})};
-            if (!serial_projection_columns) {
-                ops::linear_split(input, std::get<LinearParameters>(p.input), all, arena, cuda);
-            } else {
-                for (int col = 0; col < m; ++col) {
-                    const std::array one{buffers.key.view({kw, m}).slice(1, col, 1),
-                                         buffers.value.view({kw, m}).slice(1, col, 1),
-                                         buffers.index_key.view({ik, m}).slice(1, col, 1),
-                                         buffers.query.view({qw, m}).slice(1, col, 1),
-                                         buffers.gate.view({qw, m}).slice(1, col, 1),
-                                         buffers.index_query.view({iq, m}).slice(1, col, 1)};
-                    ops::linear_split(input.view({input.ne[0], m}).slice(1, col, 1),
-                                      std::get<LinearParameters>(p.input), one, arena, cuda);
-                }
-            }
+            ops::linear_split(input, std::get<LinearParameters>(p.input), all, arena, cuda);
         }
     }
     if (const auto* main = std::get_if<MainQsaProjection>(&p.input)) {
         auto scratch = arena.scope();
-        if (!serial_projection_columns) {
+        if (batch.tokens > 1 && buffers.grouped_input.data) {
+            const std::array grouped{buffers.grouped_key, buffers.grouped_value,
+                                     buffers.grouped_index_query, buffers.grouped_index_key};
+            const std::array outputs{buffers.key.view({kw, t, b}),
+                                     buffers.value.view({kw, t, b}),
+                                     buffers.index_query.view({iq, t, b}),
+                                     buffers.index_key.view({ik, t, b})};
+            grouped_linear_split(input, main->kv_index, grouped, outputs,
+                                 buffers.grouped_input, t, b, arena, cuda);
+        } else {
             const std::array kv{buffers.key.view({kw, m}), buffers.value.view({kw, m}),
                                 buffers.index_query.view({iq, m}), buffers.index_key};
             ops::linear_split(input, main->kv_index, kv, arena, cuda);
-        } else {
-            for (int col = 0; col < m; ++col) {
-                const std::array kv{buffers.key.view({kw, m}).slice(1, col, 1),
-                                    buffers.value.view({kw, m}).slice(1, col, 1),
-                                    buffers.index_query.view({iq, m}).slice(1, col, 1),
-                                    buffers.index_key.view({ik, m}).slice(1, col, 1)};
-                ops::linear_split(input.view({input.ne[0], m}).slice(1, col, 1), main->kv_index,
-                                  kv, arena, cuda);
-            }
         }
     }
     auto query       = buffers.query.view({d, qh, t, b});
@@ -89,13 +86,14 @@ void extract(const ops::QsaTailStateView& before, ops::QsaTailStateView after,
 void qsa(const Tensor& input, const QsaConfig& c, const QsaParameters& p, const BatchView& batch,
          const ops::QsaTailStateView& before, std::optional<ops::QsaTailStateView> after,
          ops::QsaCacheView cache, ops::QsaRawRecordWriteView records, Tensor& output,
-         MemoryArena& arena, CudaExecutionView cuda, bool serial_projection_columns) {
+         MemoryArena& arena, CudaExecutionView cuda) {
     auto scope   = arena.scope();
     const auto t = batch.tokens, b = batch.batch;
     const auto d = dimension(c.head_dim), qh = dimension(c.query_heads);
-    auto buffers = workspace::qsa(arena, c, t * b, !records.raw_keys.data);
-    prepare(input, c, p, batch, before, cache, buffers, records, arena, cuda,
-            serial_projection_columns);
+    const auto grouped_batch = t > 1 && records.raw_keys.data ? b : 0;
+    auto buffers = workspace::qsa(arena, c, t * b, !records.raw_keys.data,
+                                  grouped_batch, input.ne[0]);
+    prepare(input, c, p, batch, before, cache, buffers, records, arena, cuda);
     const ops::QsaBatchView metadata{batch.positions, batch.valid_columns, batch.table_rows};
     ops::QsaBlockSelection selected{buffers.selection.view({dimension(c.block_budget), t, b}),
                                     buffers.counts.view({t, b})};
