@@ -759,7 +759,11 @@ Flash-Next performance qualification. Reports: `/tmp/ninfer-post-qsa-fix-flash-n
   file-backed expert reads did not prevent the repeated-prompt cohort from blocking in `pread64`
   on a 512 KiB request; that run was terminated without a parity result and the generic reader
   change was removed. Limiting individual request size is therefore insufficient evidence for a
-  fix. The next storage change must account for concurrent PLE and expert-cache I/O as a whole.
+  fix. A real-artifact PLE-only depth comparison at batch 8 × 4 positions read 1.875–1.906 MiB
+  in 3.35–4.02 ms at depth 128, versus 5.93–6.38 ms at depth 16 (three samples per setting).
+  Lowering the PLE depth globally would regress this path and has not been adopted. The comparison
+  does not exercise simultaneous expert-cache reads; the next storage change must account for
+  concurrent PLE and expert-cache I/O as a whole.
 - Graph execution beyond the one-token smoke is now verified with text MTP through 128 tokens,
   image MTP through 32 tokens, video MTP through 35 generated tokens, a three-request MTP cohort,
   and a file-backed mixed-media Decode step. These are correctness/smoke checks; stable end-to-end
