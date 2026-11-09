@@ -765,6 +765,13 @@ Flash-Next performance qualification. Reports: `/tmp/ninfer-post-qsa-fix-flash-n
   aligned conclusively to the serial near-tie position, so this does not establish whether target
   logits or acceptance first diverge. The temporary probe was removed; a repeat needs a completed
   real-artifact run with row/position inputs attached to each logit snapshot.
+- A temporary graphs-off 8-request, 16-token, draft-1 experiment projected each Verify token
+  position as a contiguous 8-column batch before scattering target logits back to the normal
+  layout. This selects the Flash-Next Q8 output head's same `C8` route used by ordinary batch-8
+  decode instead of Verify's `C16` route. The run reached decode batch 8 but retained the exact
+  row-1 token-14 mismatch (`4145` serial, `2716` MTP) and row-7 token-4 mismatch. Matching the
+  target-head route alone is therefore insufficient; the temporary route was removed and the clean
+  JP6 build passed. NVMe timeouts also recurred during the run.
 - Distinguish SSD/controller cache state for physical cold/warm storage measurements; `O_DIRECT`
   isolates requests from the host page cache but does not flush or measure device caches.
 - Storage diagnosis: the 4 TB Seagate FireCuda 530 ZP4000GM30023 (`SU6SM001`, active slot 1)
