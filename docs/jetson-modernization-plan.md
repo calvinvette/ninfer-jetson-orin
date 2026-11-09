@@ -820,6 +820,15 @@ Flash-Next performance qualification. Reports: `/tmp/ninfer-post-qsa-fix-flash-n
   divergence to PLE consumption or its inputs/state. The per-layer trace does not yet identify the
   first differing PLE projection, gate, convolution, or normalization value; it is temporary
   instrumentation in `ninfer-orin-rebase`.
+- A focused PLE-stage trace of those token/position pairs shows that both the PLE embedding and
+  incoming residual are bit-identical between serial Step and Verify. The PLE projection output is
+  the first directly compared PLE value that differs; the current caller selects batched projection
+  for Step and per-column projection for Verify. Gate and convolution record outputs consequently
+  differ downstream. The raw convolution-state hashes also differ because Verify starts at the
+  earlier window boundary and replays its first token from records; this is not yet evidence of a
+  state error. The next check must establish whether that replay reconstructs the serial state at
+  the second token, then test a route with one projection association across Step and Verify. The
+  PLE-stage trace is temporary and uncommitted.
 - Distinguish SSD/controller cache state for physical cold/warm storage measurements; `O_DIRECT`
   isolates requests from the host page cache but does not flush or measure device caches.
 - Storage diagnosis: the 4 TB Seagate FireCuda 530 ZP4000GM30023 (`SU6SM001`, active slot 1)
