@@ -742,7 +742,8 @@ Flash-Next performance qualification. Reports: `/tmp/ninfer-post-qsa-fix-flash-n
   encoder-throughput qualification covers artifact weights at up to 64 patches.
 - Distinguish SSD/controller cache state for physical cold/warm storage measurements; `O_DIRECT`
   isolates requests from the host page cache but does not flush or measure device caches.
-- Storage diagnosis: the 4 TB Seagate FireCuda 530 (`SU6SM001`) reports no critical warning,
+- Storage diagnosis: the 4 TB Seagate FireCuda 530 ZP4000GM30023 (`SU6SM001`, active slot 1)
+  reports no critical warning,
   100% spare, 0 media errors, and 44 C after the latest run. PCIe is 16 GT/s ×4 with ASPM disabled.
   A temporary APST-disable run still logged NVMe I/O timeouts; APST and its original PS3/PS4
   transition table have been restored. In that run the 64-token text parity case passed, then one
