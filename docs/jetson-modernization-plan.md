@@ -531,6 +531,39 @@ select its 16-token window kernel for a 17-token single-row input. The Q8 route 
 the materialized path at that boundary. Stream validation in the CUDA-graph snapshot test now
 happens before capture, which is required by CUDA 12.6's `cudaStreamGetFlags` behavior.
 
+### Post-upstream remeasurement (2026-11-08)
+
+After rebasing onto upstream `dev` `41da21f47`, the seven public-Engine measurements below were
+repeated on AGX Orin in MAXN with `jetson_clocks` (CPU 2.2016 GHz, GPU 1.3005 GHz, EMC 3.199 GHz),
+CUDA 12.6, one warmup, and three measured repetitions. The groupwise-int runs used the same
+`/tmp/ninfer_jp6_benchmark_messages.json` input (707 tokens for Qwen3.8-27B, 665 for 35B-A3B),
+64 output tokens, INT8 KV, 1 GiB context capacity, 512 MiB headroom, 2,048-token max context,
+128-token prefill chunks, CUDA Graphs, and prefix reuse off. An additional 35B-A3B MTP-2 run used
+the prior 1,024-token prefill chunk to match its earlier measured configuration. Flash-Next used the `hi` prompt
+(53 input tokens), 10 output tokens, INT8 KV, 512 MiB context capacity, 4,096-token max context,
+128-token prefill chunks, CUDA Graphs, and prefix reuse off. Rates and request wall times are
+medians across the three measured repetitions; draft acceptance totals were identical in each
+repetition. Prompt and output lengths differ across artifact families, so compare rows within each
+artifact only.
+
+| Artifact | Speculation | Input → output tokens | Chunk | Prefill tok/s | Decode tok/s | Request wall s | Draft accepted |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| Qwen3.8-27B groupwise-int V3 | off | 707 → 64 | 128 | 181.82 | 7.285 | 12.541 | — |
+| Qwen3.8-27B groupwise-int V3 | MTP-3 | 707 → 64 | 128 | 181.35 | 10.504 | 9.899 | 39 / 69 (56.5%); 1 fallback |
+| Qwen3.6-35B-A3B groupwise-int V3 | off | 665 → 64 | 128 | 573.52 | 36.290 | 2.898 | — |
+| Qwen3.6-35B-A3B groupwise-int V3 | MTP-3 | 665 → 64 | 128 | 570.67 | 55.287 | 2.307 | 44 / 53 (83.0%); 1 fallback |
+| Qwen3.6-35B-A3B groupwise-int V3 | MTP-2 | 665 → 64 | 1024 | 1193.17 | 53.418 | 1.738 | 39 / 46 (84.8%); 1 fallback |
+| Qwen3.8-Flash-Next V3 | off | 53 → 10 | 128 | 3.327 | 1.534 | 21.799 | — |
+| Qwen3.8-Flash-Next V3 | MTP-4 | 53 → 10 | 128 | 3.539 | 1.238 | 22.247 | 6 / 9 (66.7%); 0 fallbacks |
+
+The Qwen3.8-27B and 35B-A3B serial rates agree with their earlier 64-token, long-prompt runs
+within 0.3%. The 35B-A3B MTP-2 run also matches the earlier same-configuration report within
+0.4%, including prefill and wall time. Qwen3.8-27B MTP-3 and 35B-A3B MTP-3 improve decode throughput in this workload.
+Flash-Next MTP-4 is slightly slower than serial at this short output horizon; the accepted-draft
+count does not imply a speedup. The earlier 2026-11-07 table is a separate short-prompt workload.
+Per-repetition reports are in `/tmp/ninfer-post-rebase-*.json`; temperature was not logged during
+this measurement series.
+
 ### Remaining gates
 
 - Resolve the reproducible long-horizon cohort parity mismatch before qualifying longer cohort
