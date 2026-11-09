@@ -793,7 +793,11 @@ Flash-Next performance qualification. Reports: `/tmp/ninfer-post-qsa-fix-flash-n
   reading the exact 4 KiB offset for 10 s also completed without FIO errors (20.1k IOPS, mean
   latency 6.37 ms, max 12.65 ms). Neither same-volume FIO run added a kernel timeout. The stalled
   page is therefore readable and the failure is intermittent; the custom PLE workload still
-  differs from these FIO access patterns, and its failure mechanism remains open.
+  differs from these FIO access patterns, and its failure mechanism remains open. The current host
+  drive identifies as a Seagate FireCuda 530 (SU6SM001), PCIe Gen4 x4; PCIe AER reports no errors.
+  SMART still reports zero media errors. Its nonzero NVMe error-log entries are `INVALID_FIELD`
+  admin-command statuses (the remaining returned entries are successful), not a logged media or
+  transport failure; they do not explain the kernel’s timed-out I/O requests.
 - Graph execution beyond the one-token smoke is now verified with text MTP through 128 tokens,
   image MTP through 32 tokens, video MTP through 35 generated tokens, a three-request MTP cohort,
   and a file-backed mixed-media Decode step. These are correctness/smoke checks; stable end-to-end
