@@ -850,6 +850,9 @@ Flash-Next performance qualification. Reports: `/tmp/ninfer-post-qsa-fix-flash-n
   SMART still reports zero media errors. Its nonzero NVMe error-log entries are `INVALID_FIELD`
   admin-command statuses (the remaining returned entries are successful), not a logged media or
   transport failure; they do not explain the kernel’s timed-out I/O requests.
+  The supplied artifact and root filesystem both reside on this NVMe. The only other local block
+  device is a 59.3 GB eMMC, smaller than the approximately 102 GB artifact directory, so this host
+  has no alternate local volume for a full-artifact qualification run.
   A controlled APST experiment toggled autonomous power-state transitions only for each run and
   restored the original enabled state afterward. With APST disabled, one matched 5,000-window run
   completed in 10.98 s (median 1.97 ms, p99 3.55 ms, max 4.21 ms); its repeat timed out at sample
