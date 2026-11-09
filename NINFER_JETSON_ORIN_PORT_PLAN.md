@@ -718,8 +718,12 @@ The three-row, eight-token cohort matched all request token IDs exactly (draft/a
 5/5, and 5/5) and exercised a three-row decode batch. A graph-disabled three-row, 16-token rerun
 matched through token 13, then diverged at row 1, token 14 (ordinary 4145, MTP 2716). A PLE trace
 ties earlier gate differences to persistent history at this anchor; see the modernization plan for
-the per-plane capture. The cohort parity gate remains open. An eight-request cohort attempt timed
-out after ten minutes amid NVMe I/O timeouts and remains unqualified. Supporting the verified
+the per-plane capture. The cohort parity gate remains open. A later graphs-off, eight-request
+MTP-only run reached decode batch 8 and showed the row-1 divergence already present in target
+logits before acceptance or commit (serial token 4145, MTP token 2716 at frontier 71). This
+narrows the failing boundary but does not locate the first differing hidden state or qualify the
+cohort. An eight-request cohort attempt timed out after ten minutes amid NVMe I/O timeouts and
+remains unqualified. Supporting the verified
 three-row cohort required slicing Orin FP8 and NVFP4 MoE inputs at their qualified per-kernel row
 limits. These are parity results rather than performance claims. These checks extend qualification;
 they do not close longer
