@@ -1070,8 +1070,9 @@ were measured on AGX Orin / CUDA 12.6 in MAXN with `jetson_clocks` (CPU 2.2016 G
 | Q8 tiled-GEMV + BF16 short-window GEMV | MTP-4 | 3.584 | 1.256 | 0.455 | 14.791 | 21.958 | 3.00 | 6 / 9 (66.7%); 0 fallbacks |
 
 These are medians from three completed repetitions per setting. MTP-2 is the fastest of these
-short runs in both decode and wall throughput; the benchmark alone does not establish exact
-serial/MTP token parity for MTP-2 or MTP-3. The 35.292 s speculation-off result from the earlier
+short runs in both decode and wall throughput. Separate one-request, 16-output real-artifact
+checks pass exact serial/MTP token parity for MTP-2 and MTP-3 with CUDA Graphs off and INT8 KV;
+each check recorded one fallback. The 35.292 s speculation-off result from the earlier
 timeout-affected window is superseded by the rerun above. A separate `tegrastats` sample during
 one MTP-2 run recorded peak system RAM of 23,526/30,697 MiB, peak GR3D utilization of 99%, EMC
 utilization up to 9% at 3.199 GHz, and VIN_SYS_5V0 power up to 6.27 W. RAM includes the operating
