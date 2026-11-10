@@ -1234,44 +1234,65 @@ int q8_batched_decode_record_equivalence(Weights& weights, int batch, int width)
     MemoryArena update_workspace(update_workspace_storage.span());
     MemoryArena record_workspace(record_workspace_storage.span());
 
-    ops::gdn_input_proj_conv_update(x_update, projection, conv, source, destination,
-                                    valid_update, output(update_query, update_key, update_value,
-                                                        update_z, 1),
-                                    update_workspace, exec);
     ops::gdn_input_proj_conv_record(x_verify, projection, conv, source, valid_verify,
                                    output(verify_query, verify_key, verify_value, verify_z, width),
                                    conv_record_tensor, record_workspace, exec);
     cuda_synchronize();
 
     int failures = 0;
-    const auto compare_first = [&](const char* label, const GuardedBf16Tensor& ordinary,
-                                   const GuardedBf16Tensor& verify, int rows) {
+    const auto compare_column = [&](const char* label, const GuardedBf16Tensor& ordinary,
+                                    const GuardedBf16Tensor& verify, int rows, int token) {
         const auto a = ordinary.bits(), b = verify.bits();
         for (int row = 0; row < batch; ++row) {
             const auto ai = a.begin() + static_cast<std::ptrdiff_t>(row * rows);
-            const auto bi = b.begin() + static_cast<std::ptrdiff_t>(row * width * rows);
+            const auto bi = b.begin() + static_cast<std::ptrdiff_t>((row * width + token) * rows);
             if (!std::equal(ai, ai + rows, bi)) {
                 ++failures;
-                std::cerr << "Q8 identical-input route mismatch " << label << " row=" << row << '\n';
+                std::cerr << "Q8 identical-input route mismatch " << label << " row=" << row
+                          << " token=" << token << '\n';
             }
         }
     };
-    compare_first("query", update_query, verify_query, qk_rows);
-    compare_first("key", update_key, verify_key, qk_rows);
-    compare_first("value", update_value, verify_value, value_rows);
-    compare_first("z", update_z, verify_z, value_rows);
-    history.copy_back();
-    const auto state_after = state.bits(), record_bits = conv_record.bits();
-    for (int row = 0; row < batch; ++row) {
-        const auto state_base = static_cast<std::size_t>(destination_slots[row]) * slot_stride +
-                                2ULL * channels;
-        const auto record_base = static_cast<std::size_t>(row * width) * channels;
-        if (!std::equal(state_after.begin() + static_cast<std::ptrdiff_t>(state_base),
-                        state_after.begin() + static_cast<std::ptrdiff_t>(state_base + channels),
-                        record_bits.begin() + static_cast<std::ptrdiff_t>(record_base))) {
-            ++failures;
-            std::cerr << "Q8 identical-input route mismatch convolution state row=" << row << '\n';
+    auto current_source_slots = source_slots;
+    auto current_destination_slots = destination_slots;
+    for (int token = 0; token < width; ++token) {
+        for (int row = 0; row < batch; ++row)
+            std::copy_n(verify_activation.begin() +
+                            static_cast<std::ptrdiff_t>((row * width + token) * hidden),
+                        hidden, update_activation.begin() + static_cast<std::ptrdiff_t>(row * hidden));
+        update_x_device.copy_from_host(update_activation.data(), update_activation.size() * 2);
+        const auto source_bytes = history.record_offsets(current_source_slots);
+        const auto destination_bytes = history.record_offsets(current_destination_slots);
+        DeviceBuffer source_device = to_device(source_bytes);
+        DeviceBuffer destination_device = to_device(destination_bytes);
+        Tensor source_offsets(source_device.span(), DType::I64, {batch});
+        Tensor destination_offsets(destination_device.span(), DType::I64, {batch});
+        const auto source = history.view(source_offsets);
+        const auto destination = history.view(destination_offsets);
+        ops::gdn_input_proj_conv_update(
+            x_update, projection, conv, source, destination, valid_update,
+            output(update_query, update_key, update_value, update_z, 1), update_workspace, exec);
+        cuda_synchronize(exec.stream());
+        compare_column("query", update_query, verify_query, qk_rows, token);
+        compare_column("key", update_key, verify_key, qk_rows, token);
+        compare_column("value", update_value, verify_value, value_rows, token);
+        compare_column("z", update_z, verify_z, value_rows, token);
+        history.copy_back();
+        const auto state_after = state.bits(), record_bits = conv_record.bits();
+        for (int row = 0; row < batch; ++row) {
+            const auto state_base =
+                static_cast<std::size_t>(current_destination_slots[row]) * slot_stride +
+                2ULL * channels;
+            const auto record_base = static_cast<std::size_t>(row * width + token) * channels;
+            if (!std::equal(state_after.begin() + static_cast<std::ptrdiff_t>(state_base),
+                            state_after.begin() + static_cast<std::ptrdiff_t>(state_base + channels),
+                            record_bits.begin() + static_cast<std::ptrdiff_t>(record_base))) {
+                ++failures;
+                std::cerr << "Q8 identical-input route mismatch convolution state row=" << row
+                          << " token=" << token << '\n';
+            }
         }
+        std::swap(current_source_slots, current_destination_slots);
     }
     return failures;
 }

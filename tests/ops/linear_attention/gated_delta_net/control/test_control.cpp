@@ -24,14 +24,22 @@ int route_invariance(CudaExecutionView execution) {
     single.invoke(single.arena, execution);
     wide.invoke(wide.arena, execution);
     cuda_synchronize(execution.stream());
-    const auto single_g = from_device<float>(single.g.data(), 48);
-    const auto wide_g   = from_device<float>(wide.g.data(), 48 * 16);
-    const auto single_b = from_device<float>(single.beta.data(), 48);
-    const auto wide_b   = from_device<float>(wide.beta.data(), 48 * 16);
-    if (!std::equal(single_g.begin(), single_g.end(), wide_g.begin()) ||
-        !std::equal(single_b.begin(), single_b.end(), wide_b.begin())) {
-        std::cerr << "GDN control T=1 differs from the first column at T=16\n";
-        return 1;
+    const auto wide_g = from_device<float>(wide.g.data(), 48 * 16);
+    const auto wide_b = from_device<float>(wide.beta.data(), 48 * 16);
+    for (int column = 0; column < 16; ++column) {
+        std::copy_n(wide.x.begin() + std::size_t(column) * 2560, 2560, single.x.begin());
+        single.upload();
+        single.invoke(single.arena, execution);
+        cuda_synchronize(execution.stream());
+        const auto single_g = from_device<float>(single.g.data(), 48);
+        const auto single_b = from_device<float>(single.beta.data(), 48);
+        const auto wide_g_column = wide_g.begin() + std::size_t(column) * 48;
+        const auto wide_b_column = wide_b.begin() + std::size_t(column) * 48;
+        if (!std::equal(single_g.begin(), single_g.end(), wide_g_column) ||
+            !std::equal(single_b.begin(), single_b.end(), wide_b_column)) {
+            std::cerr << "GDN control T=1 differs from T=16 column " << column << '\n';
+            return 1;
+        }
     }
     return 0;
 }
