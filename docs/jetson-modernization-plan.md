@@ -1056,23 +1056,28 @@ The test's 4 GiB context pool allowed execution; an 8 GiB pool was rejected by t
 before execution. Full eight-row Verify coverage and long-horizon qualification remain open, and
 real-artifact reads continue to hit NVMe timeouts.
 
-The public-Engine benchmark reuses the 53-token `hi` input, 10-token budget, BF16 KV, 4,096-token
+The public-Engine benchmark uses the 53-token `hi` input, 10-token budget, BF16 KV, 4,096-token
 max context, 128-token prefill chunks, 512 MiB context capacity and headroom, Graphs on, prefix
-reuse off, greedy sampling, one warmup, and three repetitions. It ran on AGX Orin / CUDA 12.6 in
-MAXN with `jetson_clocks` (CPU 2.2016 GHz, GPU 1.3005 GHz, EMC 3.199 GHz). Values are medians:
+reuse off, greedy sampling, one warmup, and three repetitions. The four speculation settings
+were measured on AGX Orin / CUDA 12.6 in MAXN with `jetson_clocks` (CPU 2.2016 GHz, GPU
+1.3005 GHz, EMC 3.199 GHz). Values are medians:
 
-| Qwen3.8-Flash-Next V3 | Speculation | Prefill tok/s | Decode tok/s | Wall tok/s | Request wall s | Draft accepted |
-|---|---:|---:|---:|---:|---:|---:|
-| Q8 tiled-GEMV + BF16 short-window GEMV | Off | 3.575 | 1.628 | 0.283 | 35.292 | — |
-| Q8 tiled-GEMV + BF16 short-window GEMV | MTP-4 | 3.638 | 1.276 | 0.462 | 21.631 | 6 / 9 (66.7%); 0 fallbacks |
+| Qwen3.8-Flash-Next V3 | Speculation | Prefill tok/s | Decode tok/s | Wall tok/s | TTFT s | Request wall s | Effective tokens / step | Draft accepted |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|
+| Q8 tiled-GEMV + BF16 short-window GEMV | Off | 3.622 | 1.668 | 0.499 | 14.633 | 20.029 | 1.00 | — |
+| Q8 tiled-GEMV + BF16 short-window GEMV | MTP-2 | 3.672 | 2.089 | 0.532 | 14.435 | 18.797 | 3.00 | 6 / 6 (100%); 0 fallbacks |
+| Q8 tiled-GEMV + BF16 short-window GEMV | MTP-3 | 3.657 | 1.525 | 0.489 | 14.495 | 20.442 | 3.00 | 6 / 8 (75%); 0 fallbacks |
+| Q8 tiled-GEMV + BF16 short-window GEMV | MTP-4 | 3.584 | 1.256 | 0.455 | 14.791 | 21.958 | 3.00 | 6 / 9 (66.7%); 0 fallbacks |
 
-These are medians from three completed repetitions of the same public-Engine benchmark. The
-updated MTP-4 median is close to the earlier route's 3.606 prefill / 1.298 decode / 0.462 wall
-tok/s and 21.631 s. Kernel NVMe timeouts were logged during the updated benchmark window, and the
-serial wall result is consequently noisy; do not interpret the 35.292 s median as an engine-only
-regression. The prior no-timeout serial measurement was 3.497 prefill / 1.646 decode / 0.485 wall
-tok/s and 20.618 s. MTP-4 remains slower in decode tok/s for this short workload despite 6/9 draft
-acceptance. An artifact-backed three-request, 24-output
+These are medians from three completed repetitions per setting. MTP-2 is the fastest of these
+short runs in both decode and wall throughput; the benchmark alone does not establish exact
+serial/MTP token parity for MTP-2 or MTP-3. The 35.292 s speculation-off result from the earlier
+timeout-affected window is superseded by the rerun above. A separate `tegrastats` sample during
+one MTP-2 run recorded peak system RAM of 23,526/30,697 MiB, peak GR3D utilization of 99%, EMC
+utilization up to 9% at 3.199 GHz, and VIN_SYS_5V0 power up to 6.27 W. RAM includes the operating
+system and file cache. The benchmark uses a configured 4,096-token max context (reported KV
+capacity about 5,461 tokens with MTP-2); a maximum practical context sweep and sustained memory
+bandwidth qualification are still outstanding. An artifact-backed three-request, 24-output
 MTP-4 cohort separately passes exact serial/MTP token parity (18/18 drafts accepted per row,
 CUDA Graphs off). An eight-request, 24-output MTP-4 cohort also matches exact tokens on every row
 (18/18 drafts accepted per row), but reaches only decode batch 5 and does not satisfy the batch-8
