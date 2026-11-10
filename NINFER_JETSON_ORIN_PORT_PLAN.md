@@ -718,7 +718,7 @@ The three-row, eight-token cohort matched all request token IDs exactly (draft/a
 5/5, and 5/5) and exercised a three-row decode batch. A graph-disabled three-row, 16-token rerun
 matched through token 13, then diverged at row 1, token 14 (ordinary 4145, MTP 2716). A PLE trace
 ties earlier gate differences to persistent history at this anchor; see the modernization plan for
-the per-plane capture. The cohort parity gate remains open. A later graphs-off, eight-request
+the per-plane capture. A later graphs-off, eight-request
 MTP-only run reached decode batch 8 and showed the row-1 divergence already present in target
 logits before acceptance or commit (serial token 4145, MTP token 2716 at frontier 71). This
 narrows the failing boundary but does not locate the first differing hidden state or qualify the
@@ -732,3 +732,9 @@ stable cold/warm storage measurements, or physical SSD/controller cache
 characterization. CUDA 12.6 remains the required toolchain; JP7/CUDA 13
 qualification awaits that environment. Scope and run details are recorded in
 [`docs/jetson-modernization-plan.md`](docs/jetson-modernization-plan.md).
+
+Update (2026-11-10): The Qwen3.8-Flash-Next V3 Q8 projection route now passes exact serial/MTP
+parity for a repeated-prompt eight-request, 24-output draft-1 cohort at decode batch 8, both with
+CUDA Graphs off and on. Draft-4 MTP also matches all rows for that workload, but its observed
+maximum decode batch is five, so full-width draft-4 remains open. The layer-23 reduction mismatch
+and its operator-level exact-parity qualification are documented in the modernization plan.

@@ -1063,19 +1063,90 @@ MAXN with `jetson_clocks` (CPU 2.2016 GHz, GPU 1.3005 GHz, EMC 3.199 GHz). Value
 
 | Qwen3.8-Flash-Next V3 | Speculation | Prefill tok/s | Decode tok/s | Wall tok/s | Request wall s | Draft accepted |
 |---|---:|---:|---:|---:|---:|---:|
-| Current route | Off | 3.489 | 1.598 | 0.480 | 20.825 | — |
-| Current route, latest MTP-4 attempt | MTP-4 | 1.183* | 1.264* | 0.193* | 51.886* | 6 / 9 (66.7%); 0 fallbacks |
+| Q8 tiled-GEMV + BF16 short-window GEMV | Off | 3.575 | 1.628 | 0.283 | 35.292 | — |
+| Q8 tiled-GEMV + BF16 short-window GEMV | MTP-4 | 3.638 | 1.276 | 0.462 | 21.631 | 6 / 9 (66.7%); 0 fallbacks |
 
-An initial grouped-QSA measurement also grouped multi-token prefill, although only Verify had the
-workspace budget for those buffers; it is excluded. The serial row is the latest usable benchmark
-for the narrowed Verify route. The MTP-4 row is the latest candidate run, but repeated NVMe I/O
-timeouts stalled the file-backed workload, so all its throughput and wall-time values are
-unqualified and must not be compared with the serial row. A previous focused run before narrowing
-the Verify projection measured 3.542 prefill / 1.249 decode / 0.451 wall tok/s and 22.170 s, with
-6 / 9 drafts accepted and no fallbacks. Short file-backed measurements varied substantially across
-campaigns and do not establish a general performance effect. Reports: serial
-`/tmp/ninfer-post-verify-groupqsa-flash-none.json`, stalled MTP-4
-`/tmp/ninfer-post-kvindex-groupqsa-flash-mtp4.json`, and prior focused MTP-4
-`/tmp/ninfer-post-qsa-fix-flash-mtp4.json`.
+These are medians from three completed repetitions of the same public-Engine benchmark. The
+updated MTP-4 median is close to the earlier route's 3.606 prefill / 1.298 decode / 0.462 wall
+tok/s and 21.631 s. Kernel NVMe timeouts were logged during the updated benchmark window, and the
+serial wall result is consequently noisy; do not interpret the 35.292 s median as an engine-only
+regression. The prior no-timeout serial measurement was 3.497 prefill / 1.646 decode / 0.485 wall
+tok/s and 20.618 s. MTP-4 remains slower in decode tok/s for this short workload despite 6/9 draft
+acceptance. An artifact-backed three-request, 24-output
+MTP-4 cohort separately passes exact serial/MTP token parity (18/18 drafts accepted per row,
+CUDA Graphs off). An eight-request, 24-output MTP-4 cohort also matches exact tokens on every row
+(18/18 drafts accepted per row), but reaches only decode batch 5 and does not satisfy the batch-8
+coverage requirement. Eight-row, 24-output batch-8 parity is confirmed with draft-1. Reports:
+`/tmp/ninfer-post-q8-gemv-flash-none.json` and
+`/tmp/ninfer-post-q8-gemv-flash-mtp4.json`. The earlier NVMe-stalled report is diagnostic only
+and is superseded by these completed runs.
 
-\* NVMe-stalled diagnostic only; not performance-qualified.
+### Compact-batch QSA reduction and full-width MTP follow-up (2026-11-09)
+
+The Orin build selects the `rtx5090` QSA backend in `sources.cmake`; an earlier short-window
+planning adjustment had been made in the unused `dgx_spark` planner and therefore did not affect
+the Jetson binary. The active Orin planner selected three partial-attention splits at batch 5 and
+two at batch 8 for the same single-token query. Planning short decode/Verify windows against the
+supported maximum batch of eight, and using that same planning width for launch selection, removes
+this batch-dependent reduction tree. Added BF16 and INT8 compact-batch QSA parity tests pass, as
+does the Qwen4Exp state test and the complete incremental JP6 build.
+
+Before the Q8 projection route change below, exact serial/MTP token parity passed for three requests
+and 16 generated tokens (maximum decode batch 3), and an eight-request, eight-token attempt matched
+every row but reached only decode batch 4. A repeated-prompt eight-request, 24-token run reached
+batch 8 and failed row 0 at output token 2. An eight-request, 16-token attempt stalled for 15
+minutes on NVMe reads and supplied no result. The following projection route change addressed the
+batch-8 mismatch; later full-width evidence is recorded below.
+
+### QSA batch-independent projection route (2026-11-10)
+
+The layer-23 trace then narrowed the eight-row mismatch: Step and Verify had bit-identical QSA
+inputs, but `linear_split` dispatched the same Q8 projections through different M=1 and M=2
+reduction routes. This can produce different BF16 `key` and `index_query` values that are persisted
+to state. The SM87 Q8 split routes for N=12,288/K=2,048 and N=6,144/K=2,048 now use the existing
+weight-reusing tiled GEMV for widths 2–32. Each column uses the same accumulation order as the
+single-column GEMV route, independent of batch width. QSA remains a single batched `linear_split`
+call; the temporary per-column host-launch candidate was removed. Unused grouped-QSA buffers and
+their workspace accounting were also removed.
+
+The JP6 full build succeeds. At both model Q8 projection shapes (12,288x2,048 and 6,144x2,048),
+the linear-split tests pass independent numerical checks and exact batched-versus-single-column
+output comparisons for widths 2, 4, 8, 16, 17, and 32. The BF16 and INT8 QSA compact-batch tests
+and the Qwen4Exp state test pass. A repeated-prompt 8-request, 8-output real-artifact run matched
+every serial/MTP token, though it reached only decode batch 4. Extending it to 24 outputs exercised
+decode batch 8 and passed
+exact token parity for all eight rows (draft-1, CUDA Graphs off). The run completed after artifact
+loading; two earlier NVMe timeouts were logged, but no timeout occurred during inference. NVMe
+SMART reports 0 media errors, 100% spare, and 57 C. The specific full-width Verify mismatch is
+resolved by this route. A repeated-prompt eight-request, 24-output draft-1 rerun with CUDA Graphs
+enabled also passes exact parity and reaches decode batch 8. At this checkpoint, long-horizon state
+remained unverified; the later 64-output MTP-4 qualification is recorded below.
+MTP-4 matches all eight rows exactly at 24 outputs but reaches a maximum decode batch of five;
+full-width MTP-4 remains unverified. Follow-up public-Engine serial and MTP-4 measurements are
+reported in the table above: the short serial result is close to the prior measurement, while
+MTP-4 is slower than speculation off for this workload.
+
+The earlier single-request run exposed a target-forward mismatch at output index 2. A stream-
+synchronized layer trace localized it to QSA layer 23 with identical mixer input. The Q8 query/gate
+projection matched, while the BF16 `kv_index` projection (shape N=1664, K=2560) differed by one
+stored byte in each of `key` and `index_query` between one-token GEMV and the two-column sliced-K
+MMA path. Those small rounding differences flipped 1,905/2,048 selection bytes and changed the
+sparse-attention output.
+The short-window N1664/K2560 route now uses the same one-token GEMV schedule for up to 16 columns;
+the BF16 GEMV launcher supports independent token CTAs in one launch. Exact serial-column parity
+passes for the focused N=1664, K=2560, T=2 and T=5 operator cases. On the real artifact, the
+graph-disabled eight-token prompt comparison now passes exact parity with draft-1 (3/3 accepted,
+one fallback) and MTP-4 (5/5 accepted, no fallback). A single-request, 64-output MTP-4 comparison
+also passes exact token parity (69 drafts, 44 accepted, one fallback). A repeated-prompt
+eight-request, 24-output MTP-4 run matches all eight serial rows exactly (18/18 drafts accepted per
+row), but only reaches decode batch 5. The corrected-route eight-request, 64-output run reaches
+decode batch 8 but still fails exact parity: rows 1–7 first differ around output indices 25–26,
+while row 0 first differs at index 53. Thus the remaining failure requires batched long-horizon
+execution; it is separate from the corrected single-request target-forward projection mismatch.
+Full eight-row long-horizon parity remains open.
+
+A follow-up graphs-off eight-request, 30-output MTP-4 run was started to isolate the first
+long-horizon mismatch with a shorter sequence. It did not reach inference completion: repeated
+NVMe I/O timeouts persisted for more than 14 minutes while loading/servicing the artifact, so the
+process was stopped without a parity result. This does not change the previously observed
+64-output mismatch evidence.
