@@ -1150,3 +1150,10 @@ long-horizon mismatch with a shorter sequence. It did not reach inference comple
 NVMe I/O timeouts persisted for more than 14 minutes while loading/servicing the artifact, so the
 process was stopped without a parity result. This does not change the previously observed
 64-output mismatch evidence.
+
+To narrow the earlier GDN layer-0 mismatch without another artifact load, the Orin operator tests
+now compare every column in an `M=16` GDN control projection against independent `M=1` calls, and
+every token in the eight-row Q8 Verify input-projection/convolution window against sequential
+single-token updates. Both focused cases pass exactly, including Q/K/V/Z values and convolution
+state. This rules out those isolated projection/control route differences for the tested shapes and
+inputs; it does not qualify the real artifact's accumulated GDN state or its output projection.
