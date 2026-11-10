@@ -41,8 +41,20 @@ void launch_sparse_gqa(const Tensor& query, const Tensor& gate,
     constexpr int slab = 1 << 24;
     for (a.begin = 0; a.begin < queries; a.begin += slab) {
         const int n = int(std::min<std::int64_t>(slab, queries - a.begin));
-        const auto selected_launch =
-            select_sparse_gqa_launch(cache, plan, n, a.batch, execution.multiprocessor_count());
+        const auto planning_queries =
+#if defined(NINFER_TARGET_JETSON_ORIN)
+            a.tokens <= 6 ? 8 : n;
+#else
+            n;
+#endif
+        const auto planning_batch =
+#if defined(NINFER_TARGET_JETSON_ORIN)
+            a.tokens <= 6 ? 8 : a.batch;
+#else
+            a.batch;
+#endif
+        const auto selected_launch = select_sparse_gqa_launch(
+            cache, plan, planning_queries, planning_batch, execution.multiprocessor_count());
         launch_sparse_gqa_instance(a, cache.storage, cache.num_kv_heads, plan, selected_launch, n,
                                    execution);
     }

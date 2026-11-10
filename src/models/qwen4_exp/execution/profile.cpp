@@ -5,6 +5,7 @@
 #include "ninfer/ops/linear_split.h"
 
 #include <array>
+#include <algorithm>
 
 namespace ninfer::models::qwen4_exp::execution {
 namespace {
@@ -157,16 +158,12 @@ std::shared_ptr<const ModelProfile> describe_model(const ModelDefinition& source
 }
 
 std::size_t qsa_projection_workspace_bytes(const QsaProfile& p, std::int32_t first,
-                                           std::int32_t last, std::int32_t grouped_batch) {
+                                           std::int32_t last) {
     if (const auto* main = std::get_if<MainQsaProjectionProfile>(&p.input)) {
         auto result = std::max(ops::linear_split_workspace_capacity_bytes(
                                    {main->query_gate, {}}, main->query_gate_rows, first, last),
                                ops::linear_split_workspace_capacity_bytes(
                                    {main->kv_index, {}}, main->kv_index_rows, first, last));
-        if (grouped_batch > 0)
-            result = std::max(result, ops::linear_split_workspace_capacity_bytes(
-                                          {main->kv_index, {}}, main->kv_index_rows,
-                                          grouped_batch, grouped_batch));
         return result;
     }
     return ops::linear_split_workspace_capacity_bytes({std::get<ops::LinearProfile>(p.input), {}},

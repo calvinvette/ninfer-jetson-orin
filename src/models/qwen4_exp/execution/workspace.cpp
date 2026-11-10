@@ -65,10 +65,8 @@ std::size_t body(const ModelProfile& p, const EngineOptions& options, int first,
                 scratch(linear(g->output, minimum, columns));
             } else {
                 const auto& q = std::get<QsaProfile>(layer.mixer);
-                const auto grouped_batch = !prefill && !mtp && last > 1 ? batch : 0;
-                (void)workspace::qsa(a, p.local.qsa, columns, prefill || mtp, grouped_batch,
-                                      dimension(p.config.text.hidden));
-                scratch(qsa_projection_workspace_bytes(q, minimum, columns, grouped_batch));
+                (void)workspace::qsa(a, p.local.qsa, columns, prefill || mtp);
+                scratch(qsa_projection_workspace_bytes(q, minimum, columns));
                 scratch(ops::qsa_indexer_workspace_capacity_bytes(first, last, batch,
                                                                   {options.max_context}));
                 scratch(ops::qsa_sparse_gqa_workspace_capacity_bytes(

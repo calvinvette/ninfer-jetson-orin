@@ -90,8 +90,7 @@ void TextRun::local_mixer(std::uint32_t i) {
                                ? std::nullopt
                                : std::optional{execution_.states.main_tail(
                                      state.state_index, batch_.destination_offsets)};
-        // Verify's kv_index projections use the same batch width as decode; their index_query
-        // output can round differently when projected with the full Verify token extent.
+        // Short-window Q8 projections keep the same per-column reduction order in Step and Verify.
         qsa(roots_.input, parameters_.profile->local.qsa, std::get<QsaParameters>(p.mixer), batch_,
             execution_.states.main_tail(state.state_index, batch_.source_offsets), after,
             execution_.cache.layer(state.state_index), records, roots_.output, arena, cuda_);

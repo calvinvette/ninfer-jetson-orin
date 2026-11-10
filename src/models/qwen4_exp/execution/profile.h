@@ -95,7 +95,6 @@ struct ModelProfile {
 describe_model(const ModelDefinition&, std::span<const BoundWeight>,
                std::span<const moe::ExpertDescription>, const RankPlan&);
 [[nodiscard]] std::size_t qsa_projection_workspace_bytes(const QsaProfile&, std::int32_t first,
-                                                        std::int32_t last,
-                                                        std::int32_t grouped_batch = 0);
+                                                        std::int32_t last);
 } // namespace execution
 } // namespace ninfer::models::qwen4_exp

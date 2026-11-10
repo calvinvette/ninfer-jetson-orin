@@ -64,13 +64,10 @@ GdnBuffers gdn(Arena& a, const GdnConfig& c, std::int32_t m, bool prefill) {
 struct QsaBuffers {
     Tensor query, gate, key, value, index_query, index_key, selection, counts, output;
     Tensor raw_records, coordinate_records;
-    Tensor grouped_input, grouped_key, grouped_value;
-    Tensor grouped_index_query, grouped_index_key;
 };
 
 template <class Arena>
-QsaBuffers qsa(Arena& a, const QsaConfig& c, std::int32_t m, bool prefill,
-               std::int32_t grouped_batch = 0, std::int32_t input_width = 0) {
+QsaBuffers qsa(Arena& a, const QsaConfig& c, std::int32_t m, bool prefill) {
     const auto d = dimension(c.head_dim), qh = dimension(c.query_heads), kh = dimension(c.kv_heads);
     const auto id = dimension(c.index_dim), ih = dimension(c.index_heads);
     const auto ik = dimension(c.index_key_width());
@@ -85,14 +82,6 @@ QsaBuffers qsa(Arena& a, const QsaConfig& c, std::int32_t m, bool prefill,
                    a.alloc(DType::BF16, {d, qh, m}),
                    prefill ? a.alloc(DType::BF16, {ik, m}) : Tensor{},
                    prefill ? a.alloc(DType::I32, {3, m}) : Tensor{}};
-    if (grouped_batch > 0) {
-        out.grouped_input       = a.alloc(DType::BF16, {input_width, grouped_batch});
-        out.grouped_key = a.alloc(DType::BF16, {dimension(c.kv_width()), grouped_batch});
-        out.grouped_value = a.alloc(DType::BF16, {dimension(c.kv_width()), grouped_batch});
-        out.grouped_index_query =
-            a.alloc(DType::BF16, {dimension(c.index_query_width()), grouped_batch});
-        out.grouped_index_key   = a.alloc(DType::BF16, {ik, grouped_batch});
-    }
     return out;
 }
 

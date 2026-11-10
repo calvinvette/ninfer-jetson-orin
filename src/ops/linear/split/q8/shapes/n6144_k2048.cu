@@ -1,27 +1,10 @@
 #include "ops/linear/split/dispatch.h"
 #include "ops/linear/kernels/q8/q8_output_launch.cuh"
-#include <utility>
 
 namespace ninfer::ops::detail::linear_split {
 namespace {
 using Output = LinearBf16SegmentedOutput<4096, 1024, 1024>;
 using Routes = Q8A16OutputLaunch<Output>;
-
-template <int Columns>
-void launch_exact(const Routes& routes) {
-    constexpr int capacity   = (Columns + 7) / 8 * 8;
-    constexpr int min_blocks = capacity == 8 ? 5 : capacity == 16 ? 4 : capacity == 24 ? 3 : 2;
-    constexpr auto scales    = Columns > 4 ? Q8ScaleAccess::Shared : Q8ScaleAccess::Direct;
-    using Schedule           = Q8A16SlicedKMmaSchedule<capacity, 8, 1, min_blocks, scales>;
-    routes.template sliced<typename Schedule::template with_problem<2048, Columns, true>>();
-}
-
-template <std::size_t... I>
-constexpr auto exact_launchers(std::index_sequence<I...>) {
-    return std::array{&launch_exact<2 + static_cast<int>(I)>...};
-}
-
-constexpr auto kExact = exact_launchers(std::make_index_sequence<31>{});
 
 void launch_split(const Tensor& x, Weights weights, std::span<const Tensor> out, MemoryArena*,
                   cudaStream_t stream) {
@@ -31,7 +14,11 @@ void launch_split(const Tensor& x, Weights weights, std::span<const Tensor> out,
     const Routes routes{q8_linear_operands(x, weights.first), output, stream};
     const int t = x.ne[1];
     if (t == 1) return routes.template gemv<Q8A16GemvSchedule<8, 1, 2, 2048>>();
-    if (t <= 32) return kExact[t - 2](routes);
+    if (t <= 2) return routes.template gemv<Q8A16GemvTileSchedule<2, 8, 1, 2, 2048>>();
+    if (t <= 4) return routes.template gemv<Q8A16GemvTileSchedule<4, 8, 1, 2, 2048>>();
+    if (t <= 8) return routes.template gemv<Q8A16GemvTileSchedule<8, 8, 1, 2, 2048>>();
+    if (t <= 16) return routes.template gemv<Q8A16GemvTileSchedule<16, 8, 1, 2, 2048>>();
+    if (t <= 32) return routes.template gemv<Q8A16GemvTileSchedule<16, 8, 1, 2, 2048>>();
 
     if (t <= 48)
         return routes.template grouped<

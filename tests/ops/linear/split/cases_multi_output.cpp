@@ -121,8 +121,11 @@ void add_multi_output_cases(Suite& suite) {
                         Binding::LinearInputs};
         std::vector<Invocation> calls;
         if (k == 2048) {
-            for (int t : {1, 2, 97, 193, 289, 321, 385, 449})
-                calls.push_back({.t = t, .input_seed = 301U, .convenience = true});
+            for (int t : {1, 2, 4, 8, 16, 17, 32, 97, 193, 289, 321, 385, 449}) {
+                Invocation call{.t = t, .input_seed = 301U, .convenience = true};
+                call.serial_column_parity = t > 1 && t <= 32;
+                calls.push_back(std::move(call));
+            }
         } else {
             for (int t = 1; t <= 128; ++t)
                 calls.push_back({.t = t, .input_seed = 301U, .convenience = true});

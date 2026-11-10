@@ -189,6 +189,72 @@ int serial_window_parity(DeviceContext& device, KvCacheStorage storage) {
                   << std::distance(serial_wide.begin(), wide_mismatch.first) << '\n';
         ++failures;
     }
+
+    // Compact Verify can have fewer live rows than the prior decode round. Keep the same query
+    // in row 1 and compare its T=1,B=8 output with T=2,B=5 token 1.
+    Fixture serial_compact(1, 8, 72, false, storage);
+    Fixture step_compact(1, 5, 72, false, storage);
+    Fixture verify_compact(2, 5, 72, false, storage);
+    serial_compact.reset();
+    step_compact.reset();
+    verify_compact.reset();
+    share_prefix_cache(serial_compact);
+    share_prefix_cache(step_compact);
+    share_prefix_cache(verify_compact);
+    for (auto* f : {&serial_compact, &step_compact, &verify_compact}) {
+        for (int page = 0; page < f->table_width; ++page)
+            f->tables[2 * f->table_stride + page] = 1;
+        f->upload();
+    }
+    const auto serial_row = target_size;
+    const auto step_row = target_size;
+    const auto verify_row = 3 * target_size;
+    for (std::size_t i = 0; i < target_size; ++i) {
+        const auto q = f32_to_bf16(sample(static_cast<std::uint32_t>(i + 2331)));
+        const auto g = f32_to_bf16(sample(static_cast<std::uint32_t>(i + 5921)) * 4);
+        serial_compact.qhost[serial_row + i] = verify_compact.qhost[verify_row + i] = q;
+        step_compact.qhost[step_row + i] = q;
+        serial_compact.ghost[serial_row + i] = verify_compact.ghost[verify_row + i] = g;
+        step_compact.ghost[step_row + i] = g;
+    }
+    for (int g = 0; g < 18; ++g) {
+        serial_compact.ids[512 + g] = g;
+        step_compact.ids[512 + g] = g;
+        verify_compact.ids[3 * 512 + g] = g;
+    }
+    serial_compact.counts[1] = step_compact.counts[1] = verify_compact.counts[3] = 18;
+    for (auto* f : {&serial_compact, &step_compact, &verify_compact}) {
+        f->q.copy_from_host(f->qhost.data(), f->qhost.size() * sizeof(std::uint16_t));
+        f->gate.copy_from_host(f->ghost.data(), f->ghost.size() * sizeof(std::uint16_t));
+        f->selections.copy_from_host(f->ids.data(), f->ids.size() * sizeof(int));
+        f->sizes.copy_from_host(f->counts.data(), f->counts.size() * sizeof(int));
+        CUDA_CHECK(cudaStreamSynchronize(nullptr));
+    }
+    const auto serial_compact_out = launch(serial_compact);
+    const auto step_compact_out = launch(step_compact);
+    const auto verify_compact_out = launch(verify_compact);
+    const auto batch_mismatch = std::mismatch(
+        serial_compact_out.begin() + serial_row,
+        serial_compact_out.begin() + serial_row + target_size,
+        step_compact_out.begin() + step_row);
+    if (batch_mismatch.first != serial_compact_out.begin() + serial_row + target_size) {
+        std::cerr << "B=5 single-step QSA parity differs at BF16 element "
+                  << std::distance(serial_compact_out.begin() + serial_row,
+                                   batch_mismatch.first)
+                  << '\n';
+        ++failures;
+    }
+    const auto compact_mismatch = std::mismatch(
+        serial_compact_out.begin() + serial_row,
+        serial_compact_out.begin() + serial_row + target_size,
+        verify_compact_out.begin() + verify_row);
+    if (compact_mismatch.first != serial_compact_out.begin() + serial_row + target_size) {
+        std::cerr << "compact B=5 serial-window QSA parity differs at BF16 element "
+                  << std::distance(serial_compact_out.begin() + serial_row,
+                                   compact_mismatch.first)
+                  << '\n';
+        ++failures;
+    }
     return failures;
 }
 

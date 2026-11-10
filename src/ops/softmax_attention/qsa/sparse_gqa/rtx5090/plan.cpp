@@ -18,8 +18,12 @@ SparseGqaPlan select_sparse_gqa_plan(KvCacheStorage, int tokens, int batch, int 
     // The decode round and the verifier can contain the same logical query with different T but
     // the same request batch; deriving this from T*B changes the split reduction tree and can
     // change the BF16 attention output before the target argmax.
+    // Compact decode batches must use the same per-query reduction tree as a full
+    // eight-request batch. T <= 6 is the decode and Verify window on this product.
+    const auto planning_batch = tokens <= 6 ? 8 : batch;
     const auto target =
-        std::max<std::int64_t>(1, (std::int64_t(sms) * 3 / 4 + batch - 1) / batch);
+        std::max<std::int64_t>(1, (std::int64_t(sms) * 3 / 4 + planning_batch - 1) /
+                                      planning_batch);
 #else
     const auto target =
         std::max<std::int64_t>(1, (std::int64_t(sms) * 3 / 4 + queries - 1) / queries);
