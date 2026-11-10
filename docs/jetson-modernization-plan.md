@@ -1164,3 +1164,11 @@ matches repeated state updates exactly at width 5, batch 8, ragged valid lengths
 operator checks narrow the remaining state drift to model-level state/history or another boundary
 outside the tested projections and recurrence; the real-artifact long-horizon cohort remains
 unqualified.
+
+The temporary acceptance trace completed on a repeated-prompt, eight-request, 30-output, MTP-4
+real-artifact run and reached decode batch 8. It reproduced the first discrepancy at row 1,
+output token 25 (`10380` vs serial `16018`); the other rows matched through that token. The
+trace captured Verify target argmaxes, drafts, licensed tokens, and accepted counts at main
+frontiers 83–85, but did not establish whether the earliest divergence comes from the target
+forward values or speculative acceptance/state history. The diagnostic hooks were removed after
+the run. NVMe-backed artifact access remained slow, but the run completed in about 15 minutes.
