@@ -1157,3 +1157,10 @@ every token in the eight-row Q8 Verify input-projection/convolution window again
 single-token updates. Both focused cases pass exactly, including Q/K/V/Z values and convolution
 state. This rules out those isolated projection/control route differences for the tested shapes and
 inputs; it does not qualify the real artifact's accumulated GDN state or its output projection.
+
+The Qwen3.8 GDN output projection (`Q8`, N=2,560, K=6,144) also matches bit-for-bit over the
+shared eight-column prefix when launched with M=8 and M=16. The FP32 recurrence replay-record Op
+matches repeated state updates exactly at width 5, batch 8, ragged valid lengths. Together, these
+operator checks narrow the remaining state drift to model-level state/history or another boundary
+outside the tested projections and recurrence; the real-artifact long-horizon cohort remains
+unqualified.
