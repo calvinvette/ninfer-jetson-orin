@@ -25,8 +25,8 @@ using S7 = Bf16ScheduleInstance<Bf16A16TmaMmaSchedule<128, 80, 64, 32, 16, 3, 1>
 
 template <class Routes>
 auto select_route(int tokens, const Routes& routes) {
-    if (tokens <= 1) return routes.template gemv<S0>();
-    if (tokens <= 16) return routes.template sliced<S1>();
+    // QSA Verify's short windows must retain the one-token decode reduction order.
+    if (tokens <= 16) return routes.template gemv<S0>();
     if (tokens <= 48) return routes.template mma<S2>();
     if (tokens <= 64) return routes.template sliced<S3>();
     if (tokens <= 96) return routes.template mma<S4>();

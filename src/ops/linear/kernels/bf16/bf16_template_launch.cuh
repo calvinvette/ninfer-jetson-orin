@@ -24,11 +24,11 @@ template <class Schedule, class Output, class Epilogue>
 void launch_bf16_a16_gemv(const Bf16A16Operands& p, Output output, Epilogue epilogue,
                           cudaStream_t stream) {
     validate_bf16_operands<Schedule>(p);
-    if (p.tokens != 1 || p.rows % Schedule::kBlockRows ||
+    if (p.tokens <= 0 || p.rows % Schedule::kBlockRows ||
         p.k % (bf16_predicated_k<Schedule>
                    ? (Schedule::kValuesPerLane < 8 ? 8 : Schedule::kValuesPerLane)
                    : Schedule::kWarpsPerRow * 32 * Schedule::kValuesPerLane))
-        throw std::invalid_argument("BF16 GEMV requires T=1 and complete row/K tiles");
+        throw std::invalid_argument("BF16 GEMV requires positive T and complete row/K tiles");
     if constexpr (requires { Epilogue::kRowTokens; }) {
         static_assert(Epilogue::kRowTokens == 1, "BF16 GEMV row consumers require one token");
     }
@@ -46,7 +46,8 @@ void launch_bf16_a16_gemv(const Bf16A16Operands& p, Output output, Epilogue epil
             CUDA_CHECK(status);
         }
     }
-    kernel<<<p.rows / Schedule::kBlockRows, Schedule::kThreads, bytes, stream>>>(
+    const dim3 grid(p.rows / Schedule::kBlockRows, p.tokens);
+    kernel<<<grid, Schedule::kThreads, bytes, stream>>>(
         p.x, p.weight, output, epilogue, p.k);
     CUDA_CHECK(cudaGetLastError());
 }

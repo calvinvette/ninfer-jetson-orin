@@ -139,6 +139,7 @@ void add_segmented_cases(Suite& suite) {
         }
         if (fixture.profile.weights.size() == 1 && fixture.profile.weights[0].type == QType::BF16 &&
             fixture.profile.weights[0].rows == 1664) {
+            tokens.insert(5);
             for (int end : {32,  64,   96,   128,  160,  256,  336,  448,  560,  640,
                             896, 1024, 1152, 1280, 1408, 1440, 1664, 1856, 2048, 4096}) {
                 tokens.insert({end - 1, end, end + 1});
@@ -170,10 +171,12 @@ void add_segmented_cases(Suite& suite) {
                             .columns      = Columns::HeadBoundaries,
                             .full_rows    = t <= 8 || (w_b && (t == 32 || t == 128)),
                             .convenience  = true};
-            call.serial_column_parity = fixture.profile.k == 2560 && t == 5 &&
-                                        fixture.profile.weights.size() == 1 &&
-                                        fixture.profile.weights[0].type == QType::Q8_G32_FP16 &&
-                                        fixture.profile.weights[0].rows == 12288;
+            call.serial_column_parity =
+                fixture.profile.k == 2560 && fixture.profile.weights.size() == 1 &&
+                ((t <= 16 && fixture.profile.weights[0].type == QType::BF16 &&
+                  fixture.profile.weights[0].rows == 1664) ||
+                 (t == 5 && fixture.profile.weights[0].type == QType::Q8_G32_FP16 &&
+                  fixture.profile.weights[0].rows == 12288));
             calls.push_back(std::move(call));
         }
         calls.push_back({.t             = 17,
