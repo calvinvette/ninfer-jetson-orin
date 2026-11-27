@@ -84,3 +84,10 @@ device budget. A public CLI run with a 64×64 PPM, 64 MiB Vision budget,
 256 MiB Context pool, INT8 KV and MTP-3 generated all eight requested tokens
 from an 85-token expanded prompt. It accepted four of six drafts. This
 qualifies the bounded case under the observed memory budget.
+
+Both models also generated eight tokens with INT8 KV and MTP-3 from
+a 50-token prompt containing a two-second 84×56 video at 2 fps.
+The CLI used a 128 MiB Vision budget. The unscaled repository example
+exceeded the processor budget on both models. The bounded clip tests
+confirm video execution and do not measure representative performance
+while the Flash-Next artifact transfer is active.
