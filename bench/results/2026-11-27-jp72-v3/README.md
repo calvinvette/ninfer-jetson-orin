@@ -72,3 +72,7 @@ Anthropic schema tests. Both real V3 artifacts also passed the independent
 MTP Main-conditioning oracle with graphs enabled and disabled. Each case
 checked 21 KV states. Local logs are in `build/jp72-v3/qualification-tests.log`
 and the corresponding `*-mtp-graph*.log` files.
+
+The independent reduction oracle and the expert-cache test also passed.
+These exercise the relinked log-probability kernels and the cache's
+upload, reuse, and error paths. See `build/jp72-v3/reduction-cache-tests.log`.
