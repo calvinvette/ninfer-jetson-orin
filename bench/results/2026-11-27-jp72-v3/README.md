@@ -37,3 +37,19 @@ which resolved to 6.60 GiB and 9.03 GiB, respectively.
 
 TTFT is the Engine's first-token time. The local JSON reports are under
 `build/jp72-v3/`, named by model and workload.
+
+The fixed-clock 35B runs used the historical 130 MiB context pool and verified
+the exact saved control token IDs. JetPack 7.2.1 MAXN pinned CPU/GPU/EMC at
+2.2016/1.3005/3.199 GHz, the same clocks used for the CUDA 12.6 control.
+All repetitions reached their output limits. Peak GPU temperature was 64.7 °C.
+
+| 35B-A3B workload | CUDA 12.6 on JP7 prefill / decode (tok/s) | Native 13.2 prefill / decode (tok/s) | Native 13.2 TTFT (s) |
+| --- | ---: | ---: | ---: |
+| 512 prompt + 64 decode | 1,221.48 / 36.413 | 1,218.00 / 36.74 | 0.421 |
+| 2,048 prompt + 128 decode | 1,435.99 / 36.380 | 1,386.47 / 36.53 | 1.478 |
+
+The native run's short prefill was 0.3% lower and long prefill was 3.4%
+lower. Decode was 0.9% and 0.4% higher, respectively. The historic CUDA 12.6
+bundle included local Qwen operator edits, so the comparison measures the two
+builds. A CUDA 12.6 build from the same published source is in progress.
+Local JSON and telemetry are in `build/jp72-v3/fixed/`.
