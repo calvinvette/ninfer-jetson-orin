@@ -53,3 +53,16 @@ lower. Decode was 0.9% and 0.4% higher, respectively. The historic CUDA 12.6
 bundle included local Qwen operator edits, so the comparison measures the two
 builds. A CUDA 12.6 build from the same published source is in progress.
 Local JSON and telemetry are in `build/jp72-v3/fixed/`.
+
+The 27B runs at the same fixed clocks completed all repetitions. The
+automatic Context pools resolved to 8.75 GiB and 8.89 GiB. Peak GPU
+temperature was 71.9 °C.
+
+| Fixed-clock 27B workload | TTFT (s) | Prefill (tok/s) | Decode (tok/s) |
+| --- | ---: | ---: | ---: |
+| 512 prompt + 64 decode | 2.041 | 250.99 | 7.31 |
+| 2,048 prompt + 128 decode | 8.150 | 251.33 | 7.28 |
+
+All three metrics were within 0.2% of the dynamic-clock runs. Context
+sizing also varied across runs. The CPU, GPU and EMC clock policy was
+verified after restoring the dynamic settings.
