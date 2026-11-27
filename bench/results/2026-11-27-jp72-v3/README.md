@@ -66,3 +66,9 @@ temperature was 71.9 °C.
 All three metrics were within 0.2% of the dynamic-clock runs. Context
 sizing also varied across runs. The CPU, GPU and EMC clock policy was
 verified after restoring the dynamic settings.
+
+The final native build passed the five artifact tests and the OpenAI and
+Anthropic schema tests. Both real V3 artifacts also passed the independent
+MTP Main-conditioning oracle with graphs enabled and disabled. Each case
+checked 21 KV states. Local logs are in `build/jp72-v3/qualification-tests.log`
+and the corresponding `*-mtp-graph*.log` files.
