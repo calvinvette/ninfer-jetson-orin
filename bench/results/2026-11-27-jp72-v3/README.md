@@ -23,4 +23,12 @@ chunk. With dynamic clocks, one warmup and three measured repetitions,
 median prefill was **1,225.32 tok/s** and median decode was **36.72 tok/s**.
 The historic CUDA 12.6 control used a smaller context pool and locked
 clocks, so this run establishes native performance for this configuration.
-The full local report is `build/jp72-v3/35b-pp512-tg64.json`.
+The 2,048-token case used the same settings with 129 output tokens.
+
+| Dynamic-clock 35B-A3B workload | TTFT (s) | Prefill (tok/s) | Decode (tok/s) |
+| --- | ---: | ---: | ---: |
+| 512 prompt + 64 decode | 0.419 | 1,225.32 | 36.72 |
+| 2,048 prompt + 128 decode | 1.470 | 1,394.47 | 36.71 |
+
+TTFT is the Engine's first-token time. The local JSON reports are
+`build/jp72-v3/35b-pp512-tg64.json` and `build/jp72-v3/35b-pp2048-tg128.json`.
