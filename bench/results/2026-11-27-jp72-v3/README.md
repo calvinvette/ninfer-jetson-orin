@@ -25,10 +25,15 @@ The historic CUDA 12.6 control used a smaller context pool and locked
 clocks, so this run establishes native performance for this configuration.
 The 2,048-token case used the same settings with 129 output tokens.
 
-| Dynamic-clock 35B-A3B workload | TTFT (s) | Prefill (tok/s) | Decode (tok/s) |
+| Dynamic-clock workload | TTFT (s) | Prefill (tok/s) | Decode (tok/s) |
 | --- | ---: | ---: | ---: |
-| 512 prompt + 64 decode | 0.419 | 1,225.32 | 36.72 |
-| 2,048 prompt + 128 decode | 1.470 | 1,394.47 | 36.71 |
+| 35B-A3B, 512 prompt + 64 decode | 0.419 | 1,225.32 | 36.72 |
+| 35B-A3B, 2,048 prompt + 128 decode | 1.470 | 1,394.47 | 36.71 |
+| 27B, 512 prompt + 64 decode | 2.041 | 251.01 | 7.31 |
+| 27B, 2,048 prompt + 128 decode | 8.155 | 251.17 | 7.29 |
 
-TTFT is the Engine's first-token time. The local JSON reports are
-`build/jp72-v3/35b-pp512-tg64.json` and `build/jp72-v3/35b-pp2048-tg128.json`.
+The 27B runs used the same workload settings with automatic context sizing,
+which resolved to 6.60 GiB and 9.03 GiB, respectively.
+
+TTFT is the Engine's first-token time. The local JSON reports are under
+`build/jp72-v3/`, named by model and workload.
