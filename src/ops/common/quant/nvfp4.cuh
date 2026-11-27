@@ -25,7 +25,8 @@ __device__ __forceinline__ float2 decode_nvfp4_e2m1x2(std::uint8_t storage) {
 }
 
 __device__ __forceinline__ unsigned nvfp4_pair_bf16_scaled(std::uint8_t code, unsigned scale_bits) {
-#if __CUDACC_VER_MAJOR__ > 13 || (__CUDACC_VER_MAJOR__ == 13 && __CUDACC_VER_MINOR__ >= 2)
+#if defined(__CUDA_ARCH__) && __CUDA_ARCH__ >= 1000 && \
+    (__CUDACC_VER_MAJOR__ > 13 || (__CUDACC_VER_MAJOR__ == 13 && __CUDACC_VER_MINOR__ >= 2))
     // PTX 9.2 exposes native pair widening. E2M1 times a finite E4M3 scale needs
     // at most six significand bits, so the BF16 multiplication is exact.
     unsigned values, result;
@@ -39,7 +40,7 @@ __device__ __forceinline__ unsigned nvfp4_pair_bf16_scaled(std::uint8_t code, un
     asm("mul.rn.bf16x2 %0, %1, %2;" : "=r"(result) : "r"(values), "r"(scale_bits));
     return result;
 #else
-    // CUDA 13.1 retains the exact FP32 expansion.
+    // Older architectures and toolkits use the exact FP32 expansion.
     const float2 values = decode_nvfp4_e2m1x2(code);
     const float2 scale  = bf16x2_bits_to_float2(scale_bits);
 

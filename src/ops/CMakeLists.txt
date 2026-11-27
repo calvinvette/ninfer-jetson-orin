@@ -2,7 +2,7 @@
 add_library(ninfer_ops SHARED)
 ninfer_internal_includes(ninfer_ops)
 ninfer_cuda_library(ninfer_ops)
-target_link_libraries(ninfer_ops PUBLIC ninfer_core PRIVATE ninfer_ops_non_rdc)
+target_link_libraries(ninfer_ops PUBLIC ninfer_core PRIVATE "$<LINK_LIBRARY:WHOLE_ARCHIVE,ninfer_ops_non_rdc>")
 
 # Non-RDC kernels keep instruction and register-allocation choices within one translation unit.
 # This private PIC archive joins the shared library through host launchers.
