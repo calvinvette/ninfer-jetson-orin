@@ -229,7 +229,9 @@ void CudaHostCopyBatch::submit(CudaExecutionView execution) const {
     }
     if (!count_) { return; }
     CudaDeviceScope scope(device_);
-#if CUDART_VERSION >= 12080
+// On Jetson Linux R39.2.1, CUDA 13.2 batched H2D copies can fault in the
+// driver. Ordered individual copies preserve the batch's stream semantics.
+#if CUDART_VERSION >= 12080 && !defined(NINFER_TARGET_JETSON_ORIN)
     cudaMemcpyAttributes attributes{};
     attributes.srcAccessOrder = cudaMemcpySrcAccessOrderStream;
     std::size_t first         = 0;
