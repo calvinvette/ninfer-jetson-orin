@@ -76,3 +76,11 @@ and the corresponding `*-mtp-graph*.log` files.
 The independent reduction oracle and the expert-cache test also passed.
 These exercise the relinked log-probability kernels and the cache's
 upload, reuse, and error paths. See `build/jp72-v3/reduction-cache-tests.log`.
+
+Both original models passed the explicit prefix integration test. The 27B
+passed the image Vision integration fixture. On the 35B, the same fixture
+failed at startup because its default Vision setup exceeded the available
+device budget. A public CLI run with a 64×64 PPM, 64 MiB Vision budget,
+256 MiB Context pool, INT8 KV and MTP-3 generated all eight requested tokens
+from an 85-token expanded prompt. It accepted four of six drafts. This
+qualifies the bounded case under the observed memory budget.

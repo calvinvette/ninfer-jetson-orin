@@ -6,8 +6,10 @@ As of 2026-11-27, the Jetson SM87 build on
 `feat/jetson-orin-jp72-cuda132` builds the CLI, server, and benchmark with
 CUDA 13.2.86. Qwen3.8-27B and Qwen3.6-35B-A3B V3 artifacts passed loader
 and generation smoke tests and the MTP conditioning oracle with CUDA
-Graphs on and off. The 27B also passed explicit prefix reuse and image
-Vision integration. The server schema tests passed.
+Graphs on and off. Both passed explicit prefix reuse and image Vision
+checks. The 35B-A3B passed a bounded public CLI image case with a 64 MiB
+Vision budget after the default integration fixture exceeded the available
+device budget. The server schema tests passed.
 
 The [native qualification report](bench/results/2026-11-27-jp72-v3/README.md)
 contains the dynamic and fixed-clock throughput for both original models.
