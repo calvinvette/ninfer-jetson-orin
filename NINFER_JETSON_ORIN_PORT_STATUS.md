@@ -1,5 +1,21 @@
 # NInfer Jetson Orin Port Status
 
+## JetPack 7.2.1 and V3 modernization
+
+As of 2026-11-27, the Jetson SM87 build on
+`feat/jetson-orin-jp72-cuda132` builds the CLI, server, and benchmark with
+CUDA 13.2.86. Qwen3.8-27B and Qwen3.6-35B-A3B V3 artifacts passed loader
+and generation smoke tests and the MTP conditioning oracle with CUDA
+Graphs on and off. The 27B also passed explicit prefix reuse and image
+Vision integration. The server schema tests passed.
+
+The [native qualification report](bench/results/2026-11-27-jp72-v3/README.md)
+contains the dynamic and fixed-clock throughput for both original models.
+Same-source CUDA 12.6 regression, live serving, and native Flash-Next
+storage-backed qualification remain open.
+
+## Original SM87 port
+
 Status assessed: 2026-09-26.
 
 Phases 0 through 2 are complete, and Phase 3 is qualified for the tested SM87
